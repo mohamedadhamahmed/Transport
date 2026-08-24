@@ -83,7 +83,10 @@
 
                 {{-- بيانات الفاتورة الأساسية --}}
                 <div class="bg-white shadow-sm border border-gray-100 sm:rounded-xl p-6">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                    {{-- الصف الأول: اسم العميل ياخد نص عرض الصفحة (لإنه فيه بحث/إضافة)
+                         وطريقة الدفع جنبه في النص التاني. --}}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.customer') }} *</label>
@@ -103,14 +106,6 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.branch') }}</label>
-                            <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-gray-600">
-                                {{ auth()->user()->branch->name ?? '-' }}
-                            </div>
-                            <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
-                        </div>
-
-                        <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.payment_method') }} *</label>
                             <select name="payment_method" x-model="paymentMethod"
                                     class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]" required>
@@ -122,42 +117,52 @@
                             </select>
                         </div>
 
-                        <template x-if="paymentMethod === 'split'">
-                            <div class="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0F1B4C]/5 p-4 rounded-lg border border-[#0F1B4C]/10">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.cash_amount') }}</label>
-                                    <input type="number" step="0.01" min="0" name="cash_amount" x-model.number="cashAmount"
-                                           class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.bank_amount') }}</label>
-                                    <input type="number" step="0.01" min="0" name="bank_amount" x-model.number="bankAmount"
-                                           class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                                </div>
-                            </div>
-                        </template>
+                    </div>
 
-                        {{-- نسبة الضريبة + الملاحظات جنب بعض في نفس الصف (فليكس بدل جريد
-                             عشان أوتيليتيز الفليكس أكيد متبنية في أي بيلد Tailwind وميحصلش
-                             مشكلة إن كلاس زي grid-cols-12 يبقى مش موجود في الـ CSS النهائي). --}}
-                        <div class="md:col-span-3 flex flex-col md:flex-row gap-4">
-                            <div class="md:w-1/4">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.tax') }}</label>
-                                <select x-model.number="defaultTaxRate" @change="applyDefaultTaxRate()"
-                                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                                    <option value="0.15">15%</option>
-                                    <option value="0">0%</option>
-                                </select>
+                    {{-- الدفع المقسّم (كاش/بنك) - بيظهر بس لو طريقة الدفع "split" --}}
+                    <template x-if="paymentMethod === 'split'">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0F1B4C]/5 p-4 rounded-lg border border-[#0F1B4C]/10 mt-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.cash_amount') }}</label>
+                                <input type="number" step="0.01" min="0" name="cash_amount" x-model.number="cashAmount"
+                                       class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                             </div>
-
-                            <div class="md:w-1/4">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.note') }}</label>
-                                <input type="text" name="note"
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.bank_amount') }}</label>
+                                <input type="number" step="0.01" min="0" name="bank_amount" x-model.number="bankAmount"
                                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                             </div>
                         </div>
+                    </template>
+
+                    {{-- الصف الثاني: الفرع + نسبة الضريبة + الملاحظات في صف لوحدهم --}}
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.branch') }}</label>
+                            <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-gray-600">
+                                {{ auth()->user()->branch->name ?? '-' }}
+                            </div>
+                            <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.tax') }}</label>
+                            <select x-model.number="defaultTaxRate" @change="applyDefaultTaxRate()"
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                <option value="0.15">15%</option>
+                                <option value="0">0%</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.note') }}</label>
+                            <input type="text" name="note"
+                                   class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                        </div>
 
                     </div>
+
                 </div>
 
                 {{-- إضافة الأصناف --}}
