@@ -1,0 +1,1 @@
+<img src="{{ asset('images/MainLogo.png') }}" alt="{{ config('app.name', 'Daftercom') }}" {{ $attributes }}>
