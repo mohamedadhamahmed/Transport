@@ -8,6 +8,7 @@ use App\Models\Setting;
 use Illuminate\Http\Request;
 use Ramsey\Uuid\Uuid;
 use DOMDocument;
+use Throwable;
 
 // كلاسات باكدج الزاتكا - نفس الـ use statements اللي بعتيهالي بالظبط
 use App\Services\Zatca\Invoice\Client;
@@ -30,17 +31,17 @@ use App\Services\Zatca\Invoice\InvoiceGenerator;
 |--------------------------------------------------------------------------
 | شاشة "الفواتير المرسلة / الغير مرسلة للزكاة" - بديل صفحتين النظام
 | القديم (اللي بتفلتر بالفرع، واللي بتجيب كل الفروع) في شاشة واحدة
-| بتبديل (تاب) "غير مرسلة" / "مرسلة".
+| بتبديل (تاب) "غير مرسلة" / "مرسلة"، وفيها كمان زرار "إرسال الكل".
 |
 | ملحوظة واحدة باقية قبل ما ده يشتغل فعليًا:
 |
-|  $setting = Setting::query()->first() تحت في send() - بعتيلي في
-|  الـ use statements موديلين: App\Models\Setting و
-|  App\Models\SystemSetting سوا. أنا مستخدمة Setting دلوقتي (نفس
-|  اسم "settings" في نظامك القديم)، لكن لو بيانات المنشأة الحقيقية
-|  (الرقم الضريبي CRN/TRN، الشهادة production_certificate، مفتاح
-|  التوقيع private_key، previous_hash_invoice...) موجودة في
-|  SystemSetting بدل كده، قوليلي وأغيّر السطر ده بسرعة.
+|  $setting = Setting::query()->first() تحت - بعتيلي في الـ use
+|  statements موديلين: App\Models\Setting و App\Models\SystemSetting
+|  سوا. أنا مستخدمة Setting دلوقتي (نفس اسم "settings" في نظامك
+|  القديم)، لكن لو بيانات المنشأة الحقيقية (الرقم الضريبي CRN/TRN،
+|  الشهادة production_certificate، مفتاح التوقيع private_key،
+|  previous_hash_invoice...) موجودة في SystemSetting بدل كده، قوليلي
+|  وأغيّر السطر ده بسرعة.
 */
 class ZatcaController extends Controller
 {
@@ -81,21 +82,10 @@ class ZatcaController extends Controller
     }
 
     /**
-     * إرسال فاتورة واحدة للزكاة (AJAX) - نسخة من sent_to_zatca() في
-     * نظامك القديم، بعد تعديلها لموديلات my-erp.
+     * إرسال فاتورة واحدة للزكاة (AJAX)
      */
     public function send(Invoice $invoice)
     {
-        if ($invoice->is_sent_to_zatca) {
-            return response()->json([
-                'success' => false,
-                'message' => __('zatca.already_sent'),
-            ], 422);
-        }
-
-        // ملحوظة: لو بيانات المنشأة الحقيقية موجودة في SystemSetting
-        // بدل Setting، غيّري السطر ده لـ SystemSetting::query()->first()
-        // (شوفي الملحوظة فوق أول الملف).
         $setting = Setting::query()->first();
 
         if (!$setting) {
@@ -103,6 +93,104 @@ class ZatcaController extends Controller
                 'success' => false,
                 'message' => __('zatca.settings_missing'),
             ], 422);
+        }
+
+        $result = $this->performSend($invoice, $setting);
+
+        return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
+    }
+
+    /**
+     * إرسال كل الفواتير "الغير مرسلة" الظاهرة حاليًا (بنفس فلاتر الشاشة:
+     * الفرع / من تاريخ / إلى تاريخ) دفعة واحدة (AJAX).
+     *
+     * مهم: بترسل الفواتير بترتيب التاريخ من الأقدم للأحدث، لإن كل فاتورة
+     * محتاجة الـ previous_hash بتاع اللي قبلها (سلسلة الـ PIH) - لو
+     * الترتيب اتقلب هتفشل كل الفواتير اللي بعد أول واحدة غلط.
+     *
+     * الفاتورة اللي تفشل بيتم تخطيها وتكمل اللي بعدها، وفي الآخر بترجع
+     * ملخص (كام اترسل / كام فشل ولية).
+     */
+    public function sendAll(Request $request)
+    {
+        $setting = Setting::query()->first();
+
+        if (!$setting) {
+            return response()->json([
+                'success' => false,
+                'message' => __('zatca.settings_missing'),
+            ], 422);
+        }
+
+        $query = Invoice::with(['customer'])
+            ->where('is_finalized', true)
+            ->where('is_sent_to_zatca', false)
+            ->oldest('issue_date')
+            ->oldest('id');
+
+        if ($request->filled('branch_id')) {
+            $query->where('branch_id', $request->input('branch_id'));
+        }
+        if ($request->filled('start_at')) {
+            $query->whereDate('issue_date', '>=', $request->date('start_at'));
+        }
+        if ($request->filled('end_at')) {
+            $query->whereDate('issue_date', '<=', $request->date('end_at'));
+        }
+
+        $invoices = $query->get();
+
+        if ($invoices->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => __('zatca.no_invoices_to_send'),
+            ], 422);
+        }
+
+        $sentCount = 0;
+        $failed = [];
+
+        foreach ($invoices as $invoice) {
+            try {
+                $result = $this->performSend($invoice, $setting);
+            } catch (Throwable $e) {
+                $result = ['success' => false, 'message' => $e->getMessage()];
+            }
+
+            if ($result['success'] ?? false) {
+                $sentCount++;
+                // performSend() بيعمل $setting->update(...) جوه، وده بيحدّث
+                // القيم على نفس الـ $setting instance تلقائيًا، فمفيش داعي
+                // نجيبه تاني من الداتابيز - الفاتورة اللي بعدها هتاخد
+                // previous_hash_invoice الصح.
+            } else {
+                $failed[] = [
+                    'invoice_number' => $invoice->invoice_number ?? $invoice->id,
+                    'message' => $result['message'] ?? __('zatca.send_failed'),
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'total' => $invoices->count(),
+            'sent_count' => $sentCount,
+            'failed_count' => count($failed),
+            'failed' => $failed,
+        ]);
+    }
+
+    /**
+     * المنطق الفعلي لإرسال فاتورة واحدة - مستخدم من send() و sendAll()
+     * سوا. نسخة من دالة sent_to_zatca() اللي كانت شغالة في نظامك
+     * القديم، بعد تعديلها لموديلات my-erp.
+     *
+     * @return array{success: bool, message?: string}
+     */
+    protected function performSend(Invoice $invoice, Setting $setting): array
+    {
+        if ($invoice->is_sent_to_zatca) {
+            return ['success' => false, 'message' => __('zatca.already_sent')];
         }
 
         $customer = $invoice->customer;
@@ -119,10 +207,7 @@ class ZatcaController extends Controller
                 empty($customer->street_name) || empty($customer->tax_number) ||
                 strlen((string) $customer->tax_number) !== 15
             ) {
-                return response()->json([
-                    'success' => false,
-                    'message' => __('zatca.missing_customer_address'),
-                ], 422);
+                return ['success' => false, 'message' => __('zatca.missing_customer_address')];
             }
         }
 
@@ -285,7 +370,7 @@ class ZatcaController extends Controller
                 'zatca_cleared_invoice_xml' => $documentType === 'simplified' ? null : ($response['response']->clearedInvoice ?? null),
             ]);
 
-            return response()->json(['success' => true]);
+            return ['success' => true];
         }
 
         $invoice->update(['zatca_status' => 'FAIL']);
@@ -293,7 +378,7 @@ class ZatcaController extends Controller
         $message = $response['response']->validationResults->errorMessages[0]->message
             ?? __('zatca.send_failed');
 
-        return response()->json(['success' => false, 'message' => $message], 422);
+        return ['success' => false, 'message' => $message];
     }
 
     /**

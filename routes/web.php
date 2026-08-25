@@ -25,6 +25,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/invoices', [InvoiceController::class, 'index'])->name('invoices.index');
     Route::get('/zatca', [ZatcaController::class, 'index'])->name('zatca.index');
     Route::post('/zatca/{invoice}/send', [ZatcaController::class, 'send'])->name('zatca.send');
+    Route::post('/zatca/send-all', [ZatcaController::class, 'sendAll'])->name('zatca.send-all');
     Route::get('/zatca/{invoice}/download-xml', [ZatcaController::class, 'downloadXml'])->name('zatca.download-xml');
 });
 

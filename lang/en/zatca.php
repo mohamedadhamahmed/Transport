@@ -13,6 +13,15 @@ return [
     'all_branches' => 'All Branches',
     'search' => 'Search',
 
+    'send_all' => 'Send All to ZATCA',
+    'confirm_send_all' => 'All currently shown not-sent invoices (:count invoices) will be sent to ZATCA. This may take a while depending on the count - please do not close the page.',
+    'yes_send_all' => 'Yes, send all',
+    'cancel' => 'Cancel',
+    'sending_all_wait' => 'Sending invoices to ZATCA, please wait and do not close the page...',
+    'send_all_done' => ':sent out of :total invoices sent successfully',
+    'send_all_with_failures' => ':sent out of :total invoices sent successfully, :failed failed',
+    'no_invoices_to_send' => 'There are no not-sent invoices to send right now',
+
     'invoice_no' => 'Invoice No.',
     'seller' => 'Seller',
     'customer' => 'Customer',

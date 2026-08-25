@@ -1,6 +1,6 @@
 <x-app-layout>
 
-    <div class="py-6" x-data="zatcaScreen()">
+    <div class="py-6" x-data="zatcaScreen({{ $invoices->count() }})">
         <div class="max-w-[1680px] mx-auto sm:px-6 lg:px-8 space-y-6">
 
             {{-- هيدر الصفحة --}}
@@ -14,6 +14,44 @@
                     <div>
                         <h2 class="text-white font-bold text-lg leading-tight">{{ __('zatca.title') }}</h2>
                         <p class="text-white/45 text-xs mt-0.5">{{ __('zatca.subtitle') }}</p>
+                    </div>
+                </div>
+
+                @if (!$sent && $invoices->count() > 0)
+                    <button type="button" @click="confirmSendAll()"
+                            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F5811E] hover:brightness-95 transition shadow-sm shadow-black/10">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7Z" />
+                        </svg>
+                        {{ __('zatca.send_all') }}
+                    </button>
+                @endif
+            </div>
+
+            {{-- إحصائية سريعة: كام فاتورة اترسلت وكام لسه --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+                    <span class="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                        <svg class="w-6 h-6 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                            <path d="m22 4-10 10-3-3" />
+                        </svg>
+                    </span>
+                    <div>
+                        <p class="text-xs text-gray-500 font-medium">{{ __('zatca.sent') }}</p>
+                        <p class="text-2xl font-bold text-[#0F1B4C] tabular-nums">{{ $sentCount }}</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+                    <span class="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
+                        <svg class="w-6 h-6 text-[#F5811E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="9" />
+                            <path d="M12 7v5l3 3" />
+                        </svg>
+                    </span>
+                    <div>
+                        <p class="text-xs text-gray-500 font-medium">{{ __('zatca.not_sent') }}</p>
+                        <p class="text-2xl font-bold text-[#0F1B4C] tabular-nums">{{ $notSentCount }}</p>
                     </div>
                 </div>
             </div>
@@ -138,20 +176,23 @@
         </div>
 
         {{-- شاشة تحميل أثناء الإرسال - نفس فكرة loading-screen في النظام القديم --}}
-        <div x-show="sending" x-cloak
-             class="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] text-white gap-3">
+        <div x-show="sending || sendingAll" x-cloak
+             class="fixed inset-0 bg-black/70 flex flex-col items-center justify-center z-[9999] text-white gap-3 px-6 text-center">
             <svg class="w-8 h-8 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="9" stroke-opacity="0.25"/>
                 <path d="M21 12a9 9 0 0 0-9-9"/>
             </svg>
-            <p>{{ __('zatca.sending_wait') }}</p>
+            <p x-show="sending" x-cloak>{{ __('zatca.sending_wait') }}</p>
+            <p x-show="sendingAll" x-cloak>{{ __('zatca.sending_all_wait') }}</p>
         </div>
     </div>
 
     <script>
-        function zatcaScreen() {
+        function zatcaScreen(notSentVisibleCount) {
             return {
                 sending: false,
+                sendingAll: false,
+                notSentVisibleCount: notSentVisibleCount || 0,
 
                 async sendToZatca(invoiceId) {
                     this.sending = true;
@@ -191,6 +232,75 @@
                         });
                     } finally {
                         this.sending = false;
+                    }
+                },
+
+                confirmSendAll() {
+                    Swal.fire({
+                        icon: 'question',
+                        title: @json(__('zatca.send_all')),
+                        text: @json(__('zatca.confirm_send_all')).replace(':count', this.notSentVisibleCount),
+                        showCancelButton: true,
+                        confirmButtonColor: '#F5811E',
+                        cancelButtonColor: '#6B7280',
+                        confirmButtonText: @json(__('zatca.yes_send_all')),
+                        cancelButtonText: @json(__('zatca.cancel')),
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            this.sendAllToZatca();
+                        }
+                    });
+                },
+
+                async sendAllToZatca() {
+                    this.sendingAll = true;
+                    try {
+                        const params = new URLSearchParams(window.location.search);
+                        const res = await fetch(`{{ url('zatca/send-all') }}?${params.toString()}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'Accept': 'application/json',
+                            },
+                        });
+                        const data = await res.json();
+
+                        if (data.success) {
+                            const msgKey = (data.failed_count > 0)
+                                ? @json(__('zatca.send_all_with_failures'))
+                                : @json(__('zatca.send_all_done'));
+
+                            const text = msgKey
+                                .replace(':sent', data.sent_count)
+                                .replace(':total', data.total)
+                                .replace(':failed', data.failed_count);
+
+                            Swal.fire({
+                                icon: (data.failed_count > 0) ? 'warning' : 'success',
+                                title: @json(__('zatca.send_all')),
+                                text: text,
+                                confirmButtonColor: '#0F1B4C',
+                                confirmButtonText: @json(__('zatca.ok')),
+                            }).then(() => window.location.reload());
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: @json(__('zatca.send_failed')),
+                                text: data.message || '',
+                                confirmButtonColor: '#0F1B4C',
+                                confirmButtonText: @json(__('zatca.ok')),
+                            });
+                        }
+                    } catch (e) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: @json(__('zatca.send_failed')),
+                            confirmButtonColor: '#0F1B4C',
+                            confirmButtonText: @json(__('zatca.ok')),
+                        });
+                    } finally {
+                        this.sendingAll = false;
                     }
                 },
             }
