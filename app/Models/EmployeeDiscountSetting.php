@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EmployeeDiscountSetting extends Model
 {
+        protected $table = 'employee_discount_settings';
+
     protected $fillable = ['user_id', 'branchs_id', 'max_discount'];
 
     protected $casts = [

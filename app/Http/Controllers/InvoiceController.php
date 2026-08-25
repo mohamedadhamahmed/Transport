@@ -14,9 +14,865 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
+use App\Models\InvoiceReturn;
+use App\Services\Zatca\QRCode;
+use App\Services\Zatca\QRCodeString;
+use App\Services\Zatca\ZatcaConfig;
+use App\Models\Setting;
+use App\Models\SystemSetting;
+// ZATCA Invoice Services
+use App\Services\Zatca\Invoice\Client;
+use App\Services\Zatca\Invoice\Supplier;
+use App\Services\Zatca\Invoice\Delivery;
+use App\Services\Zatca\Invoice\PaymentType;
+use App\Services\Zatca\Invoice\PIH;
+use App\Services\Zatca\Invoice\ReturnReason;
+use App\Services\Zatca\Invoice\BillingReference;
+use App\Services\Zatca\Invoice\AdditionalDocumentReference;
+use App\Services\Zatca\Invoice\LegalMonetaryTotal;
+use App\Services\Zatca\Invoice\TaxesTotal;
+use App\Services\Zatca\Invoice\TaxSubtotal;
+use App\Services\Zatca\Invoice\LineTaxCategory;
+use App\Services\Zatca\Invoice\InvoiceLine;
+use App\Services\Zatca\Invoice\AllowanceCharge;
+use App\Services\Zatca\Invoice\InvoiceGenerator;
+use Ramsey\Uuid\Uuid;
+use DOMDocument;
+
 
 class InvoiceController extends Controller
 {
+
+
+    function sent_to_zatca_return_items($request)
+    {
+        // - Then Call Invoice required data from database depend on your query statment and required company id
+
+        $setting = Setting::where('branchs_id', 1)->first();
+
+        $previous_invoice = null;
+        $invoice = Invoice::find($request);
+
+
+
+        if ($invoice->document_type == 'standard') {
+            if (
+                is_null($invoice->customer->name) || is_null($invoice->customer->postcode) || is_null($invoice->customer->address) || is_null($invoice->customer->sub_city) ||
+                is_null($invoice->customer->plot_identification) || is_null($invoice->customer->building_number) || is_null($invoice->customer->street_name) || is_null($invoice->customer->tax_no) || strlen($invoice->customer->tax_no) != 15
+            ) {
+                return "  \n Please enter the full national address and tax number information. Thank you يرجل ادخال بيانات العنوان الوطني و الرقم الضريبيي كاملا وشكرا";
+
+            }
+
+        }
+        $invprevious = $setting->previous_hash_invoice;
+
+        if ($invprevious == null) {
+            $previous_invoice = 'X+zrZv/IbzjZUnhsbWlsecLbwjndTpG0ZynXOif7V+k=';
+
+        } else {
+            $previous_invoice = $invprevious;
+        }
+        $myuuid = Uuid::uuid4();
+
+        $created_at = \Carbon\Carbon::now();
+        Invoice::find($request)->update(
+            [
+                'issue_date_return' => substr($created_at, 0, 10),
+                'issue_time_return' => substr($created_at, 11),
+                'uuid' => $myuuid
+            ]
+        );
+
+        $invoice = Invoice::find($request);
+
+        $rat_tax = 0;
+
+
+        $total_withot_tax_sum = 0;
+        $tax_sum = 0;
+        $total_with_tax_sum = 0;
+        $invoiceLines = [];
+
+
+
+        foreach (InvoiceReturn::where("invoice_id", $request)->where('return_quantity', '!=', 0)->where('send_zatca', 0)->get() as $item) {
+            InvoiceReturn::find($item->id)->update(['send_zatca' => 1]);
+            $price_each_element_withoud_tax = number_format(($item->return_Unit_Price - ($item->discountvalue / $item->return_quantity)), 2, '.', '');
+            $temp = ($item->return_Unit_Price - ($item->discountvalue / $item->return_quantity)) * $item->return_quantity;
+            $total_withot_tax = number_format($temp, 2, '.', '');
+            $temp = ($item->return_Added_Value) * $item->return_quantity;
+            $tax = number_format($temp, 2, '.', '');
+            $totlal_element = $total_withot_tax + $tax;
+
+            $total_with_tax = number_format($totlal_element, 2, '.', '');
+            $total_withot_tax_sum = $total_withot_tax_sum + $total_withot_tax * 1;
+            $tax_sum = $tax_sum + $tax;
+            $total_with_tax_sum = $total_with_tax_sum + $total_with_tax;
+            $rat_tax = number_format($item->tax_rate*100, 2, '.', '');
+            $taxCategoryCode = ($item->tax_rate == 0) ? 'E' : 'S';
+            $itemTaxCategory = (new LineTaxCategory())
+                ->setTaxCategory($taxCategoryCode)
+                ->setTaxPercentage($rat_tax)
+                ->getElement();
+            $invoiceLines[] = (new InvoiceLine())
+                ->setLineID($item->product_id)
+                ->setLineName($item->productData->product_name)
+                ->setLineCurrency('SAR')
+                ->setLinePrice(number_format($price_each_element_withoud_tax, 2, '.', ''))
+                ->setLineQuantity($item->return_quantity)
+                ->setLineSubTotal($total_withot_tax)
+                ->setLineTaxTotal($tax)
+                ->setLineNetTotal($total_with_tax)
+                ->setLineTaxCategories($itemTaxCategory)
+                ->setLineDiscountReason('Discount on product')
+                ->setLineDiscountAmount(0)
+                ->getElement();
+        }
+
+
+
+        $total_withot_tax_sum = number_format($total_withot_tax_sum, 2, '.', '');
+        $tax_sum = number_format($tax_sum, 2, '.', '');
+        ;
+        $total_with_tax_sum = number_format($total_with_tax_sum, 2, '.', '');
+
+
+
+
+
+
+        // clients data
+
+
+        $client = (new Client())
+            ->setVatNumber($invoice->customer->tax_no)
+            ->setStreetName($invoice->customer->street_name)
+            ->setBuildingNumber($invoice->customer->building_number)
+            ->setPlotIdentification($invoice->customer->plot_identification)
+            ->setSubDivisionName($invoice->customer->sub_city)
+            ->setCityName($invoice->customer->address)
+            ->setPostalNumber($invoice->customer->postcode)
+            ->setCountryName('SA')
+            ->setClientName($invoice->customer->name);
+
+
+        $supplier = (new Supplier())
+            ->setCrn($setting->crn)
+            ->setStreetName($setting->street_name)
+            ->setBuildingNumber($setting->building_number)
+            ->setPlotIdentification($setting->plot_identification)
+            ->setSubDivisionName($setting->region)
+            ->setCityName($setting->city)
+            ->setPostalNumber($setting->postal_number)
+            ->setCountryName('SA')
+            ->setVatNumber($setting->trn)
+            ->setVatName($setting->name);
+
+        $delivery = (new Delivery())
+            ->setDeliveryDateTime($invoice->issue_date);
+
+        $paymentType = (new PaymentType())
+            ->setPaymentType('10');
+
+        $returnReason = (new ReturnReason())
+            ->setReturnReason('InvoiceItem returns');
+
+        $previous_hash = (new PIH())
+            ->setPIH($previous_invoice);  // note this value it from step 3 , 4
+        $billingReference = (new BillingReference())
+            ->setBillingReference($request); // note this used when type credit or debit this value of parent invoice id
+
+        $additionalDocumentReference = (new AdditionalDocumentReference())
+            ->setInvoiceID($setting->Invoice_count + 1); // note this value it from step 1
+
+        $legalMonetaryTotal = (new LegalMonetaryTotal())
+            ->setTotalCurrency('SAR')
+            ->setLineExtensionAmount($total_withot_tax_sum)
+            ->setTaxExclusiveAmount($total_withot_tax_sum)
+            ->setTaxInclusiveAmount($total_with_tax_sum)
+            ->setAllowanceTotalAmount(0)
+            ->setPrepaidAmount(0)
+            ->setPayableAmount($total_with_tax_sum);
+
+        $taxesTotal = (new TaxesTotal())
+            ->setTaxCurrencyCode('SAR')
+            ->setTaxTotal($tax_sum);
+        $current_item_tax_rate = ($tax_sum > 0) ? 15 : 0; // افترضنا 15، يمكن استبدالها بـ $item->tax_rate لو متوفر
+        $taxCategoryCode = ($current_item_tax_rate == 0) ? 'E' : 'S';
+
+        $taxSubtotal = (new TaxSubtotal())
+            ->setTaxCurrencyCode('SAR')
+            ->setTaxableAmount($total_withot_tax_sum)
+            ->setTaxAmount($tax_sum)
+            ->setTaxCategory($taxCategoryCode)
+            ->setTaxPercentage($rat_tax)
+            ->getElement();
+
+
+        $allowanceCharge = (new AllowanceCharge())
+            ->setAllowanceChargeCurrency('SAR')
+            ->setAllowanceChargeIndex('1')
+            ->setAllowanceChargeAmount(0)
+            ->setAllowanceChargeTaxCategory($taxCategoryCode)
+            ->setAllowanceChargeTaxPercentage($rat_tax)
+            ->getElement();
+
+
+
+        if (strlen($invoice->customer->tax_no) != 15) {
+
+
+
+            $response = (new InvoiceGenerator())
+                ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
+                ->setZatcaLang('en')
+                ->setInvoiceNumber($invoice->NOTICE_Number)
+                ->setInvoiceUuid($myuuid) // this value from step 6
+                ->setInvoiceIssueDate($invoice->issue_date_return)
+                ->setInvoiceIssueTime($invoice->issue_time_return)
+                ->setInvoiceType(($invoice->document_type == 'simplified') ? '0200000' : '0100000', "381")
+                ->setInvoiceCurrencyCode('SAR')
+                ->setInvoiceTaxCurrencyCode('SAR')
+                ->setInvoiceBillingReference($billingReference) // use this when document type is credit or debit
+                ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
+                ->setInvoicePIH($previous_hash)
+                ->setInvoiceupplier($supplier)
+                ->setInvoiceDelivery($delivery)
+                ->setInvoicePaymentType($paymentType)
+                ->setInvoiceReturnReason($returnReason) //use this when document type is credit or debit
+                ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
+                ->setInvoiceTaxesTotal($taxesTotal)
+                ->setInvoiceTaxSubTotal($taxSubtotal)
+                ->setInvoiceAllowanceCharges($allowanceCharge)
+                ->setInvoiceLines(...$invoiceLines)
+                ->setCertificateEncoded($setting->production_certificate)
+                ->setPrivateKeyEncoded($setting->private_key)
+                ->setCertificateSecret($setting->production_secret)
+                ->sendDocument(true); // when you use production certifiacte for (simulation , core) dont forget set sendDocument(true)
+
+
+        } else {
+            $response = (new InvoiceGenerator())
+                ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
+                ->setZatcaLang('en')
+                ->setInvoiceNumber($invoice->NOTICE_Number)
+                ->setInvoiceUuid($myuuid) // this value from step 6
+                ->setInvoiceIssueDate($invoice->issue_date_return)
+                ->setInvoiceIssueTime($invoice->issue_time_return)
+                ->setInvoiceType(($invoice->document_type == 'simplified') ? '0200000' : '0100000', "381")
+                ->setInvoiceCurrencyCode('SAR')
+                ->setInvoiceTaxCurrencyCode('SAR')
+                ->setInvoiceBillingReference($billingReference) // use this when document type is credit or debit
+                ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
+                ->setInvoicePIH($previous_hash)
+                ->setInvoiceupplier($supplier)
+                ->setInvoiceClient($client)
+                ->setInvoiceDelivery($delivery)
+                ->setInvoicePaymentType($paymentType)
+                ->setInvoiceReturnReason($returnReason) //use this when document type is credit or debit
+                ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
+                ->setInvoiceTaxesTotal($taxesTotal)
+                ->setInvoiceTaxSubTotal($taxSubtotal)
+                ->setInvoiceAllowanceCharges($allowanceCharge)
+                ->setInvoiceLines(...$invoiceLines)
+                ->setCertificateEncoded($setting->production_certificate)
+                ->setPrivateKeyEncoded($setting->private_key)
+                ->setCertificateSecret($setting->production_secret)
+                ->sendDocument(true); // when you use production certifiacte for (simulation , core) dont forget set sendDocument(true)
+        }
+
+        if ($response['success']) {
+            Setting::where('branchs_id', 1)->update([
+                'previous_hash_invoice' => $response['hash'],
+                'Invoice_count' => $setting->Invoice_count + 1
+            ]);
+            Invoice::find($request)->update(
+                [
+                    'qr_zatca_return' => \Carbon\Carbon::now(),
+                    'sent_to_zatca_status_return' => "PASS",
+                    'xmltags_return' => $response['xml'],
+                    'xml_return' => $invoice->document_type == 'simplified' ? NULL : $response['response']->clearedInvoice
+
+                ]
+            );
+            return 1;
+
+        } else {
+
+            return '|||' . $response['response']->reportingStatus . '   ||| ERROR MESSAGE    :-   ' . $response['response']->validationResults->errorMessages[0]->message;
+        }
+    }
+
+    function sent_to_zatca($request)
+    {
+        // - Then Call Invoice required data from database depend on your query statment and required company id
+
+        $setting = Setting::where('branchs_id', 1)->first();
+
+        ### Zatca Integration have two steps second : Send Invoice to zatca Step example :
+        // - Add below line to start of controller file which used
+        $previous_invoice = null;
+        $invoice = Invoice::find($request);
+        $invprevious = $setting->previous_hash_invoice;
+
+        if ($invprevious == null) {
+            $previous_invoice = 'X+zrZv/IbzjZUnhsbWlsecLbwjndTpG0ZynXOif7V+k=';
+
+        } else {
+            $previous_invoice = $invprevious;
+        }
+
+        $myuuid = Uuid::uuid4();
+
+        Invoice::find($request)->update(
+            [
+                'invoice_counter' => $setting->Invoice_count + 1,
+                'invoice_number' => $invoice->id,
+                'invoiceUUid' => $myuuid,
+                'document_type' => strlen($invoice->customer->tax_no) != 15 ? 'simplified' : 'standard',
+                'invoice_type' => "388", //  "388" NORMAL INVOICE , "383"  DEBIT_NOTE , "381" CREDIT_NOTE
+                'issue_date' => substr($invoice->created_at, 0, 10),
+                'issue_time' => substr($invoice->created_at, 11),
+            ]
+        );
+
+
+        $invoice = Invoice::find($request);
+
+        if ($invoice->document_type == 'standard') {
+            if (
+                is_null($invoice->customer->name) || is_null($invoice->customer->postcode) || is_null($invoice->customer->address) || is_null($invoice->customer->sub_city) ||
+                is_null($invoice->customer->plot_identification) || is_null($invoice->customer->building_number) || is_null($invoice->customer->street_name) || is_null($invoice->customer->tax_no) || strlen($invoice->customer->tax_no) != 15
+            ) {
+                return "  \n Please enter the full national address and tax number information. Thank you يرجل ادخال بيانات العنوان الوطني و الرقم الضريبيي كاملا وشكرا";
+
+            }
+
+        }
+
+
+
+        $total_withot_tax_sum = 0;
+        $tax_sum = 0;
+        $total_with_tax_sum = 0;
+        $invoiceLines = [];
+
+
+
+        foreach (InvoiceItem::where("invoice_id", $request)->where('quantity', '!=', 0)->get() as $item) {
+            $price_each_element_withoud_tax = number_format(($item->Unit_Price - ($item->Discount_Value / $item->quantity)), 2, '.', '');
+            $temp = ($item->Unit_Price - ($item->Discount_Value / $item->quantity)) * $item->quantity;
+            $total_withot_tax = number_format($temp, 2, '.', '');
+            $temp = (($item->Added_Value)) * $item->quantity;
+            $tax = number_format($temp, 2, '.', '');
+            $totlal_element = $total_withot_tax + $tax;
+            $current_item_tax_rate = ($item->Added_Value > 0) ? 15 : 0; // افترضنا 15، يمكن استبدالها بـ $item->tax_rate لو متوفر
+            $taxCategoryCode = ($current_item_tax_rate == 0) ? 'E' : 'S';
+
+
+            $total_with_tax = number_format($totlal_element, 2, '.', '');
+            $total_withot_tax_sum = $total_withot_tax_sum + $total_withot_tax * 1;
+            $tax_sum = $tax_sum + $tax;
+            $total_with_tax_sum = $total_with_tax_sum + $total_with_tax;
+            $rat_tax = number_format($item->tax_rate, 2, '.', '') * 100;
+
+            $itemTaxCategory = (new LineTaxCategory())
+                ->setTaxCategory($taxCategoryCode)
+                ->setTaxPercentage($rat_tax)
+                ->getElement();
+            $invoiceLines[] = (new InvoiceLine())
+                ->setLineID($item->product_id)
+                ->setLineName($item->productData->product_name)
+                ->setLineCurrency('SAR')
+                ->setLinePrice(number_format($price_each_element_withoud_tax, 2, '.', ''))
+                ->setLineQuantity($item->quantity)
+                ->setLineSubTotal($total_withot_tax)
+                ->setLineTaxTotal($tax)
+                ->setLineNetTotal($total_with_tax)
+                ->setLineTaxCategories($itemTaxCategory)
+                ->setLineDiscountReason('Discount on product')
+                ->setLineDiscountAmount(0)
+                ->getElement();
+        }
+        //  return $invoiceLines;
+        $total_withot_tax_sum = number_format($total_withot_tax_sum, 2, '.', '');
+        $tax_sum = number_format($tax_sum, 2, '.', '');
+        ;
+        $total_with_tax_sum = number_format($total_with_tax_sum, 2, '.', '');
+
+
+
+        // - If Invoice type is standard invoice (B2B) you must provide full buyer information as below :
+
+
+
+        // clients data
+        $client = (new Client())
+            ->setVatNumber($invoice->customer->tax_no)
+            ->setStreetName($invoice->customer->street_name)
+            ->setBuildingNumber($invoice->customer->building_number)
+            ->setPlotIdentification($invoice->customer->plot_identification)
+            ->setSubDivisionName($invoice->customer->sub_city)
+            ->setCityName($invoice->customer->address)
+            ->setPostalNumber($invoice->customer->postcode)
+            ->setCountryName('SA')
+            ->setClientName($invoice->customer->name);
+
+
+        //  return $client->getElement();
+        $supplier = (new Supplier())
+            ->setCrn($setting->crn)
+            ->setStreetName($setting->street_name)
+            ->setBuildingNumber($setting->building_number)
+            ->setPlotIdentification($setting->plot_identification)
+            ->setSubDivisionName($setting->region)
+            ->setCityName($setting->city)
+            ->setPostalNumber($setting->postal_number)
+            ->setCountryName('SA')
+            ->setVatNumber($setting->trn)
+            ->setVatName($setting->name);
+        // return $supplier->getElement();
+
+        $delivery = (new Delivery())
+            ->setDeliveryDateTime($invoice->issue_date);
+
+        $paymentType = (new PaymentType())
+            ->setPaymentType('10');
+
+        $returnReason = (new ReturnReason())
+            ->setReturnReason('SET_RETURN_REASON');
+
+        $previous_hash = (new PIH())
+            ->setPIH($previous_invoice);  // note this value it from step 3 , 4
+        // $billingReference = (new BillingReference())
+        // ->setBillingReference('23'); // note this used when type credit or debit this value of parent invoice id
+
+        $additionalDocumentReference = (new AdditionalDocumentReference())
+            ->setInvoiceID($setting->Invoice_count + 1); // note this value it from step 1
+
+        $legalMonetaryTotal = (new LegalMonetaryTotal())
+            ->setTotalCurrency('SAR')
+            ->setLineExtensionAmount($total_withot_tax_sum)
+            ->setTaxExclusiveAmount($total_withot_tax_sum)
+            ->setTaxInclusiveAmount($total_with_tax_sum)
+            ->setAllowanceTotalAmount(0)
+            ->setPrepaidAmount(0)
+            ->setPayableAmount($total_with_tax_sum);
+
+        $taxesTotal = (new TaxesTotal())
+            ->setTaxCurrencyCode('SAR')
+            ->setTaxTotal($tax_sum);
+        $current_item_tax_rate = ($tax_sum > 0) ? 15 : 0; // افترضنا 15، يمكن استبدالها بـ $item->tax_rate لو متوفر
+        $taxCategoryCode = ($current_item_tax_rate == 0) ? 'E' : 'S';
+
+        $taxSubtotal = (new TaxSubtotal())
+            ->setTaxCurrencyCode('SAR')
+            ->setTaxableAmount($total_withot_tax_sum)
+            ->setTaxAmount($tax_sum)
+            ->setTaxCategory($taxCategoryCode)
+            ->setTaxPercentage($rat_tax)
+            ->getElement();
+
+
+        $allowanceCharge = (new AllowanceCharge())
+            ->setAllowanceChargeCurrency('SAR')
+            ->setAllowanceChargeIndex('1')
+            ->setAllowanceChargeAmount(0)
+            ->setAllowanceChargeTaxCategory($taxCategoryCode)
+            ->setAllowanceChargeTaxPercentage($rat_tax)
+            ->getElement();
+        if (strlen($invoice->customer->tax_no) != 15) {
+
+            $response = (new InvoiceGenerator())
+                ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
+                ->setZatcaLang('en')
+                ->setInvoiceNumber($request)
+                ->setInvoiceUuid($invoice->invoiceUUid) // this value from step 6
+                ->setInvoiceIssueDate($invoice->issue_date)
+                ->setInvoiceIssueTime($invoice->issue_time)
+                ->setInvoiceType(($invoice->document_type == 'simplified') ? '0200000' : '0100000', $invoice->invoice_type)
+                ->setInvoiceCurrencyCode('SAR')
+                ->setInvoiceTaxCurrencyCode('SAR')
+                //->setInvoiceBillingReference($billingReference)  use this when document type is credit or debit
+                ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
+                ->setInvoicePIH($previous_hash)
+                ->setInvoiceupplier($supplier)
+                ->setInvoiceDelivery($delivery)
+                ->setInvoicePaymentType($paymentType)
+                //->setInvoiceReturnReason($returnReason) use this when document type is credit or debit
+                ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
+                ->setInvoiceTaxesTotal($taxesTotal)
+                ->setInvoiceTaxSubTotal($taxSubtotal)
+                ->setInvoiceAllowanceCharges($allowanceCharge)
+                ->setInvoiceLines(...$invoiceLines)
+                ->setCertificateEncoded($setting->production_certificate)
+                ->setPrivateKeyEncoded($setting->private_key)
+                ->setCertificateSecret($setting->production_secret)
+                ->sendDocument(true); // when you use production certifiacte for (simulation , core) dont forget set sendDocument(true)
+            //   return $response;
+
+
+        } else {
+            $response = (new InvoiceGenerator())
+                ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
+                ->setZatcaLang('en')
+                ->setInvoiceNumber($request)
+                ->setInvoiceUuid($invoice->invoiceUUid) // this value from step 6
+                ->setInvoiceIssueDate($invoice->issue_date)
+                ->setInvoiceIssueTime($invoice->issue_time)
+                ->setInvoiceType(($invoice->document_type == 'simplified') ? '0200000' : '0100000', $invoice->invoice_type)
+                ->setInvoiceCurrencyCode('SAR')
+                ->setInvoiceTaxCurrencyCode('SAR')
+                //->setInvoiceBillingReference($billingReference)  use this when document type is credit or debit
+                ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
+                ->setInvoicePIH($previous_hash)
+                ->setInvoiceupplier($supplier)
+                ->setInvoiceClient($client)
+                ->setInvoiceDelivery($delivery)
+                ->setInvoicePaymentType($paymentType)
+                //->setInvoiceReturnReason($returnReason) use this when document type is credit or debit
+                ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
+                ->setInvoiceTaxesTotal($taxesTotal)
+                ->setInvoiceTaxSubTotal($taxSubtotal)
+                ->setInvoiceAllowanceCharges($allowanceCharge)
+                ->setInvoiceLines(...$invoiceLines)
+                ->setCertificateEncoded($setting->production_certificate)
+                ->setPrivateKeyEncoded($setting->private_key)
+                ->setCertificateSecret($setting->production_secret)
+                ->sendDocument(true); // when you use production certifiacte for (simulation , core) dont forget set sendDocument(true)
+        }
+
+        if ($response['success']) {
+            Setting::where('branchs_id', 1)->update([
+                'previous_hash_invoice' => $response['hash'],
+                'Invoice_count' => $setting->Invoice_count + 1
+            ]);
+            Invoice::find($request)->update(
+                [
+                    'signing_time' => \Carbon\Carbon::now(),
+                    'hash' => $response['hash'],
+                    'xml' => $response['xml'],
+                    'sent_to_zatca_status' => "PASS",
+                    'sent_to_zatca' => 1,
+                    'clearedInvoice' => $invoice->document_type == 'simplified' ? NULL : $response['response']->clearedInvoice
+
+                ]
+            );
+
+            return 1;
+        } else {
+            return $response;
+
+            return '|||' . $response['response']->reportingStatus . '   ||| ERROR MESSAGE    :-   ' . $response['response']->validationResults->errorMessages[0]->message;
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+    function sendzatca_fromsale($request)
+    {
+        // - Then Call Invoice required data from database depend on your query statment and required company id
+
+        $setting = Setting::where('branchs_id', 1)->first();
+
+        ### Zatca Integration have two steps second : Send Invoice to zatca Step example :
+        // - Add below line to start of controller file which used
+        $previous_invoice = null;
+        $invoice = Invoice::find($request);
+        $invprevious = $setting->previous_hash_invoice;
+
+        if ($invprevious == null) {
+            $previous_invoice = 'X+zrZv/IbzjZUnhsbWlsecLbwjndTpG0ZynXOif7V+k=';
+
+        } else {
+            $previous_invoice = $invprevious;
+        }
+
+        $myuuid = Uuid::uuid4();
+
+        Invoice::find($request)->update(
+            [
+                'invoice_counter' => $setting->Invoice_count + 1,
+                'invoice_number' => $invoice->id,
+                'invoiceUUid' => $myuuid,
+                'document_type' => strlen($invoice->customer->tax_no) != 15 ? 'simplified' : 'standard',
+                'invoice_type' => "388", //  "388" NORMAL INVOICE , "383"  DEBIT_NOTE , "381" CREDIT_NOTE
+                'issue_date' => substr($invoice->created_at, 0, 10),
+                'issue_time' => substr($invoice->created_at, 11),
+            ]
+        );
+
+
+        $invoice = Invoice::find($request);
+
+        if ($invoice->document_type == 'standard') {
+            if (
+                is_null($invoice->customer->name) || is_null($invoice->customer->postcode) || is_null($invoice->customer->address) || is_null($invoice->customer->sub_city) ||
+                is_null($invoice->customer->plot_identification) || is_null($invoice->customer->building_number) || is_null($invoice->customer->street_name) || is_null($invoice->customer->tax_no) || strlen($invoice->customer->tax_no) != 15
+            ) {
+                return "  \n Please enter the full national address and tax number information. Thank you يرجل ادخال بيانات العنوان الوطني و الرقم الضريبيي كاملا وشكرا";
+
+            }
+
+        }
+
+
+
+        $total_withot_tax_sum = 0;
+        $tax_sum = 0;
+        $total_with_tax_sum = 0;
+        $invoiceLines = [];
+
+
+
+        foreach (InvoiceItem::where("invoice_id", $request)->where('quantity', '!=', 0)->get() as $item) {
+            $price_each_element_withoud_tax = number_format(($item->Unit_Price - ($item->Discount_Value / $item->quantity)), 2, '.', '');
+            $temp = ($item->Unit_Price - ($item->Discount_Value / $item->quantity)) * $item->quantity;
+            $total_withot_tax = number_format($temp, 2, '.', '');
+            $temp = (($item->Added_Value)) * $item->quantity;
+            $tax = number_format($temp, 2, '.', '');
+            $totlal_element = $total_withot_tax + $tax;
+            $current_item_tax_rate = ($item->Added_Value > 0) ? 15 : 0; // افترضنا 15، يمكن استبدالها بـ $item->tax_rate لو متوفر
+            $taxCategoryCode = ($current_item_tax_rate == 0) ? 'E' : 'S';
+
+
+            $total_with_tax = number_format($totlal_element, 2, '.', '');
+            $total_withot_tax_sum = $total_withot_tax_sum + $total_withot_tax * 1;
+            $tax_sum = $tax_sum + $tax;
+            $total_with_tax_sum = $total_with_tax_sum + $total_with_tax;
+            $rat_tax = number_format($item->tax_rate, 2, '.', '') * 100;
+
+            $itemTaxCategory = (new LineTaxCategory())
+                ->setTaxCategory($taxCategoryCode)
+                ->setTaxPercentage($rat_tax)
+                ->getElement();
+            $invoiceLines[] = (new InvoiceLine())
+                ->setLineID($item->product_id)
+                ->setLineName($item->productData->product_name)
+                ->setLineCurrency('SAR')
+                ->setLinePrice(number_format($price_each_element_withoud_tax, 2, '.', ''))
+                ->setLineQuantity($item->quantity)
+                ->setLineSubTotal($total_withot_tax)
+                ->setLineTaxTotal($tax)
+                ->setLineNetTotal($total_with_tax)
+                ->setLineTaxCategories($itemTaxCategory)
+                ->setLineDiscountReason('Discount on product')
+                ->setLineDiscountAmount(0)
+                ->getElement();
+        }
+        //  return $invoiceLines;
+        $total_withot_tax_sum = number_format($total_withot_tax_sum, 2, '.', '');
+        $tax_sum = number_format($tax_sum, 2, '.', '');
+        ;
+        $total_with_tax_sum = number_format($total_with_tax_sum, 2, '.', '');
+
+
+
+        // - If Invoice type is standard invoice (B2B) you must provide full buyer information as below :
+
+
+
+        // clients data
+        $client = (new Client())
+            ->setVatNumber($invoice->customer->tax_no)
+            ->setStreetName($invoice->customer->street_name)
+            ->setBuildingNumber($invoice->customer->building_number)
+            ->setPlotIdentification($invoice->customer->plot_identification)
+            ->setSubDivisionName($invoice->customer->sub_city)
+            ->setCityName($invoice->customer->address)
+            ->setPostalNumber($invoice->customer->postcode)
+            ->setCountryName('SA')
+            ->setClientName($invoice->customer->name);
+
+
+        //  return $client->getElement();
+        $supplier = (new Supplier())
+            ->setCrn($setting->crn)
+            ->setStreetName($setting->street_name)
+            ->setBuildingNumber($setting->building_number)
+            ->setPlotIdentification($setting->plot_identification)
+            ->setSubDivisionName($setting->region)
+            ->setCityName($setting->city)
+            ->setPostalNumber($setting->postal_number)
+            ->setCountryName('SA')
+            ->setVatNumber($setting->trn)
+            ->setVatName($setting->name);
+        // return $supplier->getElement();
+
+        $delivery = (new Delivery())
+            ->setDeliveryDateTime($invoice->issue_date);
+
+        $paymentType = (new PaymentType())
+            ->setPaymentType('10');
+
+        $returnReason = (new ReturnReason())
+            ->setReturnReason('SET_RETURN_REASON');
+
+        $previous_hash = (new PIH())
+            ->setPIH($previous_invoice);  // note this value it from step 3 , 4
+        // $billingReference = (new BillingReference())
+        // ->setBillingReference('23'); // note this used when type credit or debit this value of parent invoice id
+
+        $additionalDocumentReference = (new AdditionalDocumentReference())
+            ->setInvoiceID($setting->Invoice_count + 1); // note this value it from step 1
+
+        $legalMonetaryTotal = (new LegalMonetaryTotal())
+            ->setTotalCurrency('SAR')
+            ->setLineExtensionAmount($total_withot_tax_sum)
+            ->setTaxExclusiveAmount($total_withot_tax_sum)
+            ->setTaxInclusiveAmount($total_with_tax_sum)
+            ->setAllowanceTotalAmount(0)
+            ->setPrepaidAmount(0)
+            ->setPayableAmount($total_with_tax_sum);
+
+        $taxesTotal = (new TaxesTotal())
+            ->setTaxCurrencyCode('SAR')
+            ->setTaxTotal($tax_sum);
+        $current_item_tax_rate = ($tax_sum > 0) ? 15 : 0; // افترضنا 15، يمكن استبدالها بـ $item->tax_rate لو متوفر
+        $taxCategoryCode = ($current_item_tax_rate == 0) ? 'E' : 'S';
+
+        $taxSubtotal = (new TaxSubtotal())
+            ->setTaxCurrencyCode('SAR')
+            ->setTaxableAmount($total_withot_tax_sum)
+            ->setTaxAmount($tax_sum)
+            ->setTaxCategory($taxCategoryCode)
+            ->setTaxPercentage($rat_tax)
+            ->getElement();
+
+
+        $allowanceCharge = (new AllowanceCharge())
+            ->setAllowanceChargeCurrency('SAR')
+            ->setAllowanceChargeIndex('1')
+            ->setAllowanceChargeAmount(0)
+            ->setAllowanceChargeTaxCategory($taxCategoryCode)
+            ->setAllowanceChargeTaxPercentage($rat_tax)
+            ->getElement();
+        if (strlen($invoice->customer->tax_no) != 15) {
+
+            $response = (new InvoiceGenerator())
+                ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
+                ->setZatcaLang('en')
+                ->setInvoiceNumber($request)
+                ->setInvoiceUuid($invoice->invoiceUUid) // this value from step 6
+                ->setInvoiceIssueDate($invoice->issue_date)
+                ->setInvoiceIssueTime($invoice->issue_time)
+                ->setInvoiceType(($invoice->document_type == 'simplified') ? '0200000' : '0100000', $invoice->invoice_type)
+                ->setInvoiceCurrencyCode('SAR')
+                ->setInvoiceTaxCurrencyCode('SAR')
+                //->setInvoiceBillingReference($billingReference)  use this when document type is credit or debit
+                ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
+                ->setInvoicePIH($previous_hash)
+                ->setInvoiceupplier($supplier)
+                ->setInvoiceDelivery($delivery)
+                ->setInvoicePaymentType($paymentType)
+                //->setInvoiceReturnReason($returnReason) use this when document type is credit or debit
+                ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
+                ->setInvoiceTaxesTotal($taxesTotal)
+                ->setInvoiceTaxSubTotal($taxSubtotal)
+                ->setInvoiceAllowanceCharges($allowanceCharge)
+                ->setInvoiceLines(...$invoiceLines)
+                ->setCertificateEncoded($setting->production_certificate)
+                ->setPrivateKeyEncoded($setting->private_key)
+                ->setCertificateSecret($setting->production_secret)
+                ->sendDocument(true); // when you use production certifiacte for (simulation , core) dont forget set sendDocument(true)
+            //   return $response;
+
+
+        } else {
+            $response = (new InvoiceGenerator())
+                ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
+                ->setZatcaLang('en')
+                ->setInvoiceNumber($request)
+                ->setInvoiceUuid($invoice->invoiceUUid) // this value from step 6
+                ->setInvoiceIssueDate($invoice->issue_date)
+                ->setInvoiceIssueTime($invoice->issue_time)
+                ->setInvoiceType(($invoice->document_type == 'simplified') ? '0200000' : '0100000', $invoice->invoice_type)
+                ->setInvoiceCurrencyCode('SAR')
+                ->setInvoiceTaxCurrencyCode('SAR')
+                //->setInvoiceBillingReference($billingReference)  use this when document type is credit or debit
+                ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
+                ->setInvoicePIH($previous_hash)
+                ->setInvoiceupplier($supplier)
+                ->setInvoiceClient($client)
+                ->setInvoiceDelivery($delivery)
+                ->setInvoicePaymentType($paymentType)
+                //->setInvoiceReturnReason($returnReason) use this when document type is credit or debit
+                ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
+                ->setInvoiceTaxesTotal($taxesTotal)
+                ->setInvoiceTaxSubTotal($taxSubtotal)
+                ->setInvoiceAllowanceCharges($allowanceCharge)
+                ->setInvoiceLines(...$invoiceLines)
+                ->setCertificateEncoded($setting->production_certificate)
+                ->setPrivateKeyEncoded($setting->private_key)
+                ->setCertificateSecret($setting->production_secret)
+                ->sendDocument(true); // when you use production certifiacte for (simulation , core) dont forget set sendDocument(true)
+        }
+
+        if ($response['success']) {
+            Setting::where('branchs_id', 1)->update([
+                'previous_hash_invoice' => $response['hash'],
+                'Invoice_count' => $setting->Invoice_count + 1
+            ]);
+            Invoice::find($request)->update(
+                [
+                    'signing_time' => \Carbon\Carbon::now(),
+                    'hash' => $response['hash'],
+                    'xml' => $response['xml'],
+                    'sent_to_zatca_status' => "PASS",
+                    'sent_to_zatca' => 1,
+                    'clearedInvoice' => $invoice->document_type == 'simplified' ? NULL : $response['response']->clearedInvoice
+
+                ]
+            );
+
+            return 1;
+        } else {
+            return $response;
+
+            return '|||' . $response['response']->reportingStatus . '   ||| ERROR MESSAGE    :-   ' . $response['response']->validationResults->errorMessages[0]->message;
+        }
+    }
+
+    function dwonloadxml($id)
+    {
+        $invoice = Invoice::find($id);
+        if (!$invoice) {
+            return response()->json(['error' => 'Invoice not found'], 404);
+        }
+
+        $xml = new DOMDocument;
+        // Safe-fallback context matching cleared vs standard xml parameters
+        $rawXml = base64_decode($invoice->clearedInvoice ?? $invoice->xml, true);
+
+        if (!$rawXml) {
+            return "Failed to decode XML content.";
+        }
+
+        $xml->loadXML($rawXml);
+        $xml->formatOutput = true;
+
+        $namefile = "invoice_" . $invoice->id . '_' . date("Y_m_d") . 'T' . date("H_i") . ".xml";
+        $filepath = public_path('result.xml');
+        $xml->save($filepath);
+
+        $headers = [
+            'Content-Type' => 'application/xml',
+        ];
+
+        return response()->download($filepath, $namefile, $headers);
+    }
+
+
+
     public function index(Request $request)
     {
         $query = Invoice::with(['customer', 'branch', 'creator'])->latest();
@@ -34,10 +890,10 @@ class InvoiceController extends Controller
             $query->whereDate('issue_date', $request->date('date'));
         }
 
-        $invoices = $query->paginate(15)->withQueryString();
+        $Invoice = $query->paginate(15)->withQueryString();
         $customers = Customer::orderBy('name')->get();
 
-        return view('invoices.index', compact('invoices', 'customers'));
+        return view('invoices.index', compact('Invoice', 'customers'));
     }
 
 public function create()

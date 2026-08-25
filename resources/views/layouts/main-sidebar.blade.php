@@ -82,6 +82,15 @@
 
         ],
         ],
+        [
+        'key' => 'zatca',
+        'label' => __('zatca.title'),
+        'icon' => 'doc',
+        'items' => [
+        ['label' => __('zatca.not_sent'), 'url' => route('zatca.index', ['sent' => 0])],
+        ['label' => __('zatca.sent'), 'url' => route('zatca.index', ['sent' => 1])],
+        ],
+        ],
         ],
         ],
         [

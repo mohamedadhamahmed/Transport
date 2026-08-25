@@ -3,6 +3,7 @@
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ZatcaController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ReturnController;
@@ -18,6 +19,15 @@ Route::get('/', function () {
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
+
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+    Route::get('/zatca', [ZatcaController::class, 'index'])->name('zatca.index');
+    Route::post('/zatca/{invoice}/send', [ZatcaController::class, 'send'])->name('zatca.send');
+    Route::get('/zatca/{invoice}/download-xml', [ZatcaController::class, 'downloadXml'])->name('zatca.download-xml');
+});
+
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
