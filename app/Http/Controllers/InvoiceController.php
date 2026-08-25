@@ -9,8 +9,10 @@ use App\Models\FinancialAccount;
 use App\Models\InvoiceItem;
 use App\Models\CreditTransaction;
 use App\Models\Product;
+use App\Models\DraftInvoice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
@@ -890,13 +892,13 @@ class InvoiceController extends Controller
             $query->whereDate('issue_date', $request->date('date'));
         }
 
-        $Invoice = $query->paginate(15)->withQueryString();
+        $invoices = $query->paginate(15)->withQueryString();
         $customers = Customer::orderBy('name')->get();
 
-        return view('invoices.index', compact('Invoice', 'customers'));
+        return view('invoices.index', compact('invoices', 'customers'));
     }
 
-public function create()
+public function create(Request $request)
 {
     $customers = Customer::orderBy('name')->get();
     $branches = Branch::orderBy('name')->get();
@@ -906,7 +908,15 @@ public function create()
         ->where('branchs_id', auth()->user()->branch_id)
         ->value('max_discount') ?? 0;
 
-    return view('invoices.create', compact('customers', 'branches', 'maxDiscountPercent'));
+    // لو جاية من شاشة "المسودات السابقة" (?draft_id=xx) بنجيب المسودة
+    // ونمررها للفورم عشان تتملى بيها كل الحقول (العميل، طريقة الدفع،
+    // البنود...) - المسودة مالهاش رقم فاتورة رسمي لسه، هياخد لما تتأكد.
+    $draft = null;
+    if ($request->filled('draft_id')) {
+        $draft = DraftInvoice::find($request->input('draft_id'));
+    }
+
+    return view('invoices.create', compact('customers', 'branches', 'maxDiscountPercent', 'draft'));
 }
 
     public function show(Invoice $invoice)
@@ -919,7 +929,7 @@ public function create()
             'totatextlriyales' => '', // Replace with your number-to-words logic if needed
             'totatextlrihalala' => '',
         ];
-        // If your view still references old column names like $invoice->cashamount, 
+        // If your view still references old column names like $invoice->cashamount,
         // you can either update the Blade file or handle compatibility attributes.
         return view('invoices.show', compact('data'));
     }
@@ -1142,29 +1152,16 @@ public function create()
         ]);
     }
 
-    public function store(Request $request)
-    {$items = json_decode((string) $request->input('items_json'), true) ?: [];
-$request->merge(['items' => $items]);
-
-$validated = Validator::make($request->all(), [
-    'customer_id' => ['required', 'exists:customers,id'],
-    'branch_id' => ['required', 'exists:branches,id'],
-    'payment_method' => ['required', 'in:cash,bank_transfer,card,credit,split'],
-    'cash_amount' => ['nullable', 'numeric', 'min:0'],
-    'bank_amount' => ['nullable', 'numeric', 'min:0'],
-    'note' => ['nullable', 'string'],
-    'purchase_order_number' => ['nullable', 'string', 'max:255'],
-    'invoice_level_discount' => ['nullable', 'numeric', 'min:0'],
-    'is_finalized' => ['required', 'boolean'],
-    'items' => ['required', 'array', 'min:1'],
-    'items.*.product_id' => ['required', 'exists:products,id'],
-    'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
-    'items.*.unit_price' => ['required', 'numeric', 'min:0'],
-    'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
-    'items.*.tax_rate' => ['required', 'numeric', 'min:0'],
-])->validate();
-
-$invoice = DB::transaction(function () use ($validated, $request) {
+    /**
+     * تحويل بيانات فاتورة (سواء جايه من فورم إنشاء فاتورة عادي، أو من
+     * اعتماد مسودة مباشرة) لفاتورة رسمية فعلية: بتاخد رقم، بتتسجل في
+     * جدول invoices، بتتخصم من المخزون، وبتتسجل كل القيود المحاسبية
+     * المرتبطة بيها. مستخدمة من store() (لما تدوسي "حفظ الفاتورة") ومن
+     * approveDraft() (لما تدوسي "اعتماد" على مسودة من غير ما تفتحيها).
+     */
+    protected function finalizeInvoice(array $validated): Invoice
+    {
+        return DB::transaction(function () use ($validated) {
     // إعادة حساب الإجماليات من السيرفر لضمان الدقة
     $subtotal = 0;
     $taxTotal = 0;
@@ -1481,11 +1478,141 @@ $invoice = DB::transaction(function () use ($validated, $request) {
         }
     }
 
-    return $invoice;
-});
+            return $invoice;
+        });
+    }
 
-return redirect()->route('invoices.show', $invoice)
-    ->with('success', __('invoices.created_successfully'));
-    
+    public function store(Request $request)
+    {
+        $items = json_decode((string) $request->input('items_json'), true) ?: [];
+        $request->merge(['items' => $items]);
+
+        $validated = Validator::make($request->all(), [
+            'draft_id' => ['nullable', 'integer', 'exists:draft_invoices,id'],
+            'submission_token' => ['nullable', 'string', 'max:64'],
+            'customer_id' => ['required', 'exists:customers,id'],
+            'branch_id' => ['required', 'exists:branches,id'],
+            'payment_method' => ['required', 'in:cash,bank_transfer,card,credit,split'],
+            'cash_amount' => ['nullable', 'numeric', 'min:0'],
+            'bank_amount' => ['nullable', 'numeric', 'min:0'],
+            'note' => ['nullable', 'string'],
+            'purchase_order_number' => ['nullable', 'string', 'max:255'],
+            'invoice_level_discount' => ['nullable', 'numeric', 'min:0'],
+            'is_finalized' => ['required', 'boolean'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'items.*.tax_rate' => ['required', 'numeric', 'min:0'],
+        ])->validate();
+
+        // حماية من تكرار الإرسال (لو حصل ضغط أكتر من مرة على زرار الحفظ):
+        // كل تحميل لصفحة إنشاء الفاتورة بيجيله توكن عشوائي ثابت (submission_token)
+        // في حقل مخفي. Cache::add() عملية ذرية (atomic) - أول طلب بس هو
+        // اللي بينجح يسجل التوكن، وأي طلب تاني بنفس التوكن (يعني نفس
+        // الضغطة المكررة) بيترفض فورًا من غير ما يعمل أي فاتورة تانية،
+        // حتى لو الطلبين وصلوا للسيرفر في نفس اللحظة تقريبًا.
+        $submissionToken = $validated['submission_token'] ?? null;
+        if ($submissionToken) {
+            $lockKey = 'invoice_submission_' . $submissionToken;
+            if (!Cache::add($lockKey, true, now()->addMinutes(15))) {
+                return redirect()->route('invoices.index')
+                    ->with('error', __('invoices.duplicate_submission_prevented'));
+            }
+        }
+
+        // مسودة (زرار "حفظ كمسودة"): منسجلهاش في جدول invoices خالص عشان
+        // رقم الفاتورة الرسمي (invoice_number) میتحجزش لفاتورة ممكن
+        // تتلغي بعدين - بنسجلها/بنعدلها في جدول draft_invoices المنفصل.
+        // لو المسودة دي أصلاً كانت متفتحة من قايمة "المسودات السابقة"
+        // (draft_id موجود)، بنعدل على نفس الصف بدل ما نعمل نسخة جديدة.
+        if (!$validated['is_finalized']) {
+            $draftData = [
+                'customer_id' => $validated['customer_id'],
+                'branch_id' => $validated['branch_id'],
+                'created_by' => Auth::id(),
+                'payment_method' => $validated['payment_method'],
+                'cash_amount' => $validated['cash_amount'] ?? 0,
+                'bank_amount' => $validated['bank_amount'] ?? 0,
+                'note' => $validated['note'] ?? null,
+                'purchase_order_number' => $validated['purchase_order_number'] ?? null,
+                'invoice_level_discount' => $validated['invoice_level_discount'] ?? 0,
+                'items' => $validated['items'],
+            ];
+
+            if (!empty($validated['draft_id'])) {
+                DraftInvoice::where('id', $validated['draft_id'])->update($draftData);
+            } else {
+                DraftInvoice::create($draftData);
+            }
+
+            return redirect()->route('invoices.drafts.index')
+                ->with('success', __('invoices.draft_saved_successfully'));
+        }
+
+        $invoice = $this->finalizeInvoice($validated);
+
+        // لو الفاتورة دي كانت أصلاً مسودة اتفتحت من "المسودات السابقة"
+        // (draft_id) وبقت دلوقتي فاتورة حقيقية معتمدة، نمسح المسودة
+        // عشان ميفضلش نسخة مكررة في قايمة المسودات.
+        if (!empty($validated['draft_id'])) {
+            DraftInvoice::where('id', $validated['draft_id'])->delete();
+        }
+
+        return redirect()->route('invoices.show', $invoice)
+            ->with('success', __('invoices.created_successfully'));
+    }
+
+    /**
+     * اعتماد مسودة كفاتورة رسمية مباشرة من قايمة "المسودات السابقة" -
+     * من غير ما تفتحيها الأول في شاشة إنشاء الفاتورة. بتاخد بيانات
+     * المسودة زي ما هي، وبتعمل بيها بالظبط نفس اللي بيحصل لما تدوسي
+     * "حفظ الفاتورة" (فاتورة رسمية + رقم + كل القيود المحاسبية)،
+     * وبعدين بتمسح المسودة.
+     */
+    public function approveDraft(DraftInvoice $draft)
+    {
+        $data = [
+            'customer_id' => $draft->customer_id,
+            'branch_id' => $draft->branch_id,
+            'payment_method' => $draft->payment_method,
+            'cash_amount' => $draft->cash_amount,
+            'bank_amount' => $draft->bank_amount,
+            'note' => $draft->note,
+            'purchase_order_number' => $draft->purchase_order_number,
+            'invoice_level_discount' => $draft->invoice_level_discount,
+            'items' => $draft->items,
+            // finalizeInvoice() بتفترض إن المفتاح ده موجود دايمًا (زي ما
+            // بيجيله من store() جاي من حقل is_finalized المخفي في الفورم)
+            // - هنا بنعتمد المسودة يعني بنفّذها كفاتورة رسمية فورًا.
+            'is_finalized' => true,
+        ];
+
+        // نفس التحقق اللي بيحصل وقت إنشاء فاتورة عادية - عشان مسودة
+        // ناقصة بيانات أساسية (مفيش عميل مثلًا، أو مفيش أصناف) متتحولش
+        // لفاتورة رسمية غلط.
+        $validator = Validator::make($data, [
+            'customer_id' => ['required', 'exists:customers,id'],
+            'branch_id' => ['required', 'exists:branches,id'],
+            'payment_method' => ['required', 'in:cash,bank_transfer,card,credit,split'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.tax_rate' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->route('invoices.drafts.index')
+                ->with('error', __('invoices.draft_missing_data'));
+        }
+
+        $invoice = $this->finalizeInvoice($data);
+
+        $draft->delete();
+
+        return redirect()->route('invoices.show', $invoice)
+            ->with('success', __('invoices.created_successfully'));
     }
 }

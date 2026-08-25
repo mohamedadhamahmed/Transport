@@ -1,5 +1,12 @@
 <x-app-layout>
 
+    @php
+        // نفس فكرة توكن الحماية من تكرار الإرسال اللي في شاشة إنشاء
+        // الفاتورة - توكن ثابت لكل تحميل صفحة، والسيرفر بيرفض أي طلب
+        // تاني بنفس التوكن (يعني ضغط متكرر على زرار الحفظ).
+        $returnSubmissionToken = (string) \Illuminate\Support\Str::uuid();
+    @endphp
+
     <div class="py-6" x-data="invoiceReturnForm()">
         <div class="max-w-[1280px] mx-auto sm:px-6 lg:px-8 space-y-6">
 
@@ -27,6 +34,7 @@
                 <input type="hidden" name="invoice_id" :value="selectedInvoice ? selectedInvoice.id : ''">
                 <input type="hidden" name="refund_method" :value="refundMethod">
                 <input type="hidden" name="items_json" id="return_items_json">
+                <input type="hidden" name="submission_token" value="{{ $returnSubmissionToken }}">
 
                 {{-- خطوة 1: البحث عن الفاتورة --}}
                 <div class="bg-white shadow-sm border border-gray-100 sm:rounded-xl p-6">
@@ -163,9 +171,13 @@
                     </div>
 
                     <div class="flex items-center gap-3 mt-6">
-                        <button type="button" @click="submitReturn()"
-                                class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition shadow-sm">
-                            {{ __('invoices.save_return') }}
+                        {{-- :disabled + تبديل النص أثناء الإرسال - بنفس منطق شاشة إنشاء
+                             الفاتورة، عشان الضغط المتكرر على الزرار ميعملش أكتر من
+                             مرتجع للفاتورة نفسها. --}}
+                        <button type="button" @click="submitReturn()" :disabled="isSubmitting"
+                                class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-show="!isSubmitting">{{ __('invoices.save_return') }}</span>
+                            <span x-show="isSubmitting" x-cloak>{{ __('invoices.saving_please_wait') }}</span>
                         </button>
                         <a href="{{ route('invoices.index') }}"
                            class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
@@ -185,6 +197,10 @@
                 selectedInvoice: null,
                 items: [],
                 refundMethod: '',
+                // نفس فكرة isSubmitting بتاعة شاشة إنشاء الفاتورة - true من
+                // أول ما submitReturn() تبدأ ترسل لحد ما الصفحة تتنقل، وأي
+                // ضغطة تانية على الزرار وهو true بترجع فورًا من غير حاجة.
+                isSubmitting: false,
 
                 async searchInvoices() {
                     if (this.searchQuery.trim().length < 1) {
@@ -252,6 +268,12 @@
                 },
 
                 submitReturn() {
+                    // خط الدفاع الأول - لو فيه إرسال شغال بالفعل، أي ضغطة
+                    // تانية بترجع فورًا.
+                    if (this.isSubmitting) {
+                        return;
+                    }
+
                     const returnItems = this.items
                         .filter(item => item.return_qty && item.return_qty > 0)
                         .map(item => ({ invoice_item_id: item.id, quantity: item.return_qty }));
@@ -276,6 +298,7 @@
                         return;
                     }
 
+                    this.isSubmitting = true;
                     document.getElementById('return_items_json').value = JSON.stringify(returnItems);
                     document.getElementById('invoice-return-form').submit();
                 },

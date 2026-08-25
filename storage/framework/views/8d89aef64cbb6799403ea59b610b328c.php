@@ -71,6 +71,7 @@
         'items' => [
         ['label' => __('invoices.title'), 'url' => route('invoices.index')],
         ['label' => __('invoices.new_invoice'), 'url' => route('invoices.create')],
+        ['label' => __('invoices.previous_drafts'), 'url' => route('invoices.drafts.index')],
         ['label' => __('invoices.sales_return'), 'url' => route('invoices.returns.create')],
         ['label' => __('invoices.previous_returns'), 'url' => route('invoices.returns.index')],
 

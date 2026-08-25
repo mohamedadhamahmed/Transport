@@ -8,7 +8,6 @@
 <?php $attributes = $attributes->except(\App\View\Components\AppLayout::ignoredParameterNames()); ?>
 <?php endif; ?>
 <?php $component->withAttributes([]); ?>
-
     
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
     <style>
@@ -45,10 +44,52 @@
             color: #fff;
         }
     </style>
+    <?php
+        // توكن عشوائي بيتولد مرة واحدة بس لما الصفحة تتحمل، وبيفضل ثابت
+        // في حقل مخفي جوه الفورم حتى لو المستخدم دوس زرار الحفظ أكتر من
+        // مرة - السيرفر (store()) بيستخدمه عشان يرفض أي تكرار لنفس
+        // التوكن، فمينفعش نفس الفاتورة تتسجل مرتين حتى لو حصل ضغط مزدوج.
+        $submissionToken = (string) \Illuminate\Support\Str::uuid();
 
-    <div class="py-6" x-data="invoiceForm(<?php echo e($maxDiscountPercent ?? 0); ?>)">
+        // لو الصفحة اتفتحت من قايمة "المسودات السابقة" (?draft_id=xx)،
+        // بنجهز بيانات المسودة عشان نمررها لـ Alpine (invoiceForm) تملى
+        // بيها الفورم كامل: العميل، طريقة الدفع، الخصم، والبنود.
+        $draftForJs = $draft ? [
+            'id' => $draft->id,
+            'customer_id' => $draft->customer_id,
+            'payment_method' => $draft->payment_method,
+            'cash_amount' => $draft->cash_amount,
+            'bank_amount' => $draft->bank_amount,
+            'extra_discount' => $draft->invoice_level_discount,
+            'items' => collect($draft->items ?? [])->map(function ($item) {
+                return [
+                    'product_id' => $item['product_id'] ?? null,
+                    'name' => $item['name'] ?? '',
+                    'code' => $item['code'] ?? null,
+                    'quantity' => $item['quantity'] ?? 1,
+                    'unit_price' => $item['unit_price'] ?? 0,
+                    'purchase_price' => $item['purchase_price'] ?? 0,
+                    'discount_amount' => $item['discount_amount'] ?? 0,
+                    'tax_rate' => $item['tax_rate'] ?? 0.15,
+                ];
+            })->values(),
+        ] : null;
+    ?>
+    
+    <script type="application/json" id="draft-invoice-data"><?php echo json_encode($draftForJs, 15, 512) ?></script>
+    <script>
+        window.__draftInvoiceData = (function () {
+            var el = document.getElementById('draft-invoice-data');
+            if (!el) return null;
+            try {
+                return JSON.parse(el.textContent);
+            } catch (e) {
+                return null;
+            }
+        })();
+    </script>
+    <div class="py-6" x-data="invoiceForm(<?php echo e($maxDiscountPercent ?? 0); ?>, window.__draftInvoiceData)">
         <div class="max-w-[1680px] mx-auto sm:px-6 lg:px-8 space-y-6">
-
             
             <div class="rounded-2xl bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] px-5 sm:px-6 py-5 shadow-lg shadow-[#0F1B4C]/15 flex items-center justify-between flex-wrap gap-4">
                 <div class="flex items-center gap-3">
@@ -64,6 +105,15 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
+                    <a href="<?php echo e(route('invoices.drafts.index')); ?>"
+                       class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 19.5V6a2 2 0 0 1 2-2h9l5 5v10.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
+                            <path d="M14 4v4a1 1 0 0 0 1 1h4" />
+                        </svg>
+                        <?php echo e(__('invoices.previous_drafts')); ?>
+
+                    </a>
                     <button type="button" @click="customerModalOpen = true"
                             class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
                         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -88,17 +138,28 @@
                 </div>
             </div>
 
+            <?php if($draft): ?>
+                <div class="rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-2.5 flex items-center gap-2">
+                    <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 19.5V6a2 2 0 0 1 2-2h9l5 5v10.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
+                        <path d="M14 4v4a1 1 0 0 0 1 1h4" />
+                    </svg>
+                    <?php echo e(__('invoices.draft_loaded_notice')); ?>
+
+                </div>
+            <?php endif; ?>
+
             <form id="invoice-form" method="POST" action="<?php echo e(route('invoices.store')); ?>">
                 <?php echo csrf_field(); ?>
                 <input type="hidden" name="items_json" id="items_json">
                 <input type="hidden" name="is_finalized" id="is_finalized" value="1">
-
+                <input type="hidden" name="draft_id" :value="draftId">
+                
+                <input type="hidden" name="submission_token" value="<?php echo e($submissionToken); ?>">
                 
                 <div class="bg-white shadow-sm border border-gray-100 sm:rounded-xl p-6">
-
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.customer')); ?> *</label>
                             <div class="flex gap-2">
@@ -106,7 +167,7 @@
                                         class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]" required>
                                     <option value="">-</option>
                                     <?php $__currentLoopData = $customers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $customer): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                        <option value="<?php echo e($customer->id); ?>"><?php echo e($customer->name); ?></option>
+                                        <option value="<?php echo e($customer->id); ?>" <?php if($draft && (string) $draft->customer_id === (string) $customer->id): echo 'selected'; endif; ?>><?php echo e($customer->name); ?></option>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </select>
                                 <button type="button" @click="customerModalOpen = true"
@@ -116,7 +177,6 @@
                                 </button>
                             </div>
                         </div>
-
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.payment_method')); ?> *</label>
                             <select name="payment_method" x-model="paymentMethod"
@@ -128,9 +188,7 @@
                                 <option value="split"><?php echo e(__('invoices.split')); ?></option>
                             </select>
                         </div>
-
                     </div>
-
                     
                     <template x-if="paymentMethod === 'split'">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0F1B4C]/5 p-4 rounded-lg border border-[#0F1B4C]/10 mt-6">
@@ -146,10 +204,8 @@
                             </div>
                         </div>
                     </template>
-
                     
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.branch')); ?></label>
                             <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-gray-600">
@@ -158,7 +214,6 @@
                             </div>
                             <input type="hidden" name="branch_id" value="<?php echo e(auth()->user()->branch_id); ?>">
                         </div>
-
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.tax')); ?></label>
                             <select x-model.number="defaultTaxRate" @change="applyDefaultTaxRate()"
@@ -167,26 +222,20 @@
                                 <option value="0">0%</option>
                             </select>
                         </div>
-
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.note')); ?></label>
-                            <input type="text" name="note"
+                            <input type="text" name="note" value="<?php echo e(old('note', $draft->note ?? '')); ?>"
                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                         </div>
-
                     </div>
-
                 </div>
-
                 
                 <div class="bg-white shadow-sm border border-gray-100 sm:rounded-xl p-6 mt-6">
-
                     <div class="flex items-start gap-3 mb-4 flex-wrap">
                         <div class="relative">
                             <input type="text" x-model="searchQuery" @input.debounce.300ms="searchProducts()"
                                    placeholder="<?php echo e(__('invoices.search_product_placeholder')); ?>"
                                    class="w-full max-w-md rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-
                             <div x-show="searchResults.length > 0" x-cloak
                                  class="absolute z-10 mt-1 w-full max-w-md bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
                                 <template x-for="p in searchResults" :key="p.id">
@@ -201,7 +250,6 @@
                                 </template>
                             </div>
                         </div>
-
                         <button type="button" @click="openProductPicker()"
                                 class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium bg-[#0F1B4C] hover:bg-[#0F1B4C]/90 transition whitespace-nowrap">
                             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -211,7 +259,6 @@
 
                         </button>
                     </div>
-
                     <div class="overflow-x-auto rounded-xl border border-[#0F1B4C]/10">
                         <table class="min-w-full text-sm">
                             <thead>
@@ -270,7 +317,6 @@
                             </tbody>
                         </table>
                     </div>
-
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                         <div>
@@ -281,11 +327,10 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.po_number')); ?></label>
-                            <input type="text" name="purchase_order_number"
+                            <input type="text" name="purchase_order_number" value="<?php echo e(old('purchase_order_number', $draft->purchase_order_number ?? '')); ?>"
                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                         </div>
                     </div>
-
                     
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
                         <div class="bg-[#0F1B4C]/5 border border-[#0F1B4C]/10 rounded-lg p-4 text-center">
@@ -306,17 +351,17 @@
                             <div class="font-bold text-lg" x-text="grandTotal.toFixed(2)"></div>
                         </div>
                     </div>
-
                     <div class="flex items-center gap-3 mt-6">
-                        <button type="button" @click="submitInvoice(false)"
-                                class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition shadow-sm">
-                            <?php echo e(__('invoices.save_invoice')); ?>
-
+                        
+                        <button type="button" @click="submitInvoice(false)" :disabled="isSubmitting"
+                                class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-show="!isSubmitting"><?php echo e(__('invoices.save_invoice')); ?></span>
+                            <span x-show="isSubmitting" x-cloak><?php echo e(__('invoices.saving_please_wait')); ?></span>
                         </button>
-                        <button type="button" @click="submitInvoice(true)"
-                                class="px-5 py-2 rounded-lg font-medium text-white bg-[#F5811E] hover:brightness-95 transition shadow-sm">
-                            <?php echo e(__('invoices.save_as_draft')); ?>
-
+                        <button type="button" @click="submitInvoice(true)" :disabled="isSubmitting"
+                                class="px-5 py-2 rounded-lg font-medium text-white bg-[#F5811E] hover:brightness-95 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-show="!isSubmitting"><?php echo e(__('invoices.save_as_draft')); ?></span>
+                            <span x-show="isSubmitting" x-cloak><?php echo e(__('invoices.saving_please_wait')); ?></span>
                         </button>
                         <a href="<?php echo e(route('invoices.index')); ?>"
                            class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
@@ -325,16 +370,13 @@
                         </a>
                     </div>
                 </div>
-
             </form>
         </div>
-
         
         <div x-show="customerModalOpen" x-cloak
              class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div class="bg-white rounded-xl p-6 w-full max-w-2xl my-8" @click.outside="customerModalOpen = false">
                 <h3 class="font-semibold text-lg text-gray-800 mb-4"><?php echo e(__('invoices.add_new_customer')); ?></h3>
-
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="md:col-span-1">
                         <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('products.name')); ?> *</label>
@@ -351,7 +393,6 @@
                         <input type="email" x-model="newCustomer.email"
                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
-
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.company_name')); ?></label>
                         <input type="text" x-model="newCustomer.company_name"
@@ -367,7 +408,6 @@
                         <input type="text" x-model="newCustomer.commercial_registration_number"
                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
-
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.credit_limit')); ?></label>
                         <input type="number" step="0.01" min="0" x-model.number="newCustomer.credit_limit"
@@ -378,7 +418,6 @@
                         <input type="text" x-model="newCustomer.notes"
                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
-
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.district')); ?></label>
                         <input type="text" x-model="newCustomer.district"
@@ -394,7 +433,6 @@
                         <input type="text" x-model="newCustomer.building_number"
                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
-
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.plot_identification')); ?></label>
                         <input type="text" x-model="newCustomer.plot_identification"
@@ -406,7 +444,6 @@
                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                 </div>
-
                 <div class="flex items-center gap-3 mt-6">
                     <button type="button" @click="createCustomer()"
                             class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition">
@@ -421,13 +458,11 @@
                 </div>
             </div>
         </div>
-
         
         <div x-show="productModalOpen" x-cloak
              class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div class="bg-white rounded-xl p-6 w-full max-w-2xl my-8" @click.outside="productModalOpen = false">
                 <h3 class="font-semibold text-lg text-gray-800 mb-4"><?php echo e(__('invoices.quick_add_product')); ?></h3>
-
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.product_name')); ?> *</label>
@@ -444,7 +479,6 @@
                         <input type="text" x-model="newProduct.code"
                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
-
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.product_location')); ?></label>
                         <input type="text" x-model="newProduct.location"
@@ -460,7 +494,6 @@
                         <input type="number" step="0.01" min="0" x-model.number="newProduct.stock_quantity"
                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
-
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.purchase_price')); ?></label>
                         <input type="number" step="0.01" min="0" x-model.number="newProduct.purchase_price"
@@ -476,7 +509,6 @@
                         <input type="number" step="0.01" min="0" x-model.number="newProduct.wholesale_price"
                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
-
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e(__('invoices.low_stock_alert_quantity')); ?></label>
                         <input type="number" step="1" min="0" x-model.number="newProduct.low_stock_alert_quantity"
@@ -493,7 +525,6 @@
                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                 </div>
-
                 <div class="flex items-center gap-3 mt-6">
                     <button type="button" @click="createProduct()"
                             class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition">
@@ -508,25 +539,21 @@
                 </div>
             </div>
         </div>
-
         
         <div x-show="productPickerOpen" x-cloak
              class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div class="bg-white rounded-xl w-full max-w-7xl my-8 flex flex-col max-h-[90vh] shadow-2xl" @click.outside="productPickerOpen = false">
-
                 <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] rounded-t-xl">
                     <h3 class="font-semibold text-white"><?php echo e(__('invoices.choose_product')); ?></h3>
                     <button type="button" @click="productPickerOpen = false" class="text-white/60 hover:text-white transition">
                         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
                     </button>
                 </div>
-
                 <div class="px-6 py-4 border-b border-gray-100">
                     <input type="text" x-model="pickerSearch" @input.debounce.300ms="loadProducts(1)"
                            placeholder="<?php echo e(__('invoices.search_product_placeholder')); ?>"
                            class="w-full max-w-md rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                 </div>
-
                 <div >
                     <table class="min-w-full text-sm">
                         <thead class="sticky top-0">
@@ -583,7 +610,6 @@
                         </tbody>
                     </table>
                 </div>
-
                 <div class="flex items-center justify-between px-6 py-3 border-t border-gray-100 flex-wrap gap-2">
                     <span class="text-xs text-gray-400"
                           x-text="pickerTotal > 0 ? '<?php echo e(__('invoices.page_of_total')); ?>'.replace(':current', pickerPage).replace(':last', pickerLastPage).replace(':total', pickerTotal) : ''"></span>
@@ -603,15 +629,24 @@
             </div>
         </div>
     </div>
-
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script>
-        function invoiceForm(maxDiscountPercent = 0) {
+        function invoiceForm(maxDiscountPercent = 0, draftData = null) {
             return {
                 // أقصى نسبة خصم مسموح بيها للموظف الحالي على الفرع بتاعه -
                 // جاية من جدول employee_discount_settings (عمود max_discount)
                 // ومتمررة من الكنترولر لصفحة الفاتورة.
                 maxDiscountPercent: parseFloat(maxDiscountPercent) || 0,
+                // بيانات المسودة (لو الصفحة اتفتحت من "المسودات السابقة") -
+                // بتتقرا في init() تحت وتملى بيها كل حقول الفورم.
+                draftData: draftData,
+                draftId: draftData ? draftData.id : null,
+                // true من أول ما submitInvoice() تتنفذ لحد ما الصفحة تتنقل
+                // (submit عادي بيعمل full page reload) - أي ضغطة تانية على
+                // الزرار وهو true بترجع فورًا من غير ما تعمل حاجة (خط دفاع
+                // أول، والتوكن اللي في السيرفر خط الدفاع التاني للحالات
+                // النادرة اللي الضغطتين بيوصلوا قبل ما الزرار يتعطل بصريًا).
+                isSubmitting: false,
                 items: [],
                 searchQuery: '',
                 searchResults: [],
@@ -645,7 +680,6 @@
                 bankAmount: 0,
                 extraDiscount: 0,
                 defaultTaxRate: 0.15,
-
                 // بتتنفذ أوتوماتيك لما الكومبوننت يتحمل - هنا بنركّب TomSelect
                 // على قايمة العميل عشان يبقى فيه بحث، وبنحتفظ بالـ instance
                 // في this.customerTomSelect عشان createCustomer() تقدر تضيفله
@@ -671,8 +705,33 @@
                             },
                         });
                     }
-                },
 
+                    // لو فيه مسودة اتحملت (من قايمة "المسودات السابقة")،
+                    // نملى بيها كل حقول الفورم: العميل، طريقة الدفع،
+                    // مبالغ الدفع المقسّم، الخصم الإضافي، وكل البنود.
+                    if (this.draftData) {
+                        this.paymentMethod = this.draftData.payment_method || 'cash';
+                        this.cashAmount = parseFloat(this.draftData.cash_amount) || 0;
+                        this.bankAmount = parseFloat(this.draftData.bank_amount) || 0;
+                        this.extraDiscount = parseFloat(this.draftData.extra_discount) || 0;
+                        this.items = (this.draftData.items || []).map(i => ({
+                            product_id: i.product_id,
+                            name: i.name,
+                            code: i.code,
+                            quantity: parseFloat(i.quantity) || 1,
+                            unit_price: parseFloat(i.unit_price) || 0,
+                            purchase_price: parseFloat(i.purchase_price) || 0,
+                            discount_amount: parseFloat(i.discount_amount) || 0,
+                            tax_rate: parseFloat(i.tax_rate) || 0,
+                        }));
+                        if (this.draftData.customer_id) {
+                            this.selectedCustomerId = String(this.draftData.customer_id);
+                            if (this.customerTomSelect) {
+                                this.customerTomSelect.setValue(String(this.draftData.customer_id));
+                            }
+                        }
+                    }
+                },
                 async searchProducts() {
                     if (this.searchQuery.trim().length < 1) {
                         this.searchResults = [];
@@ -681,7 +740,6 @@
                     const res = await fetch(`<?php echo e(route('invoices.products.search')); ?>?q=` + encodeURIComponent(this.searchQuery));
                     this.searchResults = await res.json();
                 },
-
                 addProduct(p) {
                     this.items.push({
                         product_id: p.id,
@@ -696,14 +754,12 @@
                     this.searchQuery = '';
                     this.searchResults = [];
                 },
-
                 // بتتنفذ لما نسبة الضريبة "من فوق" تتغيّر - بتطبقها على كل
                 // الأصناف اللي في الجدول أوتوماتيك عشان الجدول يفضل بس عارض
                 // للنسبة مش فيه تعديل لكل صنف لوحده.
                 applyDefaultTaxRate() {
                     this.items.forEach(i => { i.tax_rate = this.defaultTaxRate; });
                 },
-
                 removeItem(index) {
                     const removed = this.items[index];
                     this.items.splice(index, 1);
@@ -712,7 +768,6 @@
                         this.addedProductIds = this.addedProductIds.filter(id => id !== removed.product_id);
                     }
                 },
-
                 // مودال اختيار منتج من قائمة كاملة (زي النظام القديم: بحث + صفحات 20 منتج تتحمل بالـ ajax)
                 openProductPicker() {
                     this.productPickerOpen = true;
@@ -739,7 +794,6 @@
                 markAdded(id) {
                     if (!this.addedProductIds.includes(id)) this.addedProductIds.push(id);
                 },
-
                 lineSubtotal(item) {
                     return ((parseFloat(item.unit_price) || 0) * (parseFloat(item.quantity) || 0)) - (parseFloat(item.discount_amount) || 0);
                 },
@@ -755,7 +809,6 @@
                 lineProfit(item) {
                     return (parseFloat(item.unit_price) || 0) - (parseFloat(item.purchase_price) || 0);
                 },
-
                 get subtotal() {
                     return this.items.reduce((sum, i) => sum + this.lineSubtotal(i), 0);
                 },
@@ -773,7 +826,6 @@
                     const total = this.subtotal + this.taxTotal - (parseFloat(this.extraDiscount) || 0);
                     return total > 0 ? total : 0;
                 },
-
                 // بتتحقق من حدين للخصم اللي الموظف داخله على الفاتورة:
                 // 1) إنه مش أكبر من إجمالي الفاتورة نفسه (قبل الخصم).
                 // 2) إنه كنسبة مئوية من الإجمالي مش متعدي أقصى نسبة خصم
@@ -784,7 +836,6 @@
                 checkDiscountLimit() {
                     const limit = this.subtotal + this.taxTotal;
                     let discount = parseFloat(this.extraDiscount) || 0;
-
                     if (discount > limit) {
                         this.extraDiscount = limit;
                         Swal.fire({
@@ -795,7 +846,6 @@
                         });
                         return false;
                     }
-
                     if (this.maxDiscountPercent > 0 && limit > 0) {
                         const maxAllowedDiscount = limit * (this.maxDiscountPercent / 100);
                         if (discount > maxAllowedDiscount + 0.001) {
@@ -809,11 +859,15 @@
                             return false;
                         }
                     }
-
                     return true;
                 },
-
                 submitInvoice(isDraft) {
+                    // خط الدفاع الأول ضد الضغط المتكرر على الزرار - لو فيه
+                    // إرسال شغال بالفعل (isSubmitting = true)، أي ضغطة
+                    // تانية بترجع فورًا من غير ما تعمل أي حاجة.
+                    if (this.isSubmitting) {
+                        return;
+                    }
                     if (!this.checkDiscountLimit()) {
                         return;
                     }
@@ -835,11 +889,11 @@
                         });
                         return;
                     }
+                    this.isSubmitting = true;
                     document.getElementById('is_finalized').value = isDraft ? '0' : '1';
                     document.getElementById('items_json').value = JSON.stringify(this.items);
                     document.getElementById('invoice-form').submit();
                 },
-
                 async createCustomer() {
                     if (!this.newCustomer.name || !this.newCustomer.phone) {
                         Swal.fire({
@@ -850,7 +904,6 @@
                         });
                         return;
                     }
-
                     const res = await fetch(`<?php echo e(route('invoices.customers.quick')); ?>`, {
                         method: 'POST',
                         headers: {
@@ -889,7 +942,6 @@
                         };
                     }
                 },
-
                 async createProduct() {
                     if (!this.newProduct.name) {
                         Swal.fire({
@@ -900,9 +952,7 @@
                         });
                         return;
                     }
-
                     const branchId = document.querySelector('input[name="branch_id"]').value;
-
                     const res = await fetch(`<?php echo e(route('invoices.products.quick')); ?>`, {
                         method: 'POST',
                         headers: {
@@ -938,4 +988,5 @@
 <?php if (isset($__componentOriginal9ac128a9029c0e4701924bd2d73d7f54)): ?>
 <?php $component = $__componentOriginal9ac128a9029c0e4701924bd2d73d7f54; ?>
 <?php unset($__componentOriginal9ac128a9029c0e4701924bd2d73d7f54); ?>
-<?php endif; ?><?php /**PATH C:\xampp\htdocs\my-erp\resources\views/invoices/create.blade.php ENDPATH**/ ?>
+<?php endif; ?>
+<?php /**PATH C:\xampp\htdocs\my-erp\resources\views/invoices/create.blade.php ENDPATH**/ ?>

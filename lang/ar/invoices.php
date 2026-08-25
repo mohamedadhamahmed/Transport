@@ -2,7 +2,7 @@
 
 return [
     'title' => 'الفواتير',
-    'new_invoice' => 'فاتورة مبيعات جديدة',
+    'new_invoice' => 'فاتورة مبيعات ',
     'invoice_no' => 'رقم الفاتورة',
     'customer' => 'العميل',
     'branch' => 'الفرع',
@@ -103,7 +103,7 @@ return [
     'select_customer_required' => 'من فضلك اختاري العميل قبل الحفظ',
     'enter_customer_name_phone' => 'من فضلك اكتبي اسم العميل ورقم الهاتف',
     'ok' => 'حسنًا',
-     'sales_return' => 'مرتجع مبيعات جديد',
+    'sales_return' => 'مرتجع مبيعات ',
     'sales_return_subtitle' => 'المبيعات - المرتجعات',
     'search_invoice_label' => 'الفاتورة',
     'search_invoice_placeholder' => 'ابحث برقم الفاتورة أو اسم العميل',
@@ -122,16 +122,39 @@ return [
     'refund_method_required' => 'من فضلك اختر طريقة الاسترداد',
     'return_quantity_exceeds_remaining' => 'الكمية المدخلة أكبر من الكمية المتاحة للإرجاع',
     'return_created_successfully' => 'تم حفظ مرتجع المبيعات بنجاح',
-    'search'=>"بحث",
- 
+    'search' => "بحث",
+
     'print' => 'طباعة',
     'credit_note_preview_title' => 'معاينة طباعة إشعار الدائن',
 
     'previous_returns' => 'المرتجعات السابقة',
     'return_reference' => 'مرجع المرتجع',
-   
+
     'items_count' => 'عدد الأصناف',
     'no_previous_returns' => 'لا يوجد مرتجعات سابقة',
     'clear' => 'إلغاء البحث',
+    'previous_drafts' => 'المسودات السابقة',
+    'drafts_title' => 'المسودات السابقة',
+    'drafts_subtitle' => 'فواتير محفوظة كمسودة - لسه ملهاش رقم فاتورة رسمي',
+    'draft_customer' => 'العميل',
+    'draft_branch' => 'الفرع',
+    'draft_payment_method' => 'طريقة الدفع',
+    'draft_items_count' => 'عدد الأصناف',
+    'draft_total' => 'الإجمالي',
+    'draft_created_at' => 'تاريخ الحفظ',
+    'open_draft' => 'فتح',
+    'delete_draft' => 'حذف',
+    'confirm_delete_draft' => 'متأكدة إنك عايزة تحذفي المسودة دي؟',
+    'no_drafts' => 'مفيش مسودات محفوظة حاليًا',
+    'draft_saved_successfully' => 'تم حفظ المسودة بنجاح',
+    'draft_deleted_successfully' => 'تم حذف المسودة بنجاح',
+    'draft_loaded_notice' => 'انتي بتعدلي على مسودة سابقة - لما تدوسي "حفظ الفاتورة" هتتحول لفاتورة رسمية وياخد رقمها، أو ممكن تحفظي التعديلات كمسودة تاني.',
 
+    'approve_draft' => 'اعتماد',
+    'confirm_approve_draft' => 'هيتم اعتماد المسودة دي كفاتورة رسمية فورًا (رقم فاتورة + قيود محاسبية + خصم من المخزون) من غير ما تفتحيها. متأكدة؟',
+    'draft_missing_data' => 'المسودة دي ناقصة بيانات أساسية (عميل أو أصناف) - افتحيها الأول وكمّليها قبل الاعتماد.',
+
+    // بانر بيظهر فوق فورم إنشاء الفاتورة لما تكوني بتفتح مسودة قديمة
+    'saving_please_wait' => 'جاري الحفظ...',
+    'duplicate_submission_prevented' => 'تم اكتشاف محاولة إرسال مكررة (ضغط متكرر على زرار الحفظ) - لو الفاتورة اتسجلت فعلاً هتلاقيها في قايمة الفواتير.',
 ];

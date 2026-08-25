@@ -133,10 +133,34 @@
                     </table>
                 </div>
 
-                <div class="p-4">
-                    {{ $invoices->links() }}
-                </div>
+       <div class="p-4 border-t border-gray-100">
+    @if ($invoices->hasPages())
+        <div class="flex items-center justify-center gap-1 flex-wrap">
+            @if ($invoices->onFirstPage())
+                <span class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-300 cursor-not-allowed">{{ __('invoices.previous') }}</span>
+            @else
+                <a href="{{ $invoices->previousPageUrl() }}"
+                   class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">{{ __('invoices.previous') }}</a>
+            @endif
 
+            @foreach (range(1, $invoices->lastPage()) as $page)
+                @if ($page == $invoices->currentPage())
+                    <span class="px-3 py-1.5 rounded-lg text-sm font-semibold text-white bg-[#0F1B4C]">{{ $page }}</span>
+                @else
+                    <a href="{{ $invoices->url($page) }}"
+                       class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">{{ $page }}</a>
+                @endif
+            @endforeach
+
+            @if ($invoices->hasMorePages())
+                <a href="{{ $invoices->nextPageUrl() }}"
+                   class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">{{ __('invoices.next') }}</a>
+            @else
+                <span class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-300 cursor-not-allowed">{{ __('invoices.next') }}</span>
+            @endif
+        </div>
+    @endif
+</div>
             </div>
         </div>
     </div>

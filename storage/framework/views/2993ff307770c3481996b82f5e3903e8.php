@@ -147,11 +147,34 @@
                     </table>
                 </div>
 
-                <div class="p-4">
-                    <?php echo e($invoices->links()); ?>
+       <div class="p-4 border-t border-gray-100">
+    <?php if($invoices->hasPages()): ?>
+        <div class="flex items-center justify-center gap-1 flex-wrap">
+            <?php if($invoices->onFirstPage()): ?>
+                <span class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-300 cursor-not-allowed"><?php echo e(__('invoices.previous')); ?></span>
+            <?php else: ?>
+                <a href="<?php echo e($invoices->previousPageUrl()); ?>"
+                   class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition"><?php echo e(__('invoices.previous')); ?></a>
+            <?php endif; ?>
 
-                </div>
+            <?php $__currentLoopData = range(1, $invoices->lastPage()); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $page): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <?php if($page == $invoices->currentPage()): ?>
+                    <span class="px-3 py-1.5 rounded-lg text-sm font-semibold text-white bg-[#0F1B4C]"><?php echo e($page); ?></span>
+                <?php else: ?>
+                    <a href="<?php echo e($invoices->url($page)); ?>"
+                       class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition"><?php echo e($page); ?></a>
+                <?php endif; ?>
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
+            <?php if($invoices->hasMorePages()): ?>
+                <a href="<?php echo e($invoices->nextPageUrl()); ?>"
+                   class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition"><?php echo e(__('invoices.next')); ?></a>
+            <?php else: ?>
+                <span class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-300 cursor-not-allowed"><?php echo e(__('invoices.next')); ?></span>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
+</div>
             </div>
         </div>
     </div>

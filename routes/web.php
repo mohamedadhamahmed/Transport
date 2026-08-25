@@ -10,6 +10,7 @@ use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\EmployeeDiscountSettingController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\InvoiceReturnController;
+use App\Http\Controllers\DraftInvoiceController;
 
 
 Route::get('/', function () {
@@ -50,6 +51,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/invoices', [InvoiceController::class, 'index'])->name('invoices.index');
     Route::get('/invoices/create', [InvoiceController::class, 'create'])->name('invoices.create');
     Route::post('/invoices', [InvoiceController::class, 'store'])->name('invoices.store');
+    Route::get('/invoices/drafts', [DraftInvoiceController::class, 'index'])->name('invoices.drafts.index');
+    Route::delete('/invoices/drafts/{draft}', [DraftInvoiceController::class, 'destroy'])->name('invoices.drafts.destroy');
+    Route::post('/invoices/drafts/{draft}/approve', [InvoiceController::class, 'approveDraft'])->name('invoices.drafts.approve');
 
     // مسارات مرتجع المبيعات - لازم تكون هنا، قبل /invoices/{invoice}،
     // عشان لارافيل ميفهمش "returns" على إنها ID فاتورة (route model binding).
