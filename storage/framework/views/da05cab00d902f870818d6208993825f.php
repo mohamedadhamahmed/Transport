@@ -28,7 +28,7 @@
                     </div>
                 </div>
                 <a href="<?php echo e(route('invoices.create')); ?>"
-                   class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F5811E] hover:brightness-95 transition shadow-sm shadow-black/10">
+                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F5811E] hover:brightness-95 transition shadow-sm shadow-black/10">
                     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 5v14M5 12h14" />
                     </svg>
@@ -38,17 +38,17 @@
             </div>
 
             <?php if(session('success')): ?>
-                <div class="rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm px-4 py-3">
-                    <?php echo e(session('success')); ?>
+            <div class="rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm px-4 py-3">
+                <?php echo e(session('success')); ?>
 
-                </div>
+            </div>
             <?php endif; ?>
 
             <?php if(session('error')): ?>
-                <div class="rounded-xl bg-red-50 border border-red-100 text-red-700 text-sm px-4 py-3">
-                    <?php echo e(session('error')); ?>
+            <div class="rounded-xl bg-red-50 border border-red-100 text-red-700 text-sm px-4 py-3">
+                <?php echo e(session('error')); ?>
 
-                </div>
+            </div>
             <?php endif; ?>
 
             
@@ -68,42 +68,43 @@
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                             <?php $__empty_1 = true; $__currentLoopData = $drafts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $draft): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
-                                <tr class="hover:bg-[#1456E8]/5 transition">
-                                    <td class="px-3 py-2.5 font-medium text-gray-800"><?php echo e($draft->customer->name ?? '-'); ?></td>
-                                    <td class="px-3 py-2.5">
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200"><?php echo e($draft->branch->name ?? '-'); ?></span>
-                                    </td>
-                                    <td class="px-3 py-2.5 text-gray-500"><?php echo e(__('invoices.' . $draft->payment_method)); ?></td>
-                                    <td class="px-3 py-2.5 text-gray-500 tabular-nums"><?php echo e($draft->items_count); ?></td>
-                                    <td class="px-3 py-2.5 font-semibold text-[#0F1B4C] tabular-nums"><?php echo e(number_format($draft->total, 2)); ?></td>
-                                    <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap"><?php echo e($draft->created_at->format('Y-m-d H:i')); ?></td>
-                                    <td class="px-3 py-2.5">
-                                        <div class="flex items-center gap-2">
-                                            <a href="<?php echo e(route('invoices.create', ['draft_id' => $draft->id])); ?>"
-                                               class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#1456E8] hover:brightness-95 transition whitespace-nowrap">
-                                                <?php echo e(__('invoices.open_draft')); ?>
+                            <tr class="hover:bg-[#1456E8]/5 transition">
+                                <td class="px-3 py-2.5 font-medium text-gray-800"><?php echo e($draft->customer->name ?? '-'); ?></td>
+                                <td class="px-3 py-2.5">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200"><?php echo e($draft->branch->name ?? '-'); ?></span>
+                                </td>
+                                <td class="px-3 py-2.5 text-gray-500"><?php echo e(__('invoices.' . $draft->payment_method)); ?></td>
+                                <td class="px-3 py-2.5 text-gray-500 tabular-nums"><?php echo e($draft->items_count); ?></td>
+                                <td class="px-3 py-2.5 font-semibold text-[#0F1B4C] tabular-nums"><?php echo e(number_format($draft->total, 2)); ?></td>
+                                <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap"><?php echo e($draft->created_at->format('Y-m-d H:i')); ?></td>
+                                <td class="px-3 py-2.5">
+                                    <div class="flex items-center gap-2">
+                                        <a href="<?php echo e(route('invoices.create', ['draft_id' => $draft->id])); ?>"
+                                            style="background-color:#1456E8; color:#ffffff;"
+                                            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#1456E8] hover:brightness-95 transition whitespace-nowrap">
+                                            <?php echo e(__('invoices.open_draft')); ?>
 
-                                            </a>
-                                            <form method="POST" action="<?php echo e(route('invoices.drafts.destroy', $draft)); ?>"
-                                                  onsubmit="return confirm('<?php echo e(__('invoices.confirm_delete_draft')); ?>');">
-                                                <?php echo csrf_field(); ?>
-                                                <?php echo method_field('DELETE'); ?>
-                                                <button type="submit"
-                                                        class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 transition whitespace-nowrap">
-                                                    <?php echo e(__('invoices.delete_draft')); ?>
+                                        </a>
+                                        <form method="POST" action="<?php echo e(route('invoices.drafts.destroy', $draft)); ?>"
+                                            onsubmit="return confirm('<?php echo e(__('invoices.confirm_delete_draft')); ?>');">
+                                            <?php echo csrf_field(); ?>
+                                            <?php echo method_field('DELETE'); ?>
+                                            <button type="submit"
+                                                class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 transition whitespace-nowrap">
+                                                <?php echo e(__('invoices.delete_draft')); ?>
 
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
-                                <tr>
-                                    <td colspan="7" class="px-3 py-10 text-center text-gray-400">
-                                        <?php echo e(__('invoices.no_drafts')); ?>
+                            <tr>
+                                <td colspan="7" class="px-3 py-10 text-center text-gray-400">
+                                    <?php echo e(__('invoices.no_drafts')); ?>
 
-                                    </td>
-                                </tr>
+                                </td>
+                            </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -121,5 +122,4 @@
 <?php if (isset($__componentOriginal9ac128a9029c0e4701924bd2d73d7f54)): ?>
 <?php $component = $__componentOriginal9ac128a9029c0e4701924bd2d73d7f54; ?>
 <?php unset($__componentOriginal9ac128a9029c0e4701924bd2d73d7f54); ?>
-<?php endif; ?>
-<?php /**PATH C:\xampp\htdocs\my-erp\resources\views/invoices/drafts.blade.php ENDPATH**/ ?>
+<?php endif; ?><?php /**PATH C:\xampp\htdocs\my-erp\resources\views/invoices/drafts.blade.php ENDPATH**/ ?>

@@ -998,11 +998,21 @@ public function create(Request $request)
     {
         $invoice->load(['customer', 'branch', 'items.product']);
 
-        // العربي بيظهر صح من غير أي مكتبة إضافية (ArPHP اتشالت) طالما
-        // القالب نفسه بيحدد dir="rtl" صراحة على كل جدول/عنصر، وبيفرض
-        // خط DejaVu Sans بـ * { font-family: DejaVu Sans !important; }
-        // - بالظبط زي تقنية القالب الشغال عندك (translation.blade.php).
-        return Pdf::loadView('invoices.pdf', compact('invoice'))->setPaper('a4');
+        $html = view('invoices.pdf', compact('invoice'))->render();
+
+        // dompdf مبيدعمش تشكيل الحروف العربية (وصل الحروف ببعض بشكلها
+        // الصحيح: أول/وسط/آخر/منفصل) ولا اتجاه الكتابة (RTL) تلقائيًا -
+        // من غيرها الحروف العربية بتطلع منفصلة عن بعض ومقلوبة (زي ما
+        // شفتيه في اللقطة). مكتبة ArPHP بتظبط شكل النص العربي بس (من
+        // غير ما تلمس الإنجليزي أو الأرقام أو أي HTML tags) قبل ما نسلّم
+        // الصفحة لـ dompdf يحوّلها PDF.
+        //   composer require khaled.alshamaa/arphp
+        if (class_exists(\ArPHP\I18N\Arabic::class)) {
+            $arabic = new \ArPHP\I18N\Arabic();
+            $html = $arabic->utf8Glyphs($html);
+        }
+
+        return Pdf::loadHTML($html)->setPaper('a4');
     }
 
     /**

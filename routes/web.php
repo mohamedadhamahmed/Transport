@@ -11,6 +11,7 @@ use App\Http\Controllers\EmployeeDiscountSettingController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\InvoiceReturnController;
 use App\Http\Controllers\DraftInvoiceController;
+use App\Http\Controllers\QuotationController;
 
 
 Route::get('/', function () {
@@ -46,7 +47,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::resource('products', ProductController::class);
-
     // مسارات الفواتير الأساسية والإضافية
     Route::get('/invoices', [InvoiceController::class, 'index'])->name('invoices.index');
     Route::get('/invoices/create', [InvoiceController::class, 'create'])->name('invoices.create');
@@ -67,12 +67,22 @@ Route::middleware('auth')->group(function () {
     Route::get('/invoices/returns/{referenceValue}/print', [InvoiceReturnController::class, 'print'])->name('invoices.returns.print');
 
     Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
+    Route::get('/quotations', [QuotationController::class, 'index'])->name('quotations.index');
+    Route::get('/quotations/create', [QuotationController::class, 'create'])->name('quotations.create');
+    Route::post('/quotations', [QuotationController::class, 'store'])->name('quotations.store');
+    Route::get('/quotations/{quotation}', [QuotationController::class, 'show'])->name('quotations.show');
+    Route::post('/quotations/{quotation}/approve', [QuotationController::class, 'approve'])->name('quotations.approve');
+    Route::post('/quotations/{quotation}/reject', [QuotationController::class, 'reject'])->name('quotations.reject');
+    Route::get('/quotations/customer-history/{customer}', [QuotationController::class, 'customerHistory'])->name('quotations.customer-history');
+Route::get('/quotations/{quotation}/pdf', [QuotationController::class, 'downloadPdf'])->name('quotations.pdf');
 
     // مسارات التعديل والـ PDF التي كانت ناقصة
     Route::get('/invoices/{invoice}/edit', [InvoiceController::class, 'edit'])->name('invoices.edit');
     Route::put('/invoices/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
-    Route::get('/invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->name('invoices.pdf');
-
+    Route::get('/invoices/{invoice}/pdf', [InvoiceController::class, 'downloadPdf'])->name('invoices.pdf');
+Route::get('/invoices/{invoice}/public-pdf', [InvoiceController::class, 'publicPdf'])
+    ->name('invoices.public-pdf')
+    ->middleware('signed');
     // مسارات البحث والمنتجات والعملاء السريعة
     Route::get('/invoices/products/pick', [InvoiceController::class, 'pickProducts'])->name('invoices.products.pick');
     Route::get('/invoices/products/search', [InvoiceController::class, 'searchProducts'])->name('invoices.products.search');

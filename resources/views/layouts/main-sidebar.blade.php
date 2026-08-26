@@ -84,6 +84,15 @@
         ],
         ],
         [
+        'key' => 'quotations',
+        'label' => __('quotations.title'),
+        'icon' => 'tag',
+        'items' => [
+        ['label' => __('quotations.title'), 'url' => route('quotations.index')],
+        ['label' => __('quotations.new_quotation'), 'url' => route('quotations.create')],
+        ],
+        ],
+        [
         'key' => 'zatca',
         'label' => __('zatca.title'),
         'icon' => 'doc',
@@ -134,6 +143,9 @@
         'return' => '
         <path d="M3 7v6h6" />
         <path d="M3 13a9 9 0 1 0 3-6.7L3 9" />',
+        'tag' => '
+        <path d="M20.6 12.6 12.6 20.6a2 2 0 0 1-2.83 0l-6.37-6.37a2 2 0 0 1 0-2.83L11.4 3.4A2 2 0 0 1 12.8 2.8H19a2 2 0 0 1 2 2v6.2a2 2 0 0 1-.4 1.2Z" />
+        <circle cx="16.5" cy="7.5" r="1.5" />',
         ];
         @endphp
 

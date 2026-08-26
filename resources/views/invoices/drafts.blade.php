@@ -19,7 +19,7 @@
                     </div>
                 </div>
                 <a href="{{ route('invoices.create') }}"
-                   class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F5811E] hover:brightness-95 transition shadow-sm shadow-black/10">
+                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F5811E] hover:brightness-95 transition shadow-sm shadow-black/10">
                     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 5v14M5 12h14" />
                     </svg>
@@ -28,15 +28,15 @@
             </div>
 
             @if (session('success'))
-                <div class="rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm px-4 py-3">
-                    {{ session('success') }}
-                </div>
+            <div class="rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm px-4 py-3">
+                {{ session('success') }}
+            </div>
             @endif
 
             @if (session('error'))
-                <div class="rounded-xl bg-red-50 border border-red-100 text-red-700 text-sm px-4 py-3">
-                    {{ session('error') }}
-                </div>
+            <div class="rounded-xl bg-red-50 border border-red-100 text-red-700 text-sm px-4 py-3">
+                {{ session('error') }}
+            </div>
             @endif
 
             {{-- الجدول --}}
@@ -56,39 +56,40 @@
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                             @forelse ($drafts as $draft)
-                                <tr class="hover:bg-[#1456E8]/5 transition">
-                                    <td class="px-3 py-2.5 font-medium text-gray-800">{{ $draft->customer->name ?? '-' }}</td>
-                                    <td class="px-3 py-2.5">
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">{{ $draft->branch->name ?? '-' }}</span>
-                                    </td>
-                                    <td class="px-3 py-2.5 text-gray-500">{{ __('invoices.' . $draft->payment_method) }}</td>
-                                    <td class="px-3 py-2.5 text-gray-500 tabular-nums">{{ $draft->items_count }}</td>
-                                    <td class="px-3 py-2.5 font-semibold text-[#0F1B4C] tabular-nums">{{ number_format($draft->total, 2) }}</td>
-                                    <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap">{{ $draft->created_at->format('Y-m-d H:i') }}</td>
-                                    <td class="px-3 py-2.5">
-                                        <div class="flex items-center gap-2">
-                                            <a href="{{ route('invoices.create', ['draft_id' => $draft->id]) }}"
-                                               class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#1456E8] hover:brightness-95 transition whitespace-nowrap">
-                                                {{ __('invoices.open_draft') }}
-                                            </a>
-                                            <form method="POST" action="{{ route('invoices.drafts.destroy', $draft) }}"
-                                                  onsubmit="return confirm('{{ __('invoices.confirm_delete_draft') }}');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit"
-                                                        class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 transition whitespace-nowrap">
-                                                    {{ __('invoices.delete_draft') }}
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
+                            <tr class="hover:bg-[#1456E8]/5 transition">
+                                <td class="px-3 py-2.5 font-medium text-gray-800">{{ $draft->customer->name ?? '-' }}</td>
+                                <td class="px-3 py-2.5">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">{{ $draft->branch->name ?? '-' }}</span>
+                                </td>
+                                <td class="px-3 py-2.5 text-gray-500">{{ __('invoices.' . $draft->payment_method) }}</td>
+                                <td class="px-3 py-2.5 text-gray-500 tabular-nums">{{ $draft->items_count }}</td>
+                                <td class="px-3 py-2.5 font-semibold text-[#0F1B4C] tabular-nums">{{ number_format($draft->total, 2) }}</td>
+                                <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap">{{ $draft->created_at->format('Y-m-d H:i') }}</td>
+                                <td class="px-3 py-2.5">
+                                    <div class="flex items-center gap-2">
+                                        <a href="{{ route('invoices.create', ['draft_id' => $draft->id]) }}"
+                                            style="background-color:#1456E8; color:#ffffff;"
+                                            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#1456E8] hover:brightness-95 transition whitespace-nowrap">
+                                            {{ __('invoices.open_draft') }}
+                                        </a>
+                                        <form method="POST" action="{{ route('invoices.drafts.destroy', $draft) }}"
+                                            onsubmit="return confirm('{{ __('invoices.confirm_delete_draft') }}');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 transition whitespace-nowrap">
+                                                {{ __('invoices.delete_draft') }}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
                             @empty
-                                <tr>
-                                    <td colspan="7" class="px-3 py-10 text-center text-gray-400">
-                                        {{ __('invoices.no_drafts') }}
-                                    </td>
-                                </tr>
+                            <tr>
+                                <td colspan="7" class="px-3 py-10 text-center text-gray-400">
+                                    {{ __('invoices.no_drafts') }}
+                                </td>
+                            </tr>
                             @endforelse
                         </tbody>
                     </table>

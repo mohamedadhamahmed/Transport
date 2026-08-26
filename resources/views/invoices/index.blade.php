@@ -78,7 +78,7 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            @forelse ($invoices as $invoice)
+                            @forelse ($Invoice as $invoice)
                                 <tr class="hover:bg-[#1456E8]/5 transition">
                                     <td class="px-4 py-3 font-medium text-gray-800">#{{ $invoice->invoice_number ?? $invoice->id }}</td>
                                     <td class="px-4 py-3 text-gray-500">{{ $invoice->creator?->name ?? '-' }}</td>
@@ -103,16 +103,66 @@
            class="w-7 h-7 flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#11111] hover:bg-[#1456E8]/20 transition">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
         </a>
- 
+
+        {{-- PDF: تحميل مباشر لملف الفاتورة --}}
+        <a href="{{ route('invoices.pdf', $invoice) }}" title="{{ __('invoices.download_pdf') }}"
+           class="w-7 h-7 flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>
+            </svg>
+        </a>
+
+        {{-- واتساب: رابط لعرض الفاتورة (PDF أونلاين) - عبر رابط موقّع
+             (signed) شغال 30 يوم من غير ما العميل يحتاج يسجل دخول -
+             ومحتاج رقم موبايل العميل مسجل في بياناته. --}}
+        @php
+            $rawPhone = preg_replace('/\D/', '', $invoice->customer->phone ?? '');
+            $waPhone = null;
+            if ($rawPhone !== '') {
+                if (str_starts_with($rawPhone, '966')) {
+                    $waPhone = $rawPhone;
+                } elseif (str_starts_with($rawPhone, '0')) {
+                    $waPhone = '966' . substr($rawPhone, 1);
+                } else {
+                    $waPhone = '966' . $rawPhone;
+                }
+            }
+        @endphp
+        @if ($waPhone)
+            @php
+                $publicPdfUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+                    'invoices.public-pdf',
+                    now()->addDays(30),
+                    ['invoice' => $invoice->id]
+                );
+                $waText = rawurlencode(__('invoices.whatsapp_message', [
+                    'number' => $invoice->invoice_number ?? $invoice->id,
+                    'link' => $publicPdfUrl,
+                ]));
+            @endphp
+            <a href="https://wa.me/{{ $waPhone }}?text={{ $waText }}" target="_blank" rel="noopener"
+               title="{{ __('invoices.send_whatsapp') }}"
+               class="w-7 h-7 flex items-center justify-center rounded-md bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/>
+                </svg>
+            </a>
+        @else
+            <span title="{{ __('invoices.no_customer_phone') }}"
+                  class="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 text-gray-400 cursor-not-allowed">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/>
+                </svg>
+            </span>
+        @endif
+
         @php
             $comingSoonIcons = [
                 'edit' => '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
-                'pdf' => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>',
-                'whatsapp' => '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/>',
                 'print' => '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
             ];
         @endphp
- 
+
         @foreach ($comingSoonIcons as $soon => $iconPath)
             <span title="{{ __('invoices.' . $soon) }} - {{ __('invoices.coming_soon') }}"
                   class="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 text-gray-500 cursor-not-allowed">
@@ -134,26 +184,26 @@
                 </div>
 
        <div class="p-4 border-t border-gray-100">
-    @if ($invoices->hasPages())
+    @if ($Invoice->hasPages())
         <div class="flex items-center justify-center gap-1 flex-wrap">
-            @if ($invoices->onFirstPage())
+            @if ($Invoice->onFirstPage())
                 <span class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-300 cursor-not-allowed">{{ __('invoices.previous') }}</span>
             @else
-                <a href="{{ $invoices->previousPageUrl() }}"
+                <a href="{{ $Invoice->previousPageUrl() }}"
                    class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">{{ __('invoices.previous') }}</a>
             @endif
 
-            @foreach (range(1, $invoices->lastPage()) as $page)
-                @if ($page == $invoices->currentPage())
+            @foreach (range(1, $Invoice->lastPage()) as $page)
+                @if ($page == $Invoice->currentPage())
                     <span class="px-3 py-1.5 rounded-lg text-sm font-semibold text-white bg-[#0F1B4C]">{{ $page }}</span>
                 @else
-                    <a href="{{ $invoices->url($page) }}"
+                    <a href="{{ $Invoice->url($page) }}"
                        class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">{{ $page }}</a>
                 @endif
             @endforeach
 
-            @if ($invoices->hasMorePages())
-                <a href="{{ $invoices->nextPageUrl() }}"
+            @if ($Invoice->hasMorePages())
+                <a href="{{ $Invoice->nextPageUrl() }}"
                    class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">{{ __('invoices.next') }}</a>
             @else
                 <span class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-300 cursor-not-allowed">{{ __('invoices.next') }}</span>
