@@ -1,1 +1,0 @@
-<img src="<?php echo e(asset('images/MainLogo.png')); ?>" alt="<?php echo e(config('app.name', 'Daftercom')); ?>" <?php echo e($attributes); ?>><?php /**PATH C:\xampp\htdocs\my-erp\resources\views/components/application-logo.blade.php ENDPATH**/ ?>

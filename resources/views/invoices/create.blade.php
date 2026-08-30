@@ -9,10 +9,12 @@
             min-height: 42px;
             padding: 0.5rem 0.75rem;
         }
+
         .ts-wrapper.single.focus .ts-control {
             border-color: #1456E8;
             box-shadow: 0 0 0 1px #1456E8;
         }
+
         /* خلفية صريحة (بيضا) + z-index عالي عشان الدروب داون يطلع واضح
            فوق أي عنصر تاني جنبه (زي حقل "ملاحظات" اللي كان بيظهر شفاف
            جواه قبل كده) من غير ما نحتاج ننقله لمكان تاني في الصفحة. */
@@ -24,47 +26,49 @@
             box-shadow: 0 10px 25px -5px rgba(15, 27, 76, 0.18), 0 8px 10px -6px rgba(15, 27, 76, 0.12);
             overflow: hidden;
         }
+
         .ts-dropdown .option,
         .ts-dropdown .no-results {
             white-space: normal;
             word-break: break-word;
             padding: 0.55rem 0.75rem;
         }
+
         .ts-dropdown .active {
             background-color: #1456E8;
             color: #fff;
         }
     </style>
     @php
-        // توكن عشوائي بيتولد مرة واحدة بس لما الصفحة تتحمل، وبيفضل ثابت
-        // في حقل مخفي جوه الفورم حتى لو المستخدم دوس زرار الحفظ أكتر من
-        // مرة - السيرفر (store()) بيستخدمه عشان يرفض أي تكرار لنفس
-        // التوكن، فمينفعش نفس الفاتورة تتسجل مرتين حتى لو حصل ضغط مزدوج.
-        $submissionToken = (string) \Illuminate\Support\Str::uuid();
+    // توكن عشوائي بيتولد مرة واحدة بس لما الصفحة تتحمل، وبيفضل ثابت
+    // في حقل مخفي جوه الفورم حتى لو المستخدم دوس زرار الحفظ أكتر من
+    // مرة - السيرفر (store()) بيستخدمه عشان يرفض أي تكرار لنفس
+    // التوكن، فمينفعش نفس الفاتورة تتسجل مرتين حتى لو حصل ضغط مزدوج.
+    $submissionToken = (string) \Illuminate\Support\Str::uuid();
 
-        // لو الصفحة اتفتحت من قايمة "المسودات السابقة" (?draft_id=xx)،
-        // بنجهز بيانات المسودة عشان نمررها لـ Alpine (invoiceForm) تملى
-        // بيها الفورم كامل: العميل، طريقة الدفع، الخصم، والبنود.
-        $draftForJs = $draft ? [
-            'id' => $draft->id,
-            'customer_id' => $draft->customer_id,
-            'payment_method' => $draft->payment_method,
-            'cash_amount' => $draft->cash_amount,
-            'bank_amount' => $draft->bank_amount,
-            'extra_discount' => $draft->invoice_level_discount,
-            'items' => collect($draft->items ?? [])->map(function ($item) {
-                return [
-                    'product_id' => $item['product_id'] ?? null,
-                    'name' => $item['name'] ?? '',
-                    'code' => $item['code'] ?? null,
-                    'quantity' => $item['quantity'] ?? 1,
-                    'unit_price' => $item['unit_price'] ?? 0,
-                    'purchase_price' => $item['purchase_price'] ?? 0,
-                    'discount_amount' => $item['discount_amount'] ?? 0,
-                    'tax_rate' => $item['tax_rate'] ?? 0.15,
-                ];
-            })->values(),
-        ] : null;
+    // لو الصفحة اتفتحت من قايمة "المسودات السابقة" (?draft_id=xx)،
+    // بنجهز بيانات المسودة عشان نمررها لـ Alpine (invoiceForm) تملى
+    // بيها الفورم كامل: العميل، طريقة الدفع، الخصم، والبنود.
+    $draftForJs = $draft ? [
+    'id' => $draft->id,
+    'customer_id' => $draft->customer_id,
+    'payment_method' => $draft->payment_method,
+    'cash_amount' => $draft->cash_amount,
+    'bank_amount' => $draft->bank_amount,
+    'extra_discount' => $draft->invoice_level_discount,
+    'items' => collect($draft->items ?? [])->map(function ($item) {
+    return [
+    'product_id' => $item['product_id'] ?? null,
+    'name' => $item['name'] ?? '',
+    'code' => $item['code'] ?? null,
+    'quantity' => $item['quantity'] ?? 1,
+    'unit_price' => $item['unit_price'] ?? 0,
+    'purchase_price' => $item['purchase_price'] ?? 0,
+    'discount_amount' => $item['discount_amount'] ?? 0,
+    'tax_rate' => $item['tax_rate'] ?? 0.15,
+    ];
+    })->values(),
+    ] : null;
     @endphp
     {{-- بيانات المسودة (لو موجودة) بتتحط هنا في <script type="application/json">
          مش جوه attribute الـ x-data مباشرة. السبب: @json() بيسيب علامات
@@ -75,9 +79,11 @@
          العميل/الأصناف/طريقة الدفع من التعبية لما بتفتحي مسودة فيها
          بيانات حقيقية (وده كمان سبب إن المشكلة ماكانتش بتظهر لما مفيش
          مسودة، لإن @json(null) بيطلع "null" من غير أي علامات تنصيص). --}}
-    <script type="application/json" id="draft-invoice-data">@json($draftForJs)</script>
+    <script type="application/json" id="draft-invoice-data">
+        @json($draftForJs)
+    </script>
     <script>
-        window.__draftInvoiceData = (function () {
+        window.__draftInvoiceData = (function() {
             var el = document.getElementById('draft-invoice-data');
             if (!el) return null;
             try {
@@ -94,8 +100,8 @@
                 <div class="flex items-center gap-3">
                     <span class="w-11 h-11 shrink-0 rounded-xl bg-white/10 flex items-center justify-center">
                         <svg class="w-6 h-6 text-[#F5811E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="5" y="3" width="14" height="18" rx="1.5"/>
-                            <path d="M8.5 8h7M8.5 12h7M8.5 16h4"/>
+                            <rect x="5" y="3" width="14" height="18" rx="1.5" />
+                            <path d="M8.5 8h7M8.5 12h7M8.5 16h4" />
                         </svg>
                     </span>
                     <div>
@@ -105,7 +111,7 @@
                 </div>
                 <div class="flex items-center gap-2">
                     <a href="{{ route('invoices.drafts.index') }}"
-                       class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
+                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
                         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M4 19.5V6a2 2 0 0 1 2-2h9l5 5v10.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
                             <path d="M14 4v4a1 1 0 0 0 1 1h4" />
@@ -113,34 +119,36 @@
                         {{ __('invoices.previous_drafts') }}
                     </a>
                     <button type="button" @click="customerModalOpen = true"
-                            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
+                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
                         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5.2 5.5-5.2s5.5 2.2 5.5 5.2"/><path d="M18 8v5M15.5 10.5h5"/>
+                            <circle cx="9" cy="8" r="3.2" />
+                            <path d="M3.5 19c0-3 2.5-5.2 5.5-5.2s5.5 2.2 5.5 5.2" />
+                            <path d="M18 8v5M15.5 10.5h5" />
                         </svg>
                         {{ __('invoices.add_new_customer') }}
                     </button>
                     <button type="button" @click="productModalOpen = true"
-                            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
+                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
                         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 5v14M5 12h14"/>
+                            <path d="M12 5v14M5 12h14" />
                         </svg>
                         {{ __('invoices.new_product') }}
                     </button>
                     <a href="{{ route('invoices.index') }}"
-                       class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
+                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
                         {{ __('invoices.back_to_list') }}
                     </a>
                 </div>
             </div>
 
             @if ($draft)
-                <div class="rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-2.5 flex items-center gap-2">
-                    <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 19.5V6a2 2 0 0 1 2-2h9l5 5v10.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
-                        <path d="M14 4v4a1 1 0 0 0 1 1h4" />
-                    </svg>
-                    {{ __('invoices.draft_loaded_notice') }}
-                </div>
+            <div class="rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-2.5 flex items-center gap-2">
+                <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 19.5V6a2 2 0 0 1 2-2h9l5 5v10.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
+                    <path d="M14 4v4a1 1 0 0 0 1 1h4" />
+                </svg>
+                {{ __('invoices.draft_loaded_notice') }}
+            </div>
             @endif
 
             <form id="invoice-form" method="POST" action="{{ route('invoices.store') }}">
@@ -161,14 +169,14 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.customer') }} *</label>
                             <div class="flex gap-2">
                                 <select name="customer_id" id="customer_select" x-model="selectedCustomerId"
-                                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]" required>
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]" required>
                                     <option value="">-</option>
                                     @foreach ($customers as $customer)
-                                        <option value="{{ $customer->id }}" @selected($draft && (string) $draft->customer_id === (string) $customer->id)>{{ $customer->name }}</option>
+                                    <option value="{{ $customer->id }}" @selected($draft && (string) $draft->customer_id === (string) $customer->id)>{{ $customer->name }}</option>
                                     @endforeach
                                 </select>
                                 <button type="button" @click="customerModalOpen = true"
-                                        class="px-3 rounded-lg bg-[#0F1B4C]/5 text-[#0F1B4C] hover:bg-[#0F1B4C]/10 transition text-sm whitespace-nowrap font-medium">
+                                    class="px-3 rounded-lg bg-[#0F1B4C]/5 text-[#0F1B4C] hover:bg-[#0F1B4C]/10 transition text-sm whitespace-nowrap font-medium">
                                     + {{ __('invoices.add_new_customer') }}
                                 </button>
                             </div>
@@ -176,7 +184,7 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.payment_method') }} *</label>
                             <select name="payment_method" x-model="paymentMethod"
-                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]" required>
+                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]" required>
                                 <option value="cash">{{ __('invoices.cash') }}</option>
                                 <option value="bank_transfer">{{ __('invoices.bank_transfer') }}</option>
                                 <option value="card">{{ __('invoices.card') }}</option>
@@ -191,12 +199,12 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.cash_amount') }}</label>
                                 <input type="number" step="0.01" min="0" name="cash_amount" x-model.number="cashAmount"
-                                       class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.bank_amount') }}</label>
                                 <input type="number" step="0.01" min="0" name="bank_amount" x-model.number="bankAmount"
-                                       class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                             </div>
                         </div>
                     </template>
@@ -212,15 +220,18 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.tax') }}</label>
                             <select x-model.number="defaultTaxRate" @change="applyDefaultTaxRate()"
-                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                                <option value="0.15">15%</option>
-                                <option value="0">0%</option>
+                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                @foreach(\App\Models\Tax::orderBy('priority', 'asc')->where('is_active',1)->get() as $tax)
+                                <option value="{{ $tax->rate / 100 }}" >
+                                   ({{ $tax->rate }}%)
+                                </option>
+                                @endforeach
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.note') }}</label>
                             <input type="text" name="note" value="{{ old('note', $draft->note ?? '') }}"
-                                   class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                         </div>
                     </div>
                 </div>
@@ -229,13 +240,13 @@
                     <div class="flex items-start gap-3 mb-4 flex-wrap">
                         <div class="relative">
                             <input type="text" x-model="searchQuery" @input.debounce.300ms="searchProducts()"
-                                   placeholder="{{ __('invoices.search_product_placeholder') }}"
-                                   class="w-full max-w-md rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                placeholder="{{ __('invoices.search_product_placeholder') }}"
+                                class="w-full max-w-md rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                             <div x-show="searchResults.length > 0" x-cloak
-                                 class="absolute z-10 mt-1 w-full max-w-md bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                                class="absolute z-10 mt-1 w-full max-w-md bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
                                 <template x-for="p in searchResults" :key="p.id">
                                     <button type="button" @click="addProduct(p)"
-                                            class="w-full text-start px-4 py-2 hover:bg-[#1456E8]/5 flex items-center justify-between border-b border-gray-50 last:border-0">
+                                        class="w-full text-start px-4 py-2 hover:bg-[#1456E8]/5 flex items-center justify-between border-b border-gray-50 last:border-0">
                                         <span>
                                             <span class="font-medium text-gray-800" x-text="p.name"></span>
                                             <span class="text-xs text-gray-400" x-text="p.code ? ' (' + p.code + ')' : ''"></span>
@@ -246,9 +257,10 @@
                             </div>
                         </div>
                         <button type="button" @click="openProductPicker()"
-                                class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium bg-[#0F1B4C] hover:bg-[#0F1B4C]/90 transition whitespace-nowrap">
+                            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium bg-[#0F1B4C] hover:bg-[#0F1B4C]/90 transition whitespace-nowrap">
                             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/>
+                                <rect x="3" y="4" width="18" height="16" rx="2" />
+                                <path d="M3 9h18M8 4v16" />
                             </svg>
                             {{ __('invoices.choose_product') }}
                         </button>
@@ -276,25 +288,25 @@
                                         <td class="px-3 py-2 font-medium text-gray-800 min-w-[600px] whitespace-normal" x-text="item.name"></td>
                                         <td class="px-3 py-2">
                                             <input type="number" step="0.01" min="0.01" x-model.number="item.quantity"
-                                                   class="w-20 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                                class="w-20 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                         </td>
                                         <td class="px-3 py-2">
                                             <input type="number" step="0.01" min="0" x-model.number="item.unit_price"
-                                                   class="w-24 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                                class="w-24 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                         </td>
                                         <td class="px-3 py-2 text-gray-500" x-text="linePriceWithTax(item).toFixed(2)"></td>
                                         <td class="px-3 py-2">
                                             <input type="number" step="0.01" min="0" x-model.number="item.discount_amount"
-                                                   class="w-24 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                                class="w-24 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                         </td>
                                         <td class="px-3 py-2 text-gray-500" x-text="((item.tax_rate || 0) * 100) + '%'"></td>
                                         <td class="px-3 py-2 font-semibold text-[#0F1B4C]" x-text="lineTotal(item).toFixed(2)"></td>
                                         <td class="px-3 py-2" :class="lineProfit(item) < 0 ? 'text-red-600' : 'text-emerald-600'" x-text="lineProfit(item).toFixed(2)"></td>
                                         <td class="px-3 py-2">
                                             <button type="button" @click="removeItem(index)"
-                                                    class="inline-flex items-center gap-1 text-red-600 hover:text-red-700 text-xs font-medium">
+                                                class="inline-flex items-center gap-1 text-red-600 hover:text-red-700 text-xs font-medium">
                                                 <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                                    <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/>
+                                                    <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
                                                 </svg>
                                                 {{ __('invoices.remove') }}
                                             </button>
@@ -314,13 +326,13 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.invoice_discount') }}</label>
                             <input type="number" step="0.01" min="0" name="invoice_level_discount" x-model.number="extraDiscount"
-                                   @change="checkDiscountLimit()"
-                                   class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                @change="checkDiscountLimit()"
+                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.po_number') }}</label>
                             <input type="text" name="purchase_order_number" value="{{ old('purchase_order_number', $draft->purchase_order_number ?? '') }}"
-                                   class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                         </div>
                     </div>
                     {{-- الإجماليات --}}
@@ -350,17 +362,17 @@
                              تكرار الفاتورة (والقيود المحاسبية والخصم من المخزون
                              معاها) بنفس عدد الضغطات. --}}
                         <button type="button" @click="submitInvoice(false)" :disabled="isSubmitting"
-                                class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                             <span x-show="!isSubmitting">{{ __('invoices.save_invoice') }}</span>
                             <span x-show="isSubmitting" x-cloak>{{ __('invoices.saving_please_wait') }}</span>
                         </button>
                         <button type="button" @click="submitInvoice(true)" :disabled="isSubmitting"
-                                class="px-5 py-2 rounded-lg font-medium text-white bg-[#F5811E] hover:brightness-95 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            class="px-5 py-2 rounded-lg font-medium text-white bg-[#F5811E] hover:brightness-95 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                             <span x-show="!isSubmitting">{{ __('invoices.save_as_draft') }}</span>
                             <span x-show="isSubmitting" x-cloak>{{ __('invoices.saving_please_wait') }}</span>
                         </button>
                         <a href="{{ route('invoices.index') }}"
-                           class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
+                            class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
                             {{ __('invoices.cancel') }}
                         </a>
                     </div>
@@ -369,83 +381,83 @@
         </div>
         {{-- مودال إضافة عميل سريع --}}
         <div x-show="customerModalOpen" x-cloak
-             class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div class="bg-white rounded-xl p-6 w-full max-w-2xl my-8" @click.outside="customerModalOpen = false">
                 <h3 class="font-semibold text-lg text-gray-800 mb-4">{{ __('invoices.add_new_customer') }}</h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="md:col-span-1">
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('products.name') }} *</label>
                         <input type="text" x-model="newCustomer.name"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.phone') }} *</label>
                         <input type="text" x-model="newCustomer.phone"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.email') }}</label>
                         <input type="email" x-model="newCustomer.email"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.company_name') }}</label>
                         <input type="text" x-model="newCustomer.company_name"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.tax_number') }}</label>
                         <input type="text" x-model="newCustomer.tax_number"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.crn') }}</label>
                         <input type="text" x-model="newCustomer.commercial_registration_number"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.credit_limit') }}</label>
                         <input type="number" step="0.01" min="0" x-model.number="newCustomer.credit_limit"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.notes') }}</label>
                         <input type="text" x-model="newCustomer.notes"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.district') }}</label>
                         <input type="text" x-model="newCustomer.district"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.street_name') }}</label>
                         <input type="text" x-model="newCustomer.street_name"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.building_number') }}</label>
                         <input type="text" x-model="newCustomer.building_number"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.plot_identification') }}</label>
                         <input type="text" x-model="newCustomer.plot_identification"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.postal_code') }}</label>
                         <input type="text" x-model="newCustomer.postal_code"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                 </div>
                 <div class="flex items-center gap-3 mt-6">
                     <button type="button" @click="createCustomer()"
-                            class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition">
+                        class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition">
                         {{ __('invoices.add') }}
                     </button>
                     <button type="button" @click="customerModalOpen = false"
-                            class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
+                        class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
                         {{ __('invoices.cancel') }}
                     </button>
                 </div>
@@ -453,78 +465,78 @@
         </div>
         {{-- مودال إضافة منتج سريع --}}
         <div x-show="productModalOpen" x-cloak
-             class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div class="bg-white rounded-xl p-6 w-full max-w-2xl my-8" @click.outside="productModalOpen = false">
                 <h3 class="font-semibold text-lg text-gray-800 mb-4">{{ __('invoices.quick_add_product') }}</h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.product_name') }} *</label>
                         <input type="text" x-model="newProduct.name"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.product_name_en') }}</label>
                         <input type="text" x-model="newProduct.name_en"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.code') }}</label>
                         <input type="text" x-model="newProduct.code"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.product_location') }}</label>
                         <input type="text" x-model="newProduct.location"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.unit') }}</label>
                         <input type="text" x-model="newProduct.unit"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.quantity') }}</label>
                         <input type="number" step="0.01" min="0" x-model.number="newProduct.stock_quantity"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.purchase_price') }}</label>
                         <input type="number" step="0.01" min="0" x-model.number="newProduct.purchase_price"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.sale_price') }}</label>
                         <input type="number" step="0.01" min="0" x-model.number="newProduct.sale_price"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.wholesale_price') }}</label>
                         <input type="number" step="0.01" min="0" x-model.number="newProduct.wholesale_price"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.low_stock_alert_quantity') }}</label>
                         <input type="number" step="1" min="0" x-model.number="newProduct.low_stock_alert_quantity"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.tax_value') }}</label>
                         <input type="number" step="0.01" min="0" x-model.number="newProduct.tax_value"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.notes') }}</label>
                         <input type="text" x-model="newProduct.notes"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                 </div>
                 <div class="flex items-center gap-3 mt-6">
                     <button type="button" @click="createProduct()"
-                            class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition">
+                        class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition">
                         {{ __('invoices.add') }}
                     </button>
                     <button type="button" @click="productModalOpen = false"
-                            class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
+                        class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
                         {{ __('invoices.cancel') }}
                     </button>
                 </div>
@@ -532,20 +544,22 @@
         </div>
         {{-- مودال اختيار منتج من قائمة كاملة (بحث + صفحات 20 منتج، زي النظام القديم) --}}
         <div x-show="productPickerOpen" x-cloak
-             class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div class="bg-white rounded-xl w-full max-w-7xl my-8 flex flex-col max-h-[90vh] shadow-2xl" @click.outside="productPickerOpen = false">
                 <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] rounded-t-xl">
                     <h3 class="font-semibold text-white">{{ __('invoices.choose_product') }}</h3>
                     <button type="button" @click="productPickerOpen = false" class="text-white/60 hover:text-white transition">
-                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
                     </button>
                 </div>
                 <div class="px-6 py-4 border-b border-gray-100">
                     <input type="text" x-model="pickerSearch" @input.debounce.300ms="loadProducts(1)"
-                           placeholder="{{ __('invoices.search_product_placeholder') }}"
-                           class="w-full max-w-md rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                        placeholder="{{ __('invoices.search_product_placeholder') }}"
+                        class="w-full max-w-md rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                 </div>
-                <div >
+                <div>
                     <table class="min-w-full text-sm">
                         <thead class="sticky top-0">
                             <tr class="bg-[#0F1B4C] text-white/80">
@@ -584,8 +598,8 @@
                                     <td class="px-3 py-2 text-gray-400 text-xs" x-text="p.notes || '-'"></td>
                                     <td class="px-3 py-2">
                                         <button type="button" @click="addProduct(p); markAdded(p.id)"
-                                                class="px-3 py-1.5 rounded-lg text-white text-xs font-medium transition whitespace-nowrap"
-                                                :class="isAdded(p.id) ? 'bg-emerald-500' : 'bg-[#F5811E] hover:brightness-95'">
+                                            class="px-3 py-1.5 rounded-lg text-white text-xs font-medium transition whitespace-nowrap"
+                                            :class="isAdded(p.id) ? 'bg-emerald-500' : 'bg-[#F5811E] hover:brightness-95'">
                                             <span x-show="!isAdded(p.id)">+ {{ __('invoices.add') }}</span>
                                             <span x-show="isAdded(p.id)">✓ {{ __('invoices.added') }}</span>
                                         </button>
@@ -602,14 +616,14 @@
                 </div>
                 <div class="flex items-center justify-between px-6 py-3 border-t border-gray-100 flex-wrap gap-2">
                     <span class="text-xs text-gray-400"
-                          x-text="pickerTotal > 0 ? '{{ __('invoices.page_of_total') }}'.replace(':current', pickerPage).replace(':last', pickerLastPage).replace(':total', pickerTotal) : ''"></span>
+                        x-text="pickerTotal > 0 ? '{{ __('invoices.page_of_total') }}'.replace(':current', pickerPage).replace(':last', pickerLastPage).replace(':total', pickerTotal) : ''"></span>
                     <div class="flex gap-2">
                         <button type="button" @click="loadProducts(pickerPage - 1)" :disabled="pickerPage <= 1"
-                                class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white transition">
+                            class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white transition">
                             {{ __('invoices.previous') }}
                         </button>
                         <button type="button" @click="loadProducts(pickerPage + 1)" :disabled="pickerPage >= pickerLastPage"
-                                class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white transition">
+                            class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white transition">
                             {{ __('invoices.next') }}
                         </button>
                     </div>
@@ -651,17 +665,33 @@
                 selectedCustomerId: '',
                 customerTomSelect: null,
                 newCustomer: {
-                    name: '', phone: '', email: '', company_name: '',
-                    tax_number: '', commercial_registration_number: '',
-                    credit_limit: 10000, notes: '',
-                    district: '', street_name: '', building_number: '',
-                    plot_identification: '', postal_code: '',
+                    name: '',
+                    phone: '',
+                    email: '',
+                    company_name: '',
+                    tax_number: '',
+                    commercial_registration_number: '',
+                    credit_limit: 10000,
+                    notes: '',
+                    district: '',
+                    street_name: '',
+                    building_number: '',
+                    plot_identification: '',
+                    postal_code: '',
                 },
                 newProduct: {
-                    name: '', name_en: '', code: '', location: '', unit: '',
-                    stock_quantity: 0, purchase_price: 0, sale_price: 0,
-                    wholesale_price: 0, low_stock_alert_quantity: 0,
-                    tax_value: 0, notes: '',
+                    name: '',
+                    name_en: '',
+                    code: '',
+                    location: '',
+                    unit: '',
+                    stock_quantity: 0,
+                    purchase_price: 0,
+                    sale_price: 0,
+                    wholesale_price: 0,
+                    low_stock_alert_quantity: 0,
+                    tax_value: 0,
+                    notes: '',
                 },
                 paymentMethod: 'cash',
                 cashAmount: 0,
@@ -746,7 +776,9 @@
                 // الأصناف اللي في الجدول أوتوماتيك عشان الجدول يفضل بس عارض
                 // للنسبة مش فيه تعديل لكل صنف لوحده.
                 applyDefaultTaxRate() {
-                    this.items.forEach(i => { i.tax_rate = this.defaultTaxRate; });
+                    this.items.forEach(i => {
+                        i.tax_rate = this.defaultTaxRate;
+                    });
                 },
                 removeItem(index) {
                     const removed = this.items[index];
@@ -908,7 +940,10 @@
                         // الـ <select> الأصلي، لإن TomSelect بيغلفه ومخفيه -
                         // فأي إضافة عن طريق select.add() منكنش بتظهر في القايمة.
                         if (this.customerTomSelect) {
-                            this.customerTomSelect.addOption({ value: String(data.id), text: data.name });
+                            this.customerTomSelect.addOption({
+                                value: String(data.id),
+                                text: data.name
+                            });
                             this.customerTomSelect.addItem(String(data.id));
                         } else {
                             // fallback لو TomSelect مش متحمل لأي سبب
@@ -922,11 +957,19 @@
                         this.selectedCustomerId = String(data.id);
                         this.customerModalOpen = false;
                         this.newCustomer = {
-                            name: '', phone: '', email: '', company_name: '',
-                            tax_number: '', commercial_registration_number: '',
-                            credit_limit: 10000, notes: '',
-                            district: '', street_name: '', building_number: '',
-                            plot_identification: '', postal_code: '',
+                            name: '',
+                            phone: '',
+                            email: '',
+                            company_name: '',
+                            tax_number: '',
+                            commercial_registration_number: '',
+                            credit_limit: 10000,
+                            notes: '',
+                            district: '',
+                            street_name: '',
+                            building_number: '',
+                            plot_identification: '',
+                            postal_code: '',
                         };
                     }
                 },
@@ -948,7 +991,10 @@
                             'X-CSRF-TOKEN': '{{ csrf_token() }}',
                             'Accept': 'application/json',
                         },
-                        body: JSON.stringify({ ...this.newProduct, branch_id: branchId }),
+                        body: JSON.stringify({
+                            ...this.newProduct,
+                            branch_id: branchId
+                        }),
                     });
                     const data = await res.json();
                     if (data.id) {
@@ -957,10 +1003,18 @@
                         this.addProduct(data);
                         this.productModalOpen = false;
                         this.newProduct = {
-                            name: '', name_en: '', code: '', location: '', unit: '',
-                            stock_quantity: 0, purchase_price: 0, sale_price: 0,
-                            wholesale_price: 0, low_stock_alert_quantity: 0,
-                            tax_value: 0, notes: '',
+                            name: '',
+                            name_en: '',
+                            code: '',
+                            location: '',
+                            unit: '',
+                            stock_quantity: 0,
+                            purchase_price: 0,
+                            sale_price: 0,
+                            wholesale_price: 0,
+                            low_stock_alert_quantity: 0,
+                            tax_value: 0,
+                            notes: '',
                         };
                     }
                 },

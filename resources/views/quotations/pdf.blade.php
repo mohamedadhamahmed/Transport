@@ -2,289 +2,540 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>{{ __('quotations.quotation_no') }} #{{ $quotation->id }}</title>
+<title>Quotation #{{ $quotation->id }}</title>
 <style>
-    /* نفس تقنية العربي المستخدمة في invoices/pdf.blade.php بالظبط:
-       * { font-family: DejaVu Sans !important; } - سيلكتور شامل، اسم
-       الخط بحروف كبيرة من غير quotes، و !important - بالإضافة لـ
-       dir="rtl"/dir="ltr" صريح على كل جدول (مش خاصية CSS direction) -
-       ده اللي بيخلي dompdf يطلع العربي سليم بدون أي مكتبة تشكيل
-       إضافية. الشكل هنا بقى نسخة قريبة جدًا من تصميم شاشة الطباعة
-       القديمة اللي بعتّها (print_order_perice_to_customer.blade.php)،
-       بس معمول بجداول HTML بحتة (مفيش flexbox) عشان dompdf يقدر
-       يرندرها صح - flexbox مش مدعوم بشكل موثوق في dompdf. */
     * {
-        font-family: DejaVu Sans !important;
+        font-family: 'DejaVu Sans', sans-serif !important;
+        box-sizing: border-box;
     }
-    @page { margin: 18px 24px; }
+
+    @page {
+        size: a4;
+        margin: 10mm 8mm;
+    }
+
     body {
-        font-size: 12px;
-        color: #212529;
-    }
-    table { border-collapse: collapse; }
-    .header-table { width: 100%; margin-bottom: 10px; }
-    .header-table td { vertical-align: top; padding: 0; font-size: 11px; line-height: 1.5; }
-    .company-name { font-size: 15px; font-weight: bold; color: #111; }
-    .header-rule { border-bottom: 2px solid #2b2b2b; padding-bottom: 10px; margin-bottom: 10px; }
-    .badge-quote {
-        border: 2px solid #2b2b2b;
-        border-radius: 8px;
-        width: 320px;
-        margin: 10px auto 16px auto;
-        text-align: center;
-        background-color: #f1f3f5;
-        font-weight: bold;
-        color: #333;
-        font-size: 15px;
-        padding: 8px;
-    }
-    .badge-quote .sub { font-size: 12px; color: #666; font-weight: normal; }
-    .info-table { width: 100%; font-size: 12px; }
-    .info-table th, .info-table td {
-        border: 1px solid #ced4da;
-        padding: 7px 10px;
-        text-align: center;
-    }
-    .info-table th { background-color: #f1f3f5; color: #333; font-weight: bold; width: 40%; }
-    table.items { width: 100%; margin-top: 4px; }
-    table.items th, table.items td {
-        border: 1px solid #dee2e6;
-        padding: 7px 6px;
-        text-align: center;
         font-size: 11px;
+        color: #1a202c;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+        line-height: 1.45;
     }
-    table.items thead th {
-        background-color: #343a40;
+
+    table { border-collapse: collapse; width: 100%; }
+    th, td { padding: 6px 8px; text-align: center; vertical-align: middle; }
+
+    .bordered { border: 1px solid #cbd5e1; }
+    .bordered th, .bordered td { border: 1px solid #cbd5e1; }
+
+    /* ============ Top decorative strip ============ */
+    .top-strip {
+        width: 100%;
+        height: 5px;
+        background-color: #c9a227;
+        background-image: linear-gradient(to left, #0f2942 0%, #1a365d 55%, #c9a227 100%);
+        margin-bottom: 10px;
+    }
+
+    /* ============ Header card ============ */
+    .header-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 10px 16px;
+        background-color: #ffffff;
+        box-shadow: 0 1px 4px rgba(15, 41, 66, 0.08);
+    }
+
+    .header-table td { border: none; vertical-align: middle; padding: 0 4px; }
+    .company-name { font-size: 14px; font-weight: bold; color: #0f2942; letter-spacing: 0.3px; }
+    .company-line { font-size: 8.5px; color: #64748b; display: block; margin-top: 2px; }
+
+    .logo-frame {
+        width: 74px;
+        height: 74px;
+        border: 2px solid #c9a227;
+        border-radius: 50%;
+        text-align: center;
+        vertical-align: middle;
+        margin: 0 auto;
+        padding: 6px;
+    }
+    .logo-frame img {
+        max-width: 58px;
+        max-height: 58px;
+        object-fit: contain;
+    }
+
+    .header-divider {
+        width: 100%;
+        margin: 10px 0 4px;
+    }
+    .header-divider .thick { height: 2.5px; background-color: #0f2942; width: 100%; }
+    .header-divider .thin { height: 1px; background-color: #c9a227; width: 100%; margin-top: 1.5px; }
+
+    /* ============ Title banner + reference badge ============ */
+    .banner-wrap { width: 100%; margin: 12px 0; }
+    .quote-banner {
+        background-color: #0f2942;
+        background-image: linear-gradient(to left, #0f2942 0%, #24466e 100%);
         color: #ffffff;
-        font-size: 11px;
-    }
-    table.items thead .en { font-size: 9px; font-weight: normal; }
-    table.items tbody tr:nth-child(even) { background-color: #fafbfc; }
-    .totals-table { width: 100%; margin-top: 10px; }
-    .totals-table th, .totals-table td {
-        border: 1px solid #dee2e6;
-        padding: 8px 6px;
+        font-size: 15px;
+        font-weight: bold;
+        padding: 10px 8px;
         text-align: center;
+        letter-spacing: 0.5px;
+        border-radius: 5px;
+        border: 1px solid #0f2942;
     }
-    .totals-table th { background-color: #f1f3f5; color: #333; font-size: 11px; }
-    .totals-table .en { font-size: 9px; font-weight: normal; }
-    .totals-table .value { font-size: 14px; font-weight: bold; }
-    .totals-table .discount-value { color: #d9534f; }
-    .totals-table .grand-cell { background-color: #e8f5e9; color: #28a745; font-size: 16px; font-weight: bold; }
-    .bank-box {
-        border: 2px dashed #6c757d;
-        border-radius: 8px;
-        background-color: #fafbfc;
-        padding: 10px;
+    .quote-banner .sub {
+        font-size: 9px;
+        font-weight: normal;
+        color: #e9c766;
+        display: block;
+        letter-spacing: 3px;
+        margin-top: 3px;
+    }
+    .ref-badge {
+        border: 1px solid #c9a227;
+        background-color: #fffaf0;
+        color: #0f2942;
+        font-size: 9.5px;
+        font-weight: bold;
         text-align: center;
-        font-size: 12px;
-        color: #495057;
-        margin-top: 14px;
+        border-radius: 5px;
+        padding: 6px 8px;
     }
-    .notes-box {
-        background-color: #fff3cd;
-        border: 1px solid #ffeeba;
+    .ref-badge span {
+        display: block;
+        font-weight: normal;
+        font-size: 8px;
+        color: #64748b;
+        margin-top: 1px;
+    }
+
+    /* ============ Quote/customer meta table ============ */
+    .meta-table {
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    .meta-table th {
+        background-color: #f4f7fb;
+        font-size: 9.5px;
+        color: #1a365d;
+        width: 25%;
+        text-align: right;
+        font-weight: bold;
+        border-color: #cbd5e1;
+    }
+    .meta-table td {
+        text-align: right;
+        font-weight: bold;
+        width: 25%;
+        color: #1a202c;
+        background-color: #ffffff;
+    }
+
+    .section-caption {
+        font-size: 9.5px;
+        font-weight: bold;
+        color: #1a365d;
+        margin-bottom: 4px;
+        border-right: 3px solid #c9a227;
+        padding-right: 6px;
+    }
+
+    /* ============ Items table ============ */
+    .items-table { margin-top: 4px; }
+    .items-table thead th {
+        background-color: #0f2942;
+        color: #ffffff;
+        font-weight: bold;
+        font-size: 9.5px;
+        padding: 9px 6px;
+        border-color: #0f2942;
+        letter-spacing: 0.2px;
+    }
+    .items-table thead th span { color: #e9c766; }
+    .items-table tbody td {
+        border-color: #cbd5e1;
+        color: #2d3748;
+        font-size: 9.5px;
+    }
+    .items-table tbody tr:nth-child(even) { background-color: #f4f7fb; }
+    .items-table tbody tr:last-child td { border-bottom: 2px solid #1a365d; }
+    .item-name-cell {
+        text-align: right;
+        padding-right: 6px;
+        font-weight: bold;
+        color: #0f2942;
+    }
+
+    /* ============ Totals summary card ============ */
+    .totals-card {
+        border: 1px solid #cbd5e1;
         border-radius: 6px;
-        padding: 8px 12px;
-        font-size: 12px;
-        color: #856404;
-        margin-top: 14px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(15, 41, 66, 0.06);
     }
-    .footer-note { margin-top: 16px; font-size: 10px; color: #888; text-align: center; border-top: 1px solid #ddd; padding-top: 6px; }
+    .totals-card table { width: 100%; }
+    .totals-card td {
+        padding: 7px 12px;
+        border-bottom: 1px dashed #cbd5e1;
+    }
+    .totals-card tr:first-child td { border-top: none; }
+    .totals-card tr td:first-child {
+        text-align: right;
+        color: #2d3748;
+        font-weight: bold;
+        width: 60%;
+        background-color: #ffffff;
+    }
+    .totals-card tr td:last-child {
+        text-align: left;
+        direction: ltr;
+        font-weight: bold;
+        color: #1a202c;
+        width: 40%;
+        background-color: #f4f7fb;
+    }
+    .net-total-row td {
+        background-color: #0f2942 !important;
+        color: #ffffff !important;
+        font-size: 13px;
+        border-bottom: none !important;
+        padding: 10px 12px !important;
+    }
+    .net-total-row td:last-child { background-color: #0f2942 !important; }
+
+    /* ============ Side boxes ============ */
+    .words-box {
+        border: 1px solid #cbd5e1;
+        background-color: #f4f7fb;
+        border-right: 3px solid #1a365d;
+        padding: 8px 10px;
+        margin-top: 8px;
+        font-size: 9.5px;
+        text-align: left;
+        border-radius: 4px;
+    }
+    .words-box strong { color: #0f2942; }
+
+    .notes-box {
+        border: 1px solid #c9a227;
+        background-color: #fffaf0;
+        border-right: 3px solid #c9a227;
+        padding: 8px 10px;
+        margin-top: 8px;
+        font-size: 9.5px;
+        text-align: right;
+        color: #744210;
+        border-radius: 4px;
+    }
+
+    /* ============ Signature box ============ */
+    .signature-wrap { width: 100%; margin-top: 22px; }
+    .signature-box {
+        border-top: 1.5px solid #64748b;
+        padding-top: 6px;
+        text-align: center;
+    }
+    .signature-role {
+        font-size: 9.5px;
+        font-weight: bold;
+        color: #1a365d;
+    }
+    .signature-name {
+        font-size: 9px;
+        color: #2d3748;
+        margin-top: 2px;
+    }
+    .signature-label {
+        font-size: 8px;
+        color: #64748b;
+        margin-top: 10px;
+    }
+
+    /* ============ Footer ============ */
+    .footer-bar {
+        margin-top: 16px;
+        text-align: center;
+        border-top: 1px solid #cbd5e1;
+        padding-top: 8px;
+        font-size: 8.5px;
+        color: #64748b;
+    }
+    .footer-bar .footer-brand {
+        color: #1a365d;
+        font-weight: bold;
+        font-size: 9px;
+        margin-bottom: 3px;
+    }
+    .footer-note {
+        margin-top: 4px;
+        font-size: 8px;
+        color: #64748b;
+    }
 </style>
 </head>
 <body>
 
     @php
-        // ================================================================
-        // بيانات الشركة ثنائية اللغة + الشعار + الحساب البنكي - في
-        // ملفك القديم كانت جايه من جدول إعدادات عام (Nameen/Namear/
-        // camplogo/bankname...إلخ). عندنا دلوقتي مفيش جدول إعدادات
-        // بنفس الأعمدة دي، فحطيت قيم افتراضية معقولة من بيانات الفرع
-        // + config('app.name'). عدّلي الأسطر السبعة دي بس لو حابة
-        // تربطيها بجدول الإعدادات الحقيقي عندك (أو قوليلي شكل الجدول
-        // وأظبطها بنفسي).
-        $companyNameAr = $quotation->branch?->name ?? config('app.name', '');
-        $companyNameEn = $quotation->branch?->name_en ?? config('app.name', '');
-        $companyAddressAr = $quotation->branch?->address ?? '';
-        $companyAddressEn = $quotation->branch?->address_en ?? '';
-        $companyTaxNo = $quotation->branch?->tax_no ?? '';
-        $companyLogo = public_path('images/sidebar-icon.png');
-        // لو عايزة تظهري صندوق بيانات الحساب البنكي في أسفل التسعيرة،
-        // احطي القيم هنا (مثال: 'البنك الأهلي السعودي') - لو سبتيها
-        // null الصندوق مش هيظهر خالص.
-        $bankName = null;
-        $bankAccountNumber = null;
-        $bankIban = null;
+        if (!function_exists('numberToWords')) {
+            function numberToWords($num)
+            {
+                $num = (int) str_replace([',', ''], '', trim((string) $num));
+                if (!$num) { return ''; }
+
+                $list1 = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+                $list2 = ['', 'ten', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety', 'hundred'];
+                $list3 = ['', 'thousand', 'million', 'billion', 'trillion', 'quadrillion', 'quintillion', 'sextillion', 'septillion', 'octillion', 'nonillion', 'decillion'];
+
+                $numLength = strlen((string) $num);
+                $levels = (int) (($numLength + 2) / 3);
+                $maxLength = $levels * 3;
+                $numStr = substr('00' . $num, -$maxLength);
+                $numLevels = str_split($numStr, 3);
+
+                $words = [];
+                for ($i = 0; $i < count($numLevels); $i++) {
+                    $levels--;
+                    $hundredsDigit = (int) ($numLevels[$i] / 100);
+                    $hundreds = $hundredsDigit ? ' ' . $list1[$hundredsDigit] . ' hundred ' : '';
+                    $tensVal = (int) ($numLevels[$i] % 100);
+                    $singles = '';
+
+                    if ($tensVal < 20) {
+                        $tens = $tensVal ? ' and ' . $list1[$tensVal] . ' ' : '';
+                    } else {
+                        $tensDigit = (int) ($tensVal / 10);
+                        $singlesDigit = (int) ($numLevels[$i] % 10);
+                        $tens = ' and ' . $list2[$tensDigit] . ' ';
+                        $singles = ' ' . $list1[$singlesDigit] . ' ';
+                    }
+
+                    $words[] = $hundreds . $tens . $singles . (($levels && (int) $numLevels[$i]) ? ' ' . $list3[$levels] . ' ' : '');
+                }
+
+                $wordsStr = implode(' ', $words);
+                $wordsStr = preg_replace('/^\s\b(and)/', '', $wordsStr);
+
+                return ucfirst(trim($wordsStr));
+            }
+        }
+
+        $companyNameEn = isset($Nameen) ? $Nameen : ($quotation->branch?->name_en ?? config('app.name', ''));
+        $companyNameAr = isset($Namear) ? $Namear : ($quotation->branch?->name ?? config('app.name', ''));
+        $companyDescEn = isset($describtionen) ? $describtionen : '';
+        $companyDescAr = isset($describtionar) ? $describtionar : '';
+        $companySTEn = isset($STen) ? $STen : '';
+        $companySTAr = isset($STar) ? $STar : '';
+        $companyTaxEn = isset($Taxen) ? $Taxen : '';
+        $companyTaxAr = isset($Taxar) ? $Taxar : '';
+        $companyAddressAr = isset($addressar) ? $addressar : ($quotation->branch?->address ?? '');
+        $companyAddressEn = isset($addressen) ? $addressen : ($quotation->branch?->address_en ?? '');
+
+        $logoFile = isset($camplogo) ? $camplogo : null;
+        $companyLogoPath = $logoFile && file_exists(public_path('assets/img/brand/' . $logoFile))
+            ? public_path('assets/img/brand/' . $logoFile)
+            : public_path('images/sidebar-icon.png');
 
         $grossSubtotal = $quotation->subtotal + $quotation->discount_amount;
         $totalDiscount = $quotation->discount_amount + $quotation->invoice_level_discount;
         $taxableAmount = $quotation->subtotal - $quotation->invoice_level_discount;
         $vatPercent = $taxableAmount > 0 ? round(($quotation->tax_amount / $taxableAmount) * 100) : 15;
+
+        [$whole, $decimal] = explode('.', number_format((float) $quotation->grand_total, 2, '.', ''));
+        $decimalDigits = str_split($decimal);
+        $decimalValue = (isset($decimalDigits[0]) && $decimalDigits[0] === '0') ? (int) $decimalDigits[1] : (int) $decimal;
+        $decimalWords = $decimalValue !== 0 ? numberToWords($decimalValue) : 'Zero';
+        $wholeWords = numberToWords((int) $whole);
     @endphp
 
-    {{-- هيدر ثنائي اللغة: بيانات إنجليزي (يمين الشاشة بصريًا لإنه جوه
-         dir="ltr") - شعار في النص - بيانات عربي (شمال الشاشة بصريًا) -
-         بجدول HTML عادي بدل الـ flexbox اللي كانت مستخدمة في النسخة
-         الأصلية (dompdf مبيدعمش flexbox بشكل موثوق). --}}
-    <div class="header-rule">
-        <table class="header-table" dir="ltr">
+    <div class="top-strip"></div>
+
+    <!-- Header card -->
+    <div class="header-card">
+        <table class="header-table">
             <tr>
-                <td style="width: 34%; text-align: left;">
+                <td style="width: 35%; text-align: left;" dir="ltr">
                     <span class="company-name">{{ $companyNameEn }}</span><br>
-                    @if ($companyAddressEn)
-                        {{ $companyAddressEn }}<br>
-                    @endif
-                    @if ($companyTaxNo)
-                        <strong>Tax No: {{ $companyTaxNo }}</strong>
+                    @if ($companyDescEn) <span class="company-line">{{ $companyDescEn }}</span> @endif
+                    @if ($companySTEn) <span class="company-line">{{ $companySTEn }}</span> @endif
+                    @if ($companyTaxEn) <span class="company-line">{{ $companyTaxEn }}</span> @endif
+                </td>
+                <td style="width: 30%; text-align: center;">
+                    @if (file_exists($companyLogoPath))
+                        <div class="logo-frame">
+                            <img src="{{ $companyLogoPath }}">
+                        </div>
                     @endif
                 </td>
-                <td style="width: 32%; text-align: center;">
-                    @if (file_exists($companyLogo))
-                        <img src="{{ $companyLogo }}" style="width: 80px; height: 70px; object-fit: contain;">
-                    @endif
-                </td>
-                <td style="width: 34%; text-align: right;" dir="rtl">
+                <td style="width: 35%; text-align: right;" dir="rtl">
                     <span class="company-name">{{ $companyNameAr }}</span><br>
-                    @if ($companyAddressAr)
-                        {{ $companyAddressAr }}<br>
-                    @endif
-                    @if ($companyTaxNo)
-                        <strong>الرقم الضريبي: {{ $companyTaxNo }}</strong>
-                    @endif
+                    @if ($companyDescAr) <span class="company-line">{{ $companyDescAr }}</span> @endif
+                    @if ($companySTAr) <span class="company-line">{{ $companySTAr }}</span> @endif
+                    @if ($companyTaxAr) <span class="company-line">{{ $companyTaxAr }}</span> @endif
                 </td>
             </tr>
         </table>
     </div>
 
-    <div class="badge-quote" dir="rtl">
-        {{ __('quotations.title_singular') }}
-        <div class="sub">QUOTATION TO CUSTOMER</div>
+    <div class="header-divider">
+        <div class="thick"></div>
+        <div class="thin"></div>
     </div>
 
-    {{-- بيانات العميل + بيانات التسعيرة - جنب بعض في صف واحد --}}
-    <table style="width: 100%; margin-bottom: 14px;" dir="rtl">
+    <!-- Banner + reference number -->
+    <table class="banner-wrap">
         <tr>
-            <td style="width: 49%; vertical-align: top;">
-                <table class="info-table">
-                    <tr>
-                        <th>{{ __('quotations.customer') }} / Client</th>
-                        <td style="font-weight: bold;">{{ $quotation->customer?->name ?? '-' }}</td>
-                    </tr>
-                    <tr>
-                        <th>{{ __('quotations.tax_number') }} / Tax No</th>
-                        <td>{{ $quotation->customer?->tax_no ?? '-' }}</td>
-                    </tr>
-                </table>
+            <td style="width: 74%; padding: 0 4px 0 0;">
+                <div class="quote-banner">
+                    عرض سعر (Quotation)
+                    <span class="sub">QUOTATION TO CUSTOMER</span>
+                </div>
             </td>
-            <td style="width: 2%;"></td>
-            <td style="width: 49%; vertical-align: top;">
-                <table class="info-table">
-                    <tr>
-                        <th>{{ __('quotations.date') }} / Date</th>
-                        <td>{{ $quotation->created_at->format('Y-m-d') }}</td>
-                    </tr>
-                    <tr>
-                        <th>{{ __('quotations.quotation_no') }} / Quote No</th>
-                        <td style="font-weight: bold; color: #d9534f;">#{{ $quotation->id }}</td>
-                    </tr>
-                </table>
+            <td style="width: 26%; padding: 0;">
+                <div class="ref-badge">
+                    #{{ $quotation->id }}
+                    <span>{{ $quotation->created_at->format('Y-m-d') }}</span>
+                </div>
             </td>
         </tr>
     </table>
 
-    {{-- جدول الأصناف - نفس أعمدة الملف القديم بالظبط (الإجمالي هنا
-         قبل الخصم، من غير عمود ضريبة لكل صنف - الضريبة بتتحسب مجمّعة
-         تحت في جدول الإجماليات، زي بالظبط النسخة القديمة). --}}
-    <div dir="ltr">
-        <table class="items">
-            <thead>
-                <tr dir="rtl">
-                    <th>#</th>
-                    <th>{{ __('quotations.code') }}<br><span class="en">Item Code</span></th>
-                    <th>{{ __('quotations.product') }}<br><span class="en">Item Name</span></th>
-                    <th>{{ __('quotations.unit_price') }}<br><span class="en">Price</span></th>
-                    <th>{{ __('quotations.quantity') }}<br><span class="en">Qty</span></th>
-                    <th>{{ __('quotations.total') }}<br><span class="en">Total</span></th>
-                    <th>{{ __('quotations.discount') }}<br><span class="en">Discount</span></th>
-                    <th>{{ __('quotations.net_total') }}<br><span class="en">Net Total</span></th>
+    <!-- Quote/customer data -->
+    <div class="section-caption">بيانات العرض والعميل</div>
+    <table class="bordered meta-table">
+        <tr>
+            <th>تاريخ العرض (Date)</th>
+            <td dir="ltr">{{ $quotation->created_at->format('Y-m-d') }}</td>
+            <th>اسم العميل (Client)</th>
+            <td dir="rtl">{{ $quotation->customer?->name ?? '-' }}</td>
+        </tr>
+        <tr>
+            <th>رقم العرض (Quote No)</th>
+            <td dir="ltr">#{{ $quotation->id }}</td>
+            <th>الرقم الضريبي (Tax No)</th>
+            <td dir="ltr">{{ $quotation->customer?->tax_no ?? '-' }}</td>
+        </tr>
+    </table>
+
+    <br>
+
+    <!-- Items table -->
+    <table class="bordered items-table">
+        <thead>
+            <tr>
+                <th style="width: 5%;">#</th>
+                <th style="width: 12%;">الكود<br><span>Code</span></th>
+                <th style="width: 32%; text-align: right; padding-right: 6px;">اسم الصنف<br><span>Item Name</span></th>
+                <th style="width: 11%;">السعر<br><span>Price</span></th>
+                <th style="width: 8%;">الكمية<br><span>Qty</span></th>
+                <th style="width: 11%;">الإجمالي<br><span>Total</span></th>
+                <th style="width: 10%;">الخصم<br><span>Disc.</span></th>
+                <th style="width: 11%;">الصافي<br><span>Net Total</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            @php $i = 0; @endphp
+            @foreach ($quotation->items as $item)
+                @php
+                    $i++;
+                    $unitPrice = $item->unit_price ?? 0;
+                    $qty = $item->quantity ?? 0;
+                    $discount = $item->discount_amount ?? 0;
+                    $lineTotal = $unitPrice * $qty;
+                    $lineNet = $lineTotal - $discount;
+                    $itemCode = $item->product_code_snapshot ?? $item->product?->code ?? '-';
+                    $itemName = $item->product_name_snapshot ?? $item->product?->name ?? '-';
+                @endphp
+                <tr>
+                    <td>{{ $i }}</td>
+                    <td dir="ltr">{{ $itemCode }}</td>
+                    <td class="item-name-cell">{{ $itemName }}</td>
+                    <td dir="ltr">{{ number_format($unitPrice, 2) }}</td>
+                    <td dir="ltr">{{ $qty }}</td>
+                    <td dir="ltr">{{ number_format($lineTotal, 2) }}</td>
+                    <td dir="ltr">{{ number_format($discount, 2) }}</td>
+                    <td dir="ltr" style="font-weight: bold;">{{ number_format($lineNet, 2) }}</td>
                 </tr>
-            </thead>
-            <tbody>
-                @foreach ($quotation->items as $index => $item)
-                    @php
-                        $grossLineTotal = $item->unit_price * $item->quantity;
-                        $netLineTotal = $grossLineTotal - ($item->discount_amount ?? 0);
-                    @endphp
-                    <tr dir="rtl">
-                        <td>{{ $index + 1 }}</td>
-                        <td dir="ltr" style="font-family: monospace;">{{ $item->product_code_snapshot ?? $item->product?->code ?? '-' }}</td>
-                        <td style="text-align: right; white-space: normal;">{{ $item->product_name_snapshot ?? $item->product?->name ?? '-' }}</td>
-                        <td>{{ number_format($item->unit_price, 2) }}</td>
-                        <td>{{ $item->quantity }}</td>
-                        <td>{{ number_format($grossLineTotal, 2) }}</td>
-                        <td>{{ number_format($item->discount_amount ?? 0, 2) }}</td>
-                        <td style="font-weight: bold;">{{ number_format($netLineTotal, 2) }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
+            @endforeach
+        </tbody>
+    </table>
 
-    {{-- إجمالي قبل الخصم + إجمالي الخصم --}}
-    <table class="totals-table" dir="rtl">
+    <br>
+
+    <!-- Totals -->
+    <table style="width: 100%;">
         <tr>
-            <th>{{ __('quotations.subtotal') }}<br><span class="en">Sub Total</span></th>
-            <th>{{ __('quotations.discount_total') }}<br><span class="en">Total Discount</span></th>
-        </tr>
-        <tr>
-            <td class="value">{{ number_format($grossSubtotal, 2) }}</td>
-            <td class="value discount-value">{{ number_format($totalDiscount, 2) }}</td>
+            <td style="width: 55%; vertical-align: top; padding: 0;">
+                @if ($quotation->note)
+                    <div class="notes-box">
+                        <strong>ملاحظات:</strong> {{ $quotation->note }}
+                    </div>
+                @endif
+                <div class="words-box" dir="ltr">
+                    <strong>Amount in Words:</strong> {{ $wholeWords }} Riyals and {{ $decimalWords }} Halala Only.
+                </div>
+            </td>
+            <td style="width: 5%;"></td>
+            <td style="width: 40%; vertical-align: top; padding: 0;">
+                <div class="totals-card">
+                    <table>
+                        <tr>
+                            <td>الإجمالي الفرعي (Sub Total)</td>
+                            <td>{{ number_format($grossSubtotal, 2) }}</td>
+                        </tr>
+                        <tr>
+                            <td>إجمالي الخصم (Discount)</td>
+                            <td>{{ number_format($totalDiscount, 2) }}</td>
+                        </tr>
+                        <tr>
+                            <td>الإجمالي قبل الضريبة (Taxable Amount)</td>
+                            <td>{{ number_format($taxableAmount, 2) }}</td>
+                        </tr>
+                        <tr>
+                            <td>ضريبة القيمة المضافة (VAT {{ $vatPercent }}%)</td>
+                            <td>{{ number_format($quotation->tax_amount, 2) }}</td>
+                        </tr>
+                        <tr class="net-total-row">
+                            <td>الإجمالي النهائي (Grand Total)</td>
+                            <td>{{ number_format($quotation->grand_total, 2) }} SAR</td>
+                        </tr>
+                    </table>
+                </div>
+            </td>
         </tr>
     </table>
 
-    {{-- المبلغ الخاضع للضريبة + الضريبة + الإجمالي الكلي --}}
-    <table class="totals-table" style="margin-top: -1px;" dir="rtl">
+    <!-- Signatures: preparer and approver -->
+    <table class="signature-wrap">
         <tr>
-            <th>{{ __('quotations.taxable_amount') }}<br><span class="en">Taxable Amount</span></th>
-            <th>{{ __('quotations.vat_amount') }} ({{ $vatPercent }}%)<br><span class="en">VAT Amount</span></th>
-            <th class="grand-cell">{{ __('quotations.grand_total') }}<br><span class="en">Grand Total</span></th>
-        </tr>
-        <tr>
-            <td class="value">{{ number_format($taxableAmount, 2) }}</td>
-            <td class="value">{{ number_format($quotation->tax_amount, 2) }}</td>
-            <td class="grand-cell">{{ number_format($quotation->grand_total, 2) }} SAR</td>
+            <td style="width: 45%; padding: 0 10px;">
+                <div class="signature-box">
+                    <div class="signature-role">أعد بواسطة (Prepared by)</div>
+                    <div class="signature-name">{{ $quotation->creator?->name ?? '-' }}</div>
+                    <div class="signature-label">التوقيع / Signature</div>
+                </div>
+            </td>
+            <td style="width: 10%;"></td>
+            <td style="width: 45%; padding: 0 10px;">
+                <div class="signature-box">
+                    <div class="signature-role">اعتمد بواسطة (Approved by)</div>
+                    <div class="signature-name">{{ $quotation->approver?->name ?? '-' }}</div>
+                    <div class="signature-label">التوقيع / Signature</div>
+                </div>
+            </td>
         </tr>
     </table>
 
-    @if ($bankName || $bankAccountNumber || $bankIban)
-        <div class="bank-box" dir="rtl">
-            @if ($bankName)
-                <strong>{{ __('quotations.bank') }}:</strong> {{ $bankName }}
-            @endif
-            @if ($bankAccountNumber)
-                &nbsp;|&nbsp; <strong>{{ __('quotations.bank_account_number') }}:</strong> <span dir="ltr">{{ $bankAccountNumber }}</span>
-            @endif
-            @if ($bankIban)
-                &nbsp;|&nbsp; <strong>IBAN:</strong> <span dir="ltr">{{ $bankIban }}</span>
-            @endif
-        </div>
-    @endif
-
-    @if ($quotation->note)
-        <div class="notes-box" dir="rtl">
-            <strong>{{ __('quotations.note') }}:</strong> {{ $quotation->note }}
-        </div>
-    @endif
-
-    <div class="footer-note" dir="rtl">
-        @if ($companyAddressAr || $companyAddressEn)
-            <span>{{ $companyAddressAr }}</span>
-            @if ($companyAddressAr && $companyAddressEn) | @endif
-            <span dir="ltr">{{ $companyAddressEn }}</span>
-            <br>
-        @endif
-        {{ __('quotations.pdf_disclaimer') }}
+    <!-- Footer -->
+    <div class="footer-bar">
+        <div class="footer-brand">{{ $companyNameAr }}</div>
+        @if ($companyAddressAr) <div>{{ $companyAddressAr }}</div> @endif
+        @if ($companyAddressEn) <div dir="ltr">{{ $companyAddressEn }}</div> @endif
+        <div class="footer-note">هذا المستند صادر إلكترونياً ولا يحتاج إلى ختم أو توقيع.</div>
     </div>
 
 </body>

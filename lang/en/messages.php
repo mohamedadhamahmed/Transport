@@ -5,6 +5,7 @@
 // وضيفي هنا أي مفتاح جديد كل ما تحتاجي نص جديد في المشروع.
 
 return [
+    'additions' => 'Additions',
     'welcome_title' => 'All your business in one book',
     'sales' => 'Sales',
     'purchases' => 'Purchases',

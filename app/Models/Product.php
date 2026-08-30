@@ -60,4 +60,9 @@ class Product extends Model
     {
         return $this->hasMany(InvoiceReturn::class);
     }
+public function productGroup()
+{
+    // تحديد اسم الموديل واسم الجدول الوسيط والمفتاح الأجنبي بدقة
+    return $this->belongsTo(\App\Models\ProductGroup::class, 'product_group_id');
+}
 }

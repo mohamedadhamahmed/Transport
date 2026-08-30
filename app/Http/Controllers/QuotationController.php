@@ -12,6 +12,10 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Barryvdh\DomPDF\Facade\Pdf;
+use ArPHP\I18N\Arabic; // الاستدعاء الصحيح لمكتبة اللغة العربية
+use Spatie\Browsershot\Browsershot;
+use Illuminate\Support\Facades\Storage;
+
 class QuotationController extends Controller
 {
     /**
@@ -19,22 +23,66 @@ class QuotationController extends Controller
      * المراجعة / معتمدة / مرفوضة).
      */
     public function downloadPdf(Quotation $quotation)
-{
-    $pdf = $this->buildQuotationPdf($quotation);
+    {
+        $pdf = $this->buildQuotationPdf($quotation);
+        $fileName = 'Quote_No_' . now()->format('Y-m-d_H-i-s') . '.pdf';
 
-    return $pdf->download('quotation-' . $quotation->id . '.pdf');
+        return $pdf->download($fileName);
+    }
+
+    public function pdf(Quotation $quotation)
+    {
+        $pdf = $this->buildQuotationPdf($quotation);
+        $fileName = 'Quote_No_' . now()->format('Y-m-d_H-i-s') . '.pdf';
+        
+        // يمكن استخدام stream بدلاً من download إذا كنت ترغب في عرض الملف في المتصفح
+        return $pdf->stream($fileName);
+    }
+
+    protected function buildQuotationPdf(Quotation $quotation)
+    {
+        // 1. تحميل العلاقات المرتبطة
+        $quotation->load(['customer', 'branch', 'creator', 'approver', 'items.product']);
+
+        // 2. تحويل الـ View إلى نص HTML
+        $htmlContent = view('quotations.pdf', compact('quotation'))->render();
+
+        // 3. معالجة النص العربي باستخدام مكتبة ar-php
+        $arabic = new Arabic();
+        $html = $arabic->utf8Glyphs($htmlContent);
+
+        // 4. إرجاع كائن الـ PDF (بدون output) لكي نستطيع استخدام download أو stream لاحقاً
+        return PDF::loadHTML($html);
+    }
+
+    public function showQuotation(Quotation $quotation)
+{
+    $quotation->load(['customer', 'branch', 'creator', 'approver', 'items.product']);
+    return view('quotations.print', compact('quotation'));
 }
 
-public function pdf(Quotation $quotation)
-{
-    return $this->downloadPdf($quotation);
-}
-
-protected function buildQuotationPdf(Quotation $quotation)
+public function downloadQuotationPdf(Quotation $quotation)
 {
     $quotation->load(['customer', 'branch', 'creator', 'approver', 'items.product']);
 
-    return Pdf::loadView('quotations.pdf', compact('quotation'))->setPaper('a4');
+    $html = view('quotations.print', compact('quotation'))
+        ->with('isPdf', true)
+        ->render();
+
+    $pdf = Browsershot::html($html)
+        ->setNodeBinary(env('NODE_BINARY', '/usr/bin/node'))
+        ->setNpmBinary(env('NPM_BINARY', '/usr/bin/npm'))
+        ->noSandbox()               // ضروري على أغلب السيرفرات Linux
+        ->showBackground()          // عشان الألوان والخلفيات تطلع
+        ->emulateMedia('print')     // يفعّل قواعد @media print بتاعتك (إخفاء التولبار)
+        ->format('A4')
+        ->margins(10, 8, 10, 8)
+        ->pdf();
+
+    return response($pdf, 200, [
+        'Content-Type' => 'application/pdf',
+        'Content-Disposition' => 'attachment; filename="quotation-' . $quotation->id . '.pdf"',
+    ]);
 }
 
     public function index(Request $request)
@@ -84,7 +132,7 @@ protected function buildQuotationPdf(Quotation $quotation)
 
         $quotations = Quotation::with(['items'])
             ->where('customer_id', $customer->id)
-            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
             ->latest()
             ->limit(30)
             ->get()

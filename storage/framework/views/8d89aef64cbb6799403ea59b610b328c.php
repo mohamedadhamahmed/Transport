@@ -5,7 +5,7 @@
     <!-- الشعار -->
     <div class="flex items-center justify-center gap-2 py-5 border-b border-white/10">
         <img src="<?php echo e(asset('images/sidebar-icon.png')); ?>" alt="<?php echo e(config('app.name', 'دفتركوم')); ?>" class="h-9 w-9 object-contain">
-        <span class="text-white font-bold text-lg">دفتركم</span>
+        <span class="text-white font-bold text-lg">دفتركوم</span>
     </div>
 
     <!-- بطاقة المستخدم -->
@@ -99,6 +99,93 @@
         ],
         ],
         [
+        'label' => __('delivery.title') ?? __('delivery.delivery_product'),
+        'groups' => [
+        [
+        'key' => 'delivery',
+        'label' => __('delivery.delivery_product'),
+        'icon' => 'box',
+        'items' => [
+        ['label' => __('delivery.delivery_product'), 'url' => route('delivery.create')],
+        ['label' => __('delivery.delivery_history'), 'url' => route('delivery.history')],
+        ],
+        ],
+        ],
+        ],
+         [
+        // قائمة منفصلة ثانية: "سند تسليم" (Delivery Note) - النظام الجديد
+        // (تسجيل معلّق، ثم اعتماد وتحويل لفاتورة ضريبية حقيقية).
+        'label' => __('deliverynote.title'),
+        'groups' => [
+        [
+        'key' => 'delivery-note',
+        'label' => __('deliverynote.title'),
+        'icon' => 'box',
+        'items' => [
+        ['label' => __('deliverynote.delivery_product'), 'url' => route('deliverynote.create')],
+        ['label' => __('deliverynote.delivery_history'), 'url' => route('deliverynote.history')],
+        ['label' => __('deliverynote.approve_and_invoice'), 'url' => route('deliverynote.convert.index')],
+        ],
+        ],
+        ],
+        ],
+        [
+        'label' => __('purchases.title'),
+        'groups' => [
+        [
+        'key' => 'purchases',
+        'label' => __('purchases.title'),
+        'icon' => 'cart',
+        'items' => [
+        ['label' => __('purchases.title'), 'url' => route('purchases.index')],
+        ['label' => __('purchases.new_purchase'), 'url' => route('purchases.create')],
+        ['label' => __('purchase_orders.title'), 'url' => route('purchase-orders.index')],
+        ['label' => __('purchase_orders.new_purchase_order'), 'url' => route('purchase-orders.create')],
+        ],
+        ],
+        ],
+        ],
+        [
+        // قسم جديد: "الإضافات" - إدارة العملاء والموردين (إضافة/تعديل).
+        'label' => __('messages.additions') ?? 'الإضافات',
+        'groups' => [
+        [
+        'key' => 'customers',
+        'label' => __('customers.title'),
+        'icon' => 'store',
+        'items' => [
+        ['label' => __('customers.title'), 'url' => route('customers.index')],
+        ['label' => __('customers.new_customer'), 'url' => route('customers.create')],
+        ],
+        ],
+        [
+        'key' => 'suppliers',
+        'label' => __('suppliers.title'),
+        'icon' => 'store',
+        'items' => [
+        ['label' => __('suppliers.title'), 'url' => route('suppliers.index')],
+        ['label' => __('suppliers.new_supplier'), 'url' => route('suppliers.create')],
+        ],
+        ],
+        ],
+        ],
+        [
+        // قسم جديد: "المنتجات والمخزون" - نقطة الدخول دايمًا "اختيار
+        // الفرع" لأنه إجباري قبل أي عرض/تعديل للمنتجات.
+        'label' => __('products.title') ?? 'المنتجات والمخزون',
+        'groups' => [
+        [
+        'key' => 'products',
+        'label' => __('products.all_products'),
+        'icon' => 'box',
+        'items' => [
+        ['label' => __('products.all_products'), 'url' => route('products.choose_branch')],
+        ['label' => __('products.add_group') ?? 'إضافة مجموعة منتجات', 'url' => route('product-groups.create')],
+        ],
+        ],
+        ],
+        ],
+        [
         'label' => __('settings.title'),
         'groups' => [
         [
@@ -108,6 +195,7 @@
         'items' => [
         ['label' => __('settings.title'), 'url' => route('settings.index')],
         ['label' => __('settings.employee_discounts_title'), 'url' => route('employee-discounts.index')],
+        ['label' => __('taxes.title'), 'url' => route('taxes.index')], // <-- تم إضافة رابط الضرائب هنا
         ],
         ],
         ],

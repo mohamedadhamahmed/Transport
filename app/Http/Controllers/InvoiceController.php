@@ -969,7 +969,10 @@ public function create(Request $request)
 
         return $pdf->download('invoice-' . ($invoice->invoice_number ?? $invoice->id) . '.pdf');
     }
-
+public function createInvoiceFromData(array $validated): Invoice
+{
+    return $this->finalizeInvoice($validated);
+}
     /**
      * اسم بديل (alias) - لو الراوت عندك بيستخدم ->pdf() بدل ->downloadPdf()
      * (زي الخطأ اللي ظهرلك: "Call to undefined method ...::pdf()")، الدالة
@@ -1231,7 +1234,7 @@ public function create(Request $request)
      * المرتبطة بيها. مستخدمة من store() (لما تدوسي "حفظ الفاتورة") ومن
      * approveDraft() (لما تدوسي "اعتماد" على مسودة من غير ما تفتحيها).
      */
-    protected function finalizeInvoice(array $validated): Invoice
+    public  function finalizeInvoice(array $validated): Invoice
     {
         return DB::transaction(function () use ($validated) {
     // إعادة حساب الإجماليات من السيرفر لضمان الدقة
