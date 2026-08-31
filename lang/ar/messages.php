@@ -10,7 +10,7 @@ return [
     'welcome_title' => 'كل أعمالك في دفتر واحد',
     'sales' => 'المبيعات',
     'purchases' => 'المشتريات',
-    'accounting_invoices' => 'المحاسبة والفواتير',
+    'accounting_invoices' => 'المحاسبة ',
     'inventory' => 'المخزون',
     'branches' => 'الفروع',
     'dashboard' => 'لوحة التحكم',
