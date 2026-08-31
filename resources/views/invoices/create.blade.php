@@ -380,89 +380,106 @@
             </form>
         </div>
         {{-- مودال إضافة عميل سريع --}}
-        <div x-show="customerModalOpen" x-cloak
-            class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div class="bg-white rounded-xl p-6 w-full max-w-2xl my-8" @click.outside="customerModalOpen = false">
-                <h3 class="font-semibold text-lg text-gray-800 mb-4">{{ __('invoices.add_new_customer') }}</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="md:col-span-1">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('products.name') }} *</label>
-                        <input type="text" x-model="newCustomer.name"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.phone') }} *</label>
-                        <input type="text" x-model="newCustomer.phone"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.email') }}</label>
-                        <input type="email" x-model="newCustomer.email"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.company_name') }}</label>
-                        <input type="text" x-model="newCustomer.company_name"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.tax_number') }}</label>
-                        <input type="text" x-model="newCustomer.tax_number"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.crn') }}</label>
-                        <input type="text" x-model="newCustomer.commercial_registration_number"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.credit_limit') }}</label>
-                        <input type="number" step="0.01" min="0" x-model.number="newCustomer.credit_limit"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.notes') }}</label>
-                        <input type="text" x-model="newCustomer.notes"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.district') }}</label>
-                        <input type="text" x-model="newCustomer.district"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.street_name') }}</label>
-                        <input type="text" x-model="newCustomer.street_name"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.building_number') }}</label>
-                        <input type="text" x-model="newCustomer.building_number"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.plot_identification') }}</label>
-                        <input type="text" x-model="newCustomer.plot_identification"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.postal_code') }}</label>
-                        <input type="text" x-model="newCustomer.postal_code"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                </div>
-                <div class="flex items-center gap-3 mt-6">
-                    <button type="button" @click="createCustomer()"
-                        class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition">
-                        {{ __('invoices.add') }}
-                    </button>
-                    <button type="button" @click="customerModalOpen = false"
-                        class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
-                        {{ __('invoices.cancel') }}
-                    </button>
-                </div>
+<div x-show="customerModalOpen" x-cloak
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+    <div class="bg-white rounded-xl p-6 w-full max-w-2xl my-8" @click.outside="customerModalOpen = false">
+        <h3 class="font-semibold text-lg text-gray-800 mb-4">{{ __('invoices.add_new_customer') }}</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="md:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.name') }} *</label>
+                <input type="text" x-model="newCustomer.name"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.phone') }} *</label>
+                <input type="text" x-model="newCustomer.phone"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.email') }}</label>
+                <input type="email" x-model="newCustomer.email"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.company_name') }}</label>
+                <input type="text" x-model="newCustomer.company_name"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.tax_number') }}</label>
+                <input type="text" x-model="newCustomer.tax_number"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.crn') }}</label>
+                <input type="text" x-model="newCustomer.commercial_registration_number"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.credit_limit') }}</label>
+                <input type="number" step="0.01" min="0" x-model.number="newCustomer.credit_limit"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.grace_period_days') }}</label>
+                <input type="number" step="1" min="0" x-model.number="newCustomer.grace_period_days"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.notes') }}</label>
+                <input type="text" x-model="newCustomer.notes"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+
+            <div class="md:col-span-3">
+                <hr class="my-2 border-gray-100">
+                <p class="text-xs font-semibold text-gray-500 mb-2">{{ __('invoices.national_address') }}</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.city') }}</label>
+                <input type="text" x-model="newCustomer.city"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.district') }}</label>
+                <input type="text" x-model="newCustomer.district"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.street_name') }}</label>
+                <input type="text" x-model="newCustomer.street_name"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.building_number') }}</label>
+                <input type="text" x-model="newCustomer.building_number"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.plot_identification') }}</label>
+                <input type="text" x-model="newCustomer.plot_identification"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('invoices.postal_code') }}</label>
+                <input type="text" x-model="newCustomer.postal_code"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
             </div>
         </div>
+        <div class="flex items-center gap-3 mt-6">
+            <button type="button" @click="createCustomer()"
+                class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition">
+                {{ __('invoices.add') }}
+            </button>
+            <button type="button" @click="customerModalOpen = false"
+                class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
+                {{ __('invoices.cancel') }}
+            </button>
+        </div>
+    </div>
+</div>
+
+
         {{-- مودال إضافة منتج سريع --}}
         <div x-show="productModalOpen" x-cloak
             class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">

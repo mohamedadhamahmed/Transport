@@ -101,4 +101,11 @@ return [
     'import_created_products_notice' => ':count new products were automatically added to the product list',
     'import_skipped_notice' => ':count rows were skipped (no product name or code)',
     'import_failed' => 'An error occurred while importing the file - make sure it matches the template',
-];
+'national_address' => 'National Address',
+'city' => 'City',
+'district' => 'District',
+'street_name' => 'Street Name',
+'building_number' => 'Building Number',
+'plot_identification' => 'Plot Identification',
+'postal_code' => 'Postal Code',
+    ];

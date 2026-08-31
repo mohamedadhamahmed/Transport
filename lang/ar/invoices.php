@@ -126,7 +126,10 @@ return [
 
     'print' => 'طباعة',
     'credit_note_preview_title' => 'معاينة طباعة إشعار الدائن',
-
+'grace_period_days' => 'مهلة السداد (أيام)',
+'national_address' => 'العنوان الوطني',
+'city' => 'المدينة',
+'name' => 'اسم العميل',
     'previous_returns' => 'المرتجعات السابقة',
     'return_reference' => 'مرجع المرتجع',
 

@@ -28,6 +28,7 @@ class Customer extends Model
         'building_number',
         'plot_identification',
         'commercial_registration_number',
+        'city',
     ];
 
     protected $casts = [

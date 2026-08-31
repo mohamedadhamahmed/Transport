@@ -1108,90 +1108,87 @@ public function create(Request $request)
     public function quickStoreCustomer(Request $request)
     {
         // 1. التحقق من صحة البيانات (Validate)
-        $request->validate([
-            'name'                    => ['required', 'string', 'max:255'],
-            'name_en'                 => ['nullable', 'string', 'max:255'],
-            'phone'                   => ['required', 'string', 'max:255'],
-            'email'                   => ['nullable', 'email', 'max:255'],
-            'tax_no'                  => ['nullable', 'numeric'], // أو Tax_Number حسب فورم الإرسال
-            'balance'                 => ['nullable', 'numeric'],
-            'credit_limit'            => ['nullable', 'numeric', 'min:0'],
-            'grace_period_in_days'    => ['nullable', 'numeric'],
-            'street_name'             => ['nullable', 'string', 'max:255'],
-            'building_number'         => ['nullable', 'string', 'max:255'],
-            'plot_identification'     => ['nullable', 'string', 'max:255'],
-            'postcode'                => ['nullable', 'string', 'max:255'],
-            'CRN'                     => ['nullable', 'string', 'max:255'],
-            'notes'                   => ['nullable', 'string'],
-        ]);
+$request->validate([
+    'name'                             => ['required', 'string', 'max:255'],
+    'phone'                            => ['required', 'string', 'max:255'],
+    'email'                            => ['nullable', 'email', 'max:255'],
+    'company_name'                     => ['nullable', 'string', 'max:255'],
+    'tax_number'                       => ['nullable', 'string', 'max:255'],
+    'commercial_registration_number'   => ['nullable', 'string', 'max:255'],
+    'credit_limit'                     => ['nullable', 'numeric', 'min:0'],
+    'grace_period_days'                => ['nullable', 'integer', 'min:0'],
+    'notes'                            => ['nullable', 'string'],
+    'city'                             => ['nullable', 'string', 'max:255'],
+    'district'                         => ['nullable', 'string', 'max:255'],
+    'street_name'                      => ['nullable', 'string', 'max:255'],
+    'building_number'                  => ['nullable', 'string', 'max:255'],
+    'plot_identification'              => ['nullable', 'string', 'max:255'],
+    'postal_code'                      => ['nullable', 'string', 'max:255'],
+]);
 
-        // 2. تنفيذ العملية داخل Transaction لضمان السلامة المالية وقاعدة البيانات
-        $customer = DB::transaction(function () use ($request) {
+// 2. تنفيذ العملية داخل Transaction
+$customer = DB::transaction(function () use ($request) {
 
-            // إنشاء العميل الجديد
-            $newCustomer = Customer::create([
-                'name'                 => $request->name,
-                'name_en'              => $request->name_en ?? null,
-                'comp_name'            => $request->company_name ?? $request->name,
-                'tax_no'               => $request->tax_no ?? $request->input('TaxـNumber', 0),
-                'Balance'              => $request->balance ?? $request->credit_limit ?? 0,
-                'phone'                => $request->phone ?? '05----------',
-                'email'                => $request->email ?? 'Email@gmail.com',
-                'notes'                => $request->notes ?? $request->product_notes ?? "لا توجد ملاحظات",
-                'Limit_credit'         => $request->credit_limit ?? 0,
-                'grace_period_in_days' => $request->grace_period_in_days ?? 0,
-                'street_name'          => $request->street_name ?? $request->StreetName ?? null,
-                'building_number'      => $request->building_number ?? $request->buildnumber ?? null,
-                'plot_identification'  => $request->plot_identification ?? null,
-                'address'              => $request->city ?? "Client Address",
-                'sub_city'             => $request->sub_city ?? "Client Address",
-                'postcode'             => $request->postcode ?? null,
-                'CRN'                  => $request->CRN ?? null,
-            ]);
+    $newCustomer = Customer::create([
+        'name'                 => $request->name,
+        'comp_name'            => $request->company_name ?? $request->name,
+        'tax_no'               => $request->tax_number ?? 0,
+        'Balance'              => $request->credit_limit ?? 0,
+        'phone'                => $request->phone ?? '05----------',
+        'email'                => $request->email ?? 'Email@gmail.com',
+        'notes'                => $request->notes ?? "لا توجد ملاحظات",
+        'Limit_credit'         => $request->credit_limit ?? 0,
+        'grace_period_in_days' => $request->grace_period_days ?? 0,
+        'street_name'          => $request->street_name ?? null,
+        'building_number'      => $request->building_number ?? null,
+        'plot_identification'  => $request->plot_identification ?? null,
+        'city'              => $request->city ?? "Client Address",
+        'district'             => $request->district ?? "Client Address",
+        'postcode'             => $request->postal_code ?? null,
+        'CRN'                  => $request->commercial_registration_number ?? null,
+    ]);
 
-            // توليد رقم الحساب التالي في شجرة الحسابات للعملاء (Account Type: 1, Parent: 2)
-            $nextAccountNumber = FinancialAccount::where('account_type', 1)
-                ->where('orginal_type', 1)
-                ->max('account_number') + 1;
+    $nextAccountNumber = FinancialAccount::where('account_type', 1)
+        ->where('orginal_type', 1)
+        ->max('account_number') + 1;
 
-            // إنشاء الحساب المالي المرتبط بالعميل في شجرة الحسابات
-            FinancialAccount::create([
-                'name'                  => $request->name,
-                'account_type'          => 1,
-                'parent_account_number' => 2, // الحساب الأب للعملاء
-                'account_number'        => $nextAccountNumber,
-                'start_balance'         => 0,
-                'current_balance'       => 0,
-                'start_balance_status'  => 3,
-                'other_table_FK'        => NULL,
-                'notes'                 => NULL,
-                'added_by'              => Auth::id() ?? 1,
-                'updated_by'            => NULL,
-                'com_code'              => 1,
-                'date'                  => Carbon::now('Asia/Riyadh'),
-                'active'                => 1,
-                'is_parent'             => 0,
-                'orginal_id'            => $newCustomer->id,
-                'orginal_type'          => 1, // نوع الأصل يعبر عن عميل
-            ]);
+    FinancialAccount::create([
+        'name'                  => $request->name,
+        'account_type'          => 1,
+        'parent_account_number' => 2,
+        'account_number'        => $nextAccountNumber,
+        'start_balance'         => 0,
+        'current_balance'       => 0,
+        'start_balance_status'  => 3,
+        'other_table_FK'        => NULL,
+        'notes'                 => NULL,
+        'added_by'              => Auth::id() ?? 1,
+        'updated_by'            => NULL,
+        'com_code'              => 1,
+        'date'                  => Carbon::now('Asia/Riyadh'),
+        'active'                => 1,
+        'is_parent'             => 0,
+        'orginal_id'            => $newCustomer->id,
+        'orginal_type'          => 1,
+    ]);
 
-            return $newCustomer;
-        });
+    return $newCustomer;
+});
 
-        // 3. طريقة الإرجاع (سواء كنت تفضل JSON أو Redirect)
-        if ($request->expectsJson() || $request->ajax()) {
-            return response()->json([
-                'id' => $customer->id,
-                'name' => $customer->name,
-                'message' => __('تم اضافة العميل بنجاح')
-            ]);
-        }
+// 3. طريقة الإرجاع
+if ($request->expectsJson() || $request->ajax()) {
+    return response()->json([
+        'id' => $customer->id,
+        'name' => $customer->name,
+        'message' => __('تم اضافة العميل بنجاح')
+    ]);
+}
 
-        $message = app()->getLocale() == 'ar' ? 'تم اضافة العميل بنجاح' : 'Client added successfully';
-        session()->flash('newcustomer', $message);
+$message = app()->getLocale() == 'ar' ? 'تم اضافة العميل بنجاح' : 'Client added successfully';
+session()->flash('newcustomer', $message);
 
-        return redirect()->back();
-    }
+return redirect()->back();
+}
 
     /**
      * إضافة منتج سريعة من فورم الفاتورة (بدون مغادرة الصفحة).

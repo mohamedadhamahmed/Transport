@@ -27,10 +27,16 @@ class Supplier extends Model
         'postcode',
         'notes',
         'created_by',
+        'city'
     ];
 
     public function purchases()
     {
         return $this->hasMany(Purchase::class);
+    }
+
+    public function purchaseReturns()
+    {
+        return $this->hasMany(PurchaseReturn::class);
     }
 }

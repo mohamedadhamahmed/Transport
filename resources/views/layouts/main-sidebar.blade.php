@@ -146,6 +146,8 @@
         ['label' => __('purchases.new_purchase'), 'url' => route('purchases.create')],
         ['label' => __('purchase_orders.title'), 'url' => route('purchase-orders.index')],
         ['label' => __('purchase_orders.new_purchase_order'), 'url' => route('purchase-orders.create')],
+        ['label' => __('purchase_returns.new_return'), 'url' => route('purchases.returns.create')],
+        ['label' => __('purchase_returns.previous_returns'), 'url' => route('purchases.returns.index')],
         ],
         ],
         ],
@@ -186,6 +188,46 @@
         'items' => [
         ['label' => __('products.all_products'), 'url' => route('products.choose_branch')],
         ['label' => __('products.add_group') ?? 'إضافة مجموعة منتجات', 'url' => route('product-groups.create')],
+        ],
+        ],
+        ],
+        ],
+        [
+        // قسم جديد: "المحاسبة والفواتير" - شجرة الحسابات، القيد اليومي،
+        // سندات القبض والصرف. رابط accounts.search مش موجود هنا لإنه
+        // endpoint بحث AJAX داخلي بس (مش صفحة).
+        'label' => __('messages.accounting_invoices'),
+        'groups' => [
+        [
+        'key' => 'accounts',
+        'label' => __('accounts.title'),
+        'icon' => 'ledger',
+        'items' => [
+        ['label' => __('accounts.list_title'), 'url' => route('accounts.index')],
+        ['label' => __('accounts.tree_title'), 'url' => route('accounts.tree')],
+        ['label' => __('accounts.new_account'), 'url' => route('accounts.create')],
+        ],
+        ],
+        [
+        'key' => 'journal-entries',
+        'label' => __('journal_entries.group_title'),
+        'icon' => 'doc',
+        'items' => [
+        ['label' => __('journal_entries.daily_title'), 'url' => route('journal-entries.index', ['type' => 'daily'])],
+        ['label' => __('journal_entries.new_daily_entry'), 'url' => route('journal-entries.create', ['type' => 'daily'])],
+        ['label' => __('journal_entries.opening_title'), 'url' => route('journal-entries.index', ['type' => 'opening'])],
+        ['label' => __('journal_entries.new_opening_entry'), 'url' => route('journal-entries.create', ['type' => 'opening'])],
+        ],
+        ],
+        [
+        'key' => 'vouchers',
+        'label' => __('vouchers.title'),
+        'icon' => 'tag',
+        'items' => [
+        ['label' => __('vouchers.receipt_title'), 'url' => route('vouchers.index', ['type' => 'receipt'])],
+        ['label' => __('vouchers.new_receipt'), 'url' => route('vouchers.create', ['type' => 'receipt'])],
+        ['label' => __('vouchers.payment_title'), 'url' => route('vouchers.index', ['type' => 'payment'])],
+        ['label' => __('vouchers.new_payment'), 'url' => route('vouchers.create', ['type' => 'payment'])],
         ],
         ],
         ],
@@ -234,6 +276,10 @@
         'tag' => '
         <path d="M20.6 12.6 12.6 20.6a2 2 0 0 1-2.83 0l-6.37-6.37a2 2 0 0 1 0-2.83L11.4 3.4A2 2 0 0 1 12.8 2.8H19a2 2 0 0 1 2 2v6.2a2 2 0 0 1-.4 1.2Z" />
         <circle cx="16.5" cy="7.5" r="1.5" />',
+        'ledger' => '
+        <path d="M4 21V6a2 2 0 0 1 2-2h9l5 5v12a0 0 0 0 1 0 0H6a2 2 0 0 1-2-2Z" />
+        <path d="M15 4v4a1 1 0 0 0 1 1h4" />
+        <path d="M8 12h8M8 16h5" />',
         ];
         @endphp
 

@@ -1,0 +1,67 @@
+<?php
+
+return [
+    'title' => 'Purchase Returns',
+    'title_singular' => 'Purchase Return',
+    'new_return' => 'New Purchase Return',
+    'return_no' => 'Return #',
+    'back_to_list' => 'Back to list',
+    'previous_returns' => 'Previous Purchase Returns',
+
+    'search_purchase' => 'Search a purchase invoice',
+    'search_purchase_placeholder' => 'Purchase number, supplier invoice number, or supplier name...',
+    'search' => 'Search',
+    'no_purchases_found' => 'No matching or returnable purchase invoices found',
+    'select_purchase' => 'Select purchase invoice',
+
+    'purchase_info' => 'Purchase Invoice Details',
+    'purchase_no' => 'Purchase #',
+    'supplier' => 'Supplier',
+    'branch' => 'Branch',
+    'payment_method' => 'Original payment method',
+    'credit' => 'Credit (on supplier account)',
+    'payment_immediate' => 'Immediate payment',
+
+    'items' => 'Returnable items',
+    'product' => 'Product',
+    'code' => 'Code',
+    'original_qty' => 'Original quantity',
+    'already_returned' => 'Already returned',
+    'remaining_qty' => 'Available to return',
+    'return_qty' => 'Return quantity',
+    'unit_price' => 'Unit price',
+    'no_items_to_return' => 'Enter a return quantity for at least one item',
+    'return_quantity_exceeds_remaining' => 'Requested return quantity exceeds what is available for this item',
+
+    'refund_account' => 'Refund account',
+    'choose_refund_account' => 'Choose refund account',
+    'refund_account_hint' => 'The amount will be refunded to this account (cash/bank/network) - defaults to the original payment account',
+    'refund_credit_note' => 'The original purchase was on credit - the amount will be automatically deducted from the supplier balance',
+
+    'reason' => 'Return reason',
+    'reason_placeholder' => 'Optional - e.g. damaged goods, wrong item...',
+    'return_date' => 'Return date',
+
+    'subtotal' => 'Subtotal (before tax)',
+    'discount_total' => 'Total discount',
+    'tax_total' => 'Total tax',
+    'grand_total' => 'Grand total',
+
+    'save_return' => 'Save purchase return',
+    'saving_please_wait' => 'Saving...',
+    'cancel' => 'Cancel',
+
+    'created_successfully' => 'Purchase return saved successfully',
+    'date' => 'Date',
+    'created_by' => 'Created by',
+    'actions' => 'Actions',
+    'view' => 'View',
+    'filter_by_supplier' => 'Filter by supplier',
+    'all_suppliers' => 'All suppliers',
+    'filter' => 'Filter',
+    'no_returns_found' => 'No purchase returns found',
+    'previous' => 'Previous',
+    'next' => 'Next',
+    'linked_purchase' => 'Returned from invoice',
+    'cost_center' => 'Cost center',
+];

@@ -1,0 +1,67 @@
+<?php
+
+return [
+    'title' => 'مرتجع المشتريات',
+    'title_singular' => 'مرتجع مشتريات',
+    'new_return' => 'مرتجع مشتريات جديد',
+    'return_no' => 'مرتجع رقم',
+    'back_to_list' => 'رجوع للقائمة',
+    'previous_returns' => 'مرتجعات المشتريات السابقة',
+
+    'search_purchase' => 'ابحث عن فاتورة شراء',
+    'search_purchase_placeholder' => 'رقم فاتورة الشراء، رقم فاتورة المورد، أو اسم المورد...',
+    'search' => 'بحث',
+    'no_purchases_found' => 'لا توجد فواتير شراء مطابقة أو قابلة للإرجاع',
+    'select_purchase' => 'اختر فاتورة الشراء',
+
+    'purchase_info' => 'بيانات فاتورة الشراء',
+    'purchase_no' => 'رقم فاتورة الشراء',
+    'supplier' => 'المورد',
+    'branch' => 'الفرع',
+    'payment_method' => 'طريقة الدفع الأصلية',
+    'credit' => 'آجل (على حساب المورد)',
+    'payment_immediate' => 'دفع فوري',
+
+    'items' => 'الأصناف القابلة للإرجاع',
+    'product' => 'المنتج',
+    'code' => 'الكود',
+    'original_qty' => 'الكمية الأصلية',
+    'already_returned' => 'اترجع قبل كده',
+    'remaining_qty' => 'المتاح للإرجاع',
+    'return_qty' => 'الكمية المرتجعة',
+    'unit_price' => 'سعر الوحدة',
+    'no_items_to_return' => 'حددي كمية إرجاع لصنف واحد على الأقل',
+    'return_quantity_exceeds_remaining' => 'الكمية المطلوب إرجاعها أكبر من المتاح لهذا الصنف',
+
+    'refund_account' => 'حساب الاسترداد',
+    'choose_refund_account' => 'اختر حساب الاسترداد',
+    'refund_account_hint' => 'المبلغ هيترد لهذا الحساب (نقدي/بنك/شبكة) - افتراضيًا نفس حساب الدفع الأصلي',
+    'refund_credit_note' => 'الفاتورة الأصلية آجل - المبلغ هينخصم تلقائيًا من رصيد المورد',
+
+    'reason' => 'سبب الإرجاع',
+    'reason_placeholder' => 'اختياري - مثال: بضاعة تالفة، صنف خاطئ...',
+    'return_date' => 'تاريخ المرتجع',
+
+    'subtotal' => 'الإجمالي قبل الضريبة',
+    'discount_total' => 'إجمالي الخصم',
+    'tax_total' => 'إجمالي الضريبة',
+    'grand_total' => 'الإجمالي النهائي',
+
+    'save_return' => 'حفظ مرتجع المشتريات',
+    'saving_please_wait' => 'جاري الحفظ...',
+    'cancel' => 'إلغاء',
+
+    'created_successfully' => 'تم حفظ مرتجع المشتريات بنجاح',
+    'date' => 'التاريخ',
+    'created_by' => 'أنشأه',
+    'actions' => 'إجراءات',
+    'view' => 'عرض',
+    'filter_by_supplier' => 'فلترة بالمورد',
+    'all_suppliers' => 'كل الموردين',
+    'filter' => 'فلترة',
+    'no_returns_found' => 'لا توجد مرتجعات مشتريات',
+    'previous' => 'السابق',
+    'next' => 'التالي',
+    'linked_purchase' => 'مرتجع من فاتورة',
+    'cost_center' => 'مركز التكلفة',
+];

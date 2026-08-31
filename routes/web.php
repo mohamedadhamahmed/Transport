@@ -14,6 +14,10 @@ use App\Http\Controllers\DraftInvoiceController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\PurchaseReturnController;
+use App\Http\Controllers\AccountController;
+use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\VoucherController;
 
 use App\Http\Controllers\DeliveryController;
 use App\Http\Controllers\DeliveryReturnController;
@@ -158,9 +162,23 @@ Route::middleware('auth')->group(function () {
     Route::get('/purchases', [PurchaseController::class, 'index'])->name('purchases.index');
     Route::get('/purchases/create', [PurchaseController::class, 'create'])->name('purchases.create');
     Route::post('/purchases', [PurchaseController::class, 'store'])->name('purchases.store');
-    Route::get('/purchases/{purchase}', [PurchaseController::class, 'show'])->name('purchases.show');
     Route::post('/purchases/suppliers/quick', [PurchaseController::class, 'quickStoreSupplier'])->name('purchases.suppliers.quick');
     Route::get('/purchases/product-cost-history/{product}', [PurchaseController::class, 'productCostHistory'])->name('purchases.product-cost-history');
+
+    // مسارات مرتجع المشتريات - لازم تكون هنا، قبل /purchases/{purchase}،
+    // عشان لارافيل ميفهمش "returns" على إنها ID فاتورة شراء (route model
+    // binding). الترتيب هنا كمان مهم: الروتس الثابتة (create/search/index)
+    // لازم تسبق أي روت فيه باراميتر (زي {purchase}/items أو
+    // {purchaseReturn})، بنفس الترتيب المتبع في مسارات مرتجع المبيعات تحت.
+    Route::get('/purchases/returns', [PurchaseReturnController::class, 'index'])->name('purchases.returns.index');
+    Route::get('/purchases/returns/create', [PurchaseReturnController::class, 'create'])->name('purchases.returns.create');
+    Route::get('/purchases/returns/search', [PurchaseReturnController::class, 'search'])->name('purchases.returns.search');
+    Route::post('/purchases/returns', [PurchaseReturnController::class, 'store'])->name('purchases.returns.store');
+    Route::get('/purchases/returns/refund-accounts/{branch}', [PurchaseReturnController::class, 'refundAccountsForBranch'])->name('purchases.returns.refund-accounts');
+    Route::get('/purchases/returns/{purchase}/items', [PurchaseReturnController::class, 'items'])->name('purchases.returns.items');
+    Route::get('/purchases/returns/{purchaseReturn}', [PurchaseReturnController::class, 'show'])->name('purchases.returns.show');
+
+    Route::get('/purchases/{purchase}', [PurchaseController::class, 'show'])->name('purchases.show');
 
     // مسارات مرتجع المبيعات - لازم تكون هنا، قبل /invoices/{invoice}،
     // عشان لارافيل ميفهمش "returns" على إنها ID فاتورة (route model binding).
@@ -199,6 +217,39 @@ Route::middleware('auth')->group(function () {
     Route::get('/invoices/products/search', [InvoiceController::class, 'searchProducts'])->name('invoices.products.search');
     Route::post('/invoices/products/quick', [InvoiceController::class, 'quickStoreProduct'])->name('invoices.products.quick');
     Route::post('/invoices/customers/quick', [InvoiceController::class, 'quickStoreCustomer'])->name('invoices.customers.quick');
+});
+
+// ===== قسم الحسابات والقيود (شجرة الحسابات، القيد اليومي، سندات
+// القبض والصرف) - نفس ترتيب الروتس المتبع في باقي المشروع: الروتس
+// الثابتة (create/search/index) لازم تسبق أي روت فيه باراميتر
+// ({account}/{journalEntry}/{voucher}) عشان لارافيل ميحاولش يفهم
+// "create" أو "search" على إنها ID (route model binding).
+Route::middleware(['auth'])->group(function () {
+    Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
+    Route::get('/accounts/tree', [AccountController::class, 'tree'])->name('accounts.tree');
+    Route::get('/accounts/create', [AccountController::class, 'create'])->name('accounts.create');
+    Route::post('/accounts', [AccountController::class, 'store'])->name('accounts.store');
+    Route::get('/accounts/search', [AccountController::class, 'search'])->name('accounts.search');
+    Route::get('/accounts/{account}/edit', [AccountController::class, 'edit'])->name('accounts.edit');
+    Route::put('/accounts/{account}', [AccountController::class, 'update'])->name('accounts.update');
+    Route::patch('/accounts/{account}/toggle', [AccountController::class, 'toggleActive'])->name('accounts.toggle');
+    Route::get('/accounts/{account}/statement', [AccountController::class, 'statement'])->name('accounts.statement');
+
+    Route::get('/journal-entries', [JournalEntryController::class, 'index'])->name('journal-entries.index');
+    Route::get('/journal-entries/create', [JournalEntryController::class, 'create'])->name('journal-entries.create');
+    Route::post('/journal-entries', [JournalEntryController::class, 'store'])->name('journal-entries.store');
+    Route::get('/journal-entries/{journalEntry}/edit', [JournalEntryController::class, 'edit'])->name('journal-entries.edit');
+    Route::put('/journal-entries/{journalEntry}', [JournalEntryController::class, 'update'])->name('journal-entries.update');
+    Route::get('/journal-entries/{journalEntry}', [JournalEntryController::class, 'show'])->name('journal-entries.show');
+    Route::get('/journal-entries/{journalEntry}/print', [JournalEntryController::class, 'print'])->name('journal-entries.print');
+
+    Route::get('/vouchers', [VoucherController::class, 'index'])->name('vouchers.index');
+    Route::get('/vouchers/create', [VoucherController::class, 'create'])->name('vouchers.create');
+    Route::post('/vouchers', [VoucherController::class, 'store'])->name('vouchers.store');
+    Route::get('/vouchers/{voucher}/edit', [VoucherController::class, 'edit'])->name('vouchers.edit');
+    Route::put('/vouchers/{voucher}', [VoucherController::class, 'update'])->name('vouchers.update');
+    Route::get('/vouchers/{voucher}', [VoucherController::class, 'show'])->name('vouchers.show');
+    Route::get('/vouchers/{voucher}/print', [VoucherController::class, 'print'])->name('vouchers.print');
 });
 
 Route::get('/lang/{locale}', function (string $locale, Request $request) {

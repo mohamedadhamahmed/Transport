@@ -105,5 +105,11 @@ return [
   
     'download_template_first_hint' => 'حمّل القالب الأول عشان يظهر زرار الاستيراد',
  
-    
+    'national_address' => 'العنوان الوطني',
+'city' => 'المدينة',
+'district' => 'الحي',
+'street_name' => 'اسم الشارع',
+'building_number' => 'رقم المبنى',
+'plot_identification' => 'رقم قطعة الأرض',
+'postal_code' => 'الرمز البريدي',
 ];

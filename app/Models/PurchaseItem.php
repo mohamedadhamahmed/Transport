@@ -15,6 +15,7 @@ class PurchaseItem extends Model
         'unit_price',
         'sale_price',
         'quantity',
+        'returned_quantity',
         'discount_amount',
         'tax_rate',
         'tax_amount',
@@ -31,5 +32,24 @@ class PurchaseItem extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * أصناف مرتجع المشتريات المسجلة على السطر ده (سطر واحد ممكن يترجع
+     * على أكتر من دفعة/عملية إرجاع مختلفة).
+     */
+    public function returnItems()
+    {
+        return $this->hasMany(PurchaseReturnItem::class);
+    }
+
+    /**
+     * الكمية المتاح إرجاعها من السطر ده = الكمية الأصلية ناقص اللي
+     * اترجع منها قبل كده. محسوبة دايمًا لحظيًا (مش عمود مخزّن) عشان
+     * تفضل متزامنة مع quantity/returned_quantity الفعليين.
+     */
+    public function getRemainingQuantityAttribute(): float
+    {
+        return (float) $this->quantity - (float) $this->returned_quantity;
     }
 }

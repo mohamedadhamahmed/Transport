@@ -230,66 +230,79 @@ class PurchaseController extends Controller
     public function quickStoreSupplier(Request $request)
     {
         $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'name_en' => ['nullable', 'string', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'tax_no' => ['nullable', 'string', 'max:255'],
-            'crn' => ['nullable', 'string', 'max:255'],
-            'credit_limit' => ['nullable', 'numeric', 'min:0'],
-            'notes' => ['nullable', 'string'],
-        ]);
+    'name' => ['required', 'string', 'max:255'],
+    'name_en' => ['nullable', 'string', 'max:255'],
+    'phone' => ['nullable', 'string', 'max:255'],
+    'email' => ['nullable', 'email', 'max:255'],
+    'company_name' => ['nullable', 'string', 'max:255'],
+    'tax_no' => ['nullable', 'string', 'max:255'],
+    'crn' => ['nullable', 'string', 'max:255'],
+    'credit_limit' => ['nullable', 'numeric', 'min:0'],
+    'notes' => ['nullable', 'string'],
+    'city' => ['nullable', 'string', 'max:255'],
+    'district' => ['nullable', 'string', 'max:255'],
+    'street_name' => ['nullable', 'string', 'max:255'],
+    'building_number' => ['nullable', 'string', 'max:255'],
+    'plot_identification' => ['nullable', 'string', 'max:255'],
+    'postal_code' => ['nullable', 'string', 'max:255'],
+]);
 
-        $supplier = DB::transaction(function () use ($request) {
-            $newSupplier = Supplier::create([
-                'name' => $request->name,
-                'name_en' => $request->name_en,
-                'company_name' => $request->company_name ?? $request->name,
-                'phone' => $request->phone,
-                'email' => $request->email,
-                'tax_no' => $request->tax_no,
-                'crn' => $request->crn,
-                'credit_limit' => $request->credit_limit ?? 0,
-                'notes' => $request->notes,
-                'created_by' => Auth::id(),
-            ]);
+$supplier = DB::transaction(function () use ($request) {
+    $newSupplier = Supplier::create([
+        'name' => $request->name,
+        'name_en' => $request->name_en,
+        'company_name' => $request->company_name ?? $request->name,
+        'phone' => $request->phone,
+        'email' => $request->email,
+        'tax_no' => $request->tax_no,
+        'crn' => $request->crn,
+        'credit_limit' => $request->credit_limit ?? 0,
+        'notes' => $request->notes,
+        'created_by' => Auth::id(),
+        'city' => $request->city,
+        'sub_city' => $request->district,          // district في الفورم -> sub_city في الجدول
+        'street_name' => $request->street_name,
+        'building_number' => $request->building_number,
+        'plot_identification' => $request->plot_identification,
+        'postcode' => $request->postal_code,        // postal_code في الفورم -> postcode في الجدول
+    ]);
 
-            $nextAccountNumber = FinancialAccount::where('account_type', 1)
-                ->where('orginal_type', 2)
-                ->max('account_number') + 1;
+    $nextAccountNumber = FinancialAccount::where('account_type', 1)
+        ->where('orginal_type', 2)
+        ->max('account_number') + 1;
 
-            FinancialAccount::create([
-                'name' => $request->name,
-                'account_type' => 1,
-                'parent_account_number' => self::SUPPLIER_PARENT_ACCOUNT_NUMBER,
-                'account_number' => $nextAccountNumber,
-                'start_balance' => 0,
-                'current_balance' => 0,
-                'start_balance_status' => 3,
-                'other_table_FK' => null,
-                'notes' => null,
-                'added_by' => Auth::id() ?? 1,
-                'updated_by' => null,
-                'com_code' => 1,
-                'date' => Carbon::now('Asia/Riyadh'),
-                'active' => 1,
-                'is_parent' => 0,
-                'orginal_id' => $newSupplier->id,
-                'orginal_type' => 2,
-            ]);
+    FinancialAccount::create([
+        'name' => $request->name,
+        'account_type' => 1,
+        'parent_account_number' => self::SUPPLIER_PARENT_ACCOUNT_NUMBER,
+        'account_number' => $nextAccountNumber,
+        'start_balance' => 0,
+        'current_balance' => 0,
+        'start_balance_status' => 3,
+        'other_table_FK' => null,
+        'notes' => null,
+        'added_by' => Auth::id() ?? 1,
+        'updated_by' => null,
+        'com_code' => 1,
+        'date' => Carbon::now('Asia/Riyadh'),
+        'active' => 1,
+        'is_parent' => 0,
+        'orginal_id' => $newSupplier->id,
+        'orginal_type' => 2,
+    ]);
 
-            return $newSupplier;
-        });
+    return $newSupplier;
+});
 
-        if ($request->expectsJson() || $request->ajax()) {
-            return response()->json([
-                'id' => $supplier->id,
-                'name' => $supplier->name,
-            ]);
-        }
+if ($request->expectsJson() || $request->ajax()) {
+    return response()->json([
+        'id' => $supplier->id,
+        'name' => $supplier->name,
+    ]);
+}
 
-        return redirect()->back()->with('success', __('purchases.supplier_added'));
-    }
+return redirect()->back()->with('success', __('purchases.supplier_added'));
+}
 
     public function store(Request $request)
     {

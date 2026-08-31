@@ -417,70 +417,106 @@
             </form>
         </div>
 
-        {{-- مودال إضافة مورد سريع --}}
-        <div x-show="supplierModalOpen" x-cloak
-            class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div class="bg-white rounded-xl p-6 w-full max-w-2xl my-8" @click.outside="supplierModalOpen = false">
-                <h3 class="font-semibold text-lg text-gray-800 mb-4">{{ __('purchases.add_new_supplier') }}</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.supplier_name') }} *</label>
-                        <input type="text" x-model="newSupplier.name"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.supplier_name_en') }}</label>
-                        <input type="text" x-model="newSupplier.name_en"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.phone') }}</label>
-                        <input type="text" x-model="newSupplier.phone"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.email') }}</label>
-                        <input type="email" x-model="newSupplier.email"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.company_name') }}</label>
-                        <input type="text" x-model="newSupplier.company_name"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.tax_number') }}</label>
-                        <input type="text" x-model="newSupplier.tax_no"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.crn') }}</label>
-                        <input type="text" x-model="newSupplier.crn"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.credit_limit') }}</label>
-                        <input type="number" step="0.01" min="0" x-model.number="newSupplier.credit_limit"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                    <div class="md:col-span-3">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.notes') }}</label>
-                        <input type="text" x-model="newSupplier.notes"
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                    </div>
-                </div>
-                <div class="flex items-center gap-3 mt-6">
-                    <button type="button" @click="createSupplier()"
-                        class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition">
-                        {{ __('purchases.add') }}
-                    </button>
-                    <button type="button" @click="supplierModalOpen = false"
-                        class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
-                        {{ __('purchases.cancel') }}
-                    </button>
-                </div>
+      {{-- مودال إضافة مورد سريع --}}
+<div x-show="supplierModalOpen" x-cloak
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+    <div class="bg-white rounded-xl p-6 w-full max-w-2xl my-8" @click.outside="supplierModalOpen = false">
+        <h3 class="font-semibold text-lg text-gray-800 mb-4">{{ __('purchases.add_new_supplier') }}</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.supplier_name') }} *</label>
+                <input type="text" x-model="newSupplier.name"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.supplier_name_en') }}</label>
+                <input type="text" x-model="newSupplier.name_en"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.phone') }}</label>
+                <input type="text" x-model="newSupplier.phone"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.email') }}</label>
+                <input type="email" x-model="newSupplier.email"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.company_name') }}</label>
+                <input type="text" x-model="newSupplier.company_name"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.tax_number') }}</label>
+                <input type="text" x-model="newSupplier.tax_no"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.crn') }}</label>
+                <input type="text" x-model="newSupplier.crn"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.credit_limit') }}</label>
+                <input type="number" step="0.01" min="0" x-model.number="newSupplier.credit_limit"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div class="md:col-span-3">
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.notes') }}</label>
+                <input type="text" x-model="newSupplier.notes"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+
+            <div class="md:col-span-3">
+                <hr class="my-2 border-gray-100">
+                <p class="text-xs font-semibold text-gray-500 mb-2">{{ __('purchases.national_address') }}</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.city') }}</label>
+                <input type="text" x-model="newSupplier.city"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.district') }}</label>
+                <input type="text" x-model="newSupplier.district"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.street_name') }}</label>
+                <input type="text" x-model="newSupplier.street_name"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.building_number') }}</label>
+                <input type="text" x-model="newSupplier.building_number"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.plot_identification') }}</label>
+                <input type="text" x-model="newSupplier.plot_identification"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('purchases.postal_code') }}</label>
+                <input type="text" x-model="newSupplier.postal_code"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
             </div>
         </div>
+        <div class="flex items-center gap-3 mt-6">
+            <button type="button" @click="createSupplier()"
+                class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition">
+                {{ __('purchases.add') }}
+            </button>
+            <button type="button" @click="supplierModalOpen = false"
+                class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
+                {{ __('purchases.cancel') }}
+            </button>
+        </div>
+    </div>
+</div>
+
 
         {{-- مودال إضافة مركز تكلفة جديد --}}
         <div x-show="costCenterModalOpen" x-cloak

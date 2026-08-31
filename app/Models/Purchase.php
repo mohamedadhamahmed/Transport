@@ -69,6 +69,15 @@ class Purchase extends Model
         return $this->belongsTo(CostCenter::class);
     }
 
+    /**
+     * كل عمليات مرتجع المشتريات (كليًا أو جزئيًا) اللي اتعملت على
+     * الفاتورة دي.
+     */
+    public function returns()
+    {
+        return $this->hasMany(PurchaseReturn::class);
+    }
+
     public function isCredit(): bool
     {
         return is_null($this->payment_account_id);
