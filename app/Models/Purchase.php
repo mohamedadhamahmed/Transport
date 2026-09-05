@@ -82,4 +82,54 @@ class Purchase extends Model
     {
         return is_null($this->payment_account_id);
     }
+
+    /**
+     * الفاتورة قابلة للتعديل بس لو:
+     * 1) كل بند فيها متسجل بنظام الـ "snapshot" (stock_before /
+     *    purchase_price_before / average_cost_before) - أي فاتورة قديمة
+     *    اتسجلت قبل إضافة الأعمدة دي معندهاش بيانات كافية نرجّع بيها
+     *    تكلفة المنتج بأمان، فمش هتبقى قابلة للتعديل.
+     * 2) مفيش أي بند فيها اترجع منه أي كمية (مرتجع مشتريات) - عشان
+     *    منطق التعديل والإرجاع مش متزامنين مع بعض.
+     * 3) الفاتورة دي هي آخر فاتورة مشتريات أثرت على تكلفة كل منتج من
+     *    منتجاتها - لو فيه فاتورة تانية (بتاريخ/ID أحدث) اتسجلت بعدها
+     *    لنفس المنتج، يبقى متوسط التكلفة وسعر الشراء اتغيروا بعد كده،
+     *    ومينفعش نرجعهم لقيمة الـ snapshot القديمة من غير ما نكسر
+     *    الفاتورة التانية دي.
+     */
+    public function isEditable(): bool
+    {
+        $items = $this->items()->get();
+
+        if ($items->isEmpty()) {
+            return false;
+        }
+
+        foreach ($items as $item) {
+            if (is_null($item->stock_before) || is_null($item->purchase_price_before) || is_null($item->average_cost_before)) {
+                return false;
+            }
+
+            if ((float) $item->returned_quantity > 0) {
+                return false;
+            }
+
+            $laterExists = PurchaseItem::where('product_id', $item->product_id)
+                ->where('id', '!=', $item->id)
+                ->where(function ($q) use ($item) {
+                    $q->where('created_at', '>', $item->created_at)
+                        ->orWhere(function ($q2) use ($item) {
+                            $q2->where('created_at', $item->created_at)
+                                ->where('id', '>', $item->id);
+                        });
+                })
+                ->exists();
+
+            if ($laterExists) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }

@@ -1,27 +1,91 @@
 <x-app-layout>
-    {{-- TomSelect - لتحسين قايمة اختيار العميل (بحث + إضافة عنصر جديد ديناميكيًا) --}}
-    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    @php
+        // صلاحية عرض الربح: صاحب الشركة ممكن يمنع بعض الموظفين من شوفان
+        // عمود/بطاقة الربح في شاشة إنشاء عرض السعر (نفس الصلاحية مستخدمة
+        // في الفواتير والتسليم كمان).
+        $canViewProfit = auth()->user()?->hasPermission('sensitive_data.view_profit');
+    @endphp
+    {{-- TomSelect - لتحسين قايمة اختيار العميل (بحث + إضافة عنصر جديد ديناميكيًا).
+         ⚠️ منحملش قالب Bootstrap 5 الجاهز (tom-select.bootstrap5.min.css) لإن
+         المشروع كله Tailwind من غير Bootstrap - كان بيطلع شبه فاضي من غير
+         حدود/خلفية. الأنماط تحت مستقلة بالكامل ومطابقة لشكل حقول الفورم. --}}
     <style>
+        .ts-wrapper {
+            position: relative;
+            width: 100%;
+        }
         .ts-wrapper.single .ts-control {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            box-sizing: border-box;
             border-radius: 0.5rem;
-            border-color: #d1d5db;
+            border: 1px solid #d1d5db;
             background-color: #fff;
             min-height: 42px;
-            padding: 0.5rem 0.75rem;
+            padding-inline-start: 0.75rem;
+            padding-inline-end: 1.75rem;
+            padding-block: 0.5rem;
+            font-size: 0.875rem;
+            color: rgb(17 24 39);
+            cursor: pointer;
+            overflow: hidden;
+            transition: border-color .15s ease, box-shadow .15s ease;
         }
 
-        .ts-wrapper.single.focus .ts-control {
+        .ts-wrapper.single.focus .ts-control,
+        .ts-wrapper.single.dropdown-active .ts-control {
             border-color: #1456E8;
             box-shadow: 0 0 0 1px #1456E8;
         }
 
+        .ts-wrapper.single .ts-control::after {
+            content: "";
+            position: absolute;
+            inset-inline-end: 0.85rem;
+            top: 50%;
+            width: 0.4rem;
+            height: 0.4rem;
+            border-inline-end: 1.5px solid rgb(156 163 175);
+            border-block-end: 1.5px solid rgb(156 163 175);
+            transform: translateY(-70%) rotate(45deg);
+            pointer-events: none;
+        }
+
+        .ts-control input {
+            color: inherit;
+            font-size: inherit;
+            background: transparent;
+            min-width: 2rem;
+            cursor: pointer;
+        }
+
+        .ts-control input::placeholder {
+            color: rgb(156 163 175);
+        }
+
+        .ts-wrapper.single .ts-control > .item {
+            color: rgb(17 24 39);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .ts-dropdown {
             z-index: 9999;
+            margin-top: 0.25rem;
             background-color: #fff;
             border-radius: 0.5rem;
-            border-color: #d1d5db;
+            border: 1px solid #d1d5db;
             box-shadow: 0 10px 25px -5px rgba(15, 27, 76, 0.18), 0 8px 10px -6px rgba(15, 27, 76, 0.12);
             overflow: hidden;
+            font-size: 0.875rem;
+            text-align: start;
+        }
+
+        .ts-dropdown .ts-dropdown-content {
+            max-height: 15rem;
+            overflow-y: auto;
         }
 
         .ts-dropdown .option,
@@ -29,11 +93,25 @@
             white-space: normal;
             word-break: break-word;
             padding: 0.55rem 0.75rem;
+            cursor: pointer;
         }
 
-        .ts-dropdown .active {
+        .ts-dropdown .option.active,
+        .ts-dropdown .option:hover {
             background-color: #1456E8;
             color: #fff;
+        }
+
+        .ts-hidden-accessible {
+            border: 0 !important;
+            clip: rect(0 0 0 0) !important;
+            clip-path: inset(50%) !important;
+            height: 1px !important;
+            overflow: hidden !important;
+            padding: 0 !important;
+            position: absolute !important;
+            width: 1px !important;
+            white-space: nowrap !important;
         }
     </style>
     <div class="py-6" x-data="quotationForm({{ $maxDiscountPercent ?? 0 }})">
@@ -69,6 +147,14 @@
                         </svg>
                         {{ __('quotations.new_product') }}
                     </button>
+                    <button type="button" id="open-tax-calculator-btn"
+                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="4" y="2" width="16" height="20" rx="2" />
+                            <path d="M8 6h8M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01" />
+                        </svg>
+                        حاسبة الضريبة والخصم
+                    </button>
                     <a href="{{ route('quotations.index') }}"
                         class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
                         {{ __('quotations.back_to_list') }}
@@ -88,8 +174,8 @@
                                 <select name="customer_id" id="customer_select" x-model="selectedCustomerId" @change="loadCustomerHistory()"
                                     class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]" required>
                                     <option value="">-</option>
-                                    @foreach ($customers as $customer)
-                                    <option value="{{ $customer->id }}">{{ $customer->name }}</option>
+                                    @foreach ($customers as $id => $name)
+                                    <option value="{{ $id }}" selected>{{ $name }}</option>
                                     @endforeach
                                 </select>
                                 <button type="button" @click="customerModalOpen = true"
@@ -152,9 +238,9 @@
                     </div>
                 </div>
 
-                {{-- التسعيرات السابقة لنفس العميل - بتظهر تلقائي لما تختاري
+                {{-- التسعيرات السابقة لنفس العميل - بتظهر تلقائي لما تختار
                      عميل، وبتوريكي كل التسعيرات القديمة بتاعته (مهما كان
-                     المنتج) عشان تقدري تراجعي/تقارني الأسعار قبل ما تحطي
+                     المنتج) عشان تقدر تراجع/تقارن الأسعار قبل ما تحط
                      سعر جديد. --}}
                 <div class="bg-white shadow-sm border border-gray-100 sm:rounded-xl p-6 mt-6" x-show="selectedCustomerId" x-cloak>
                     <h3 class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
@@ -248,7 +334,9 @@
                                     <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('quotations.discount') }}</th>
                                     <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('quotations.tax') }}</th>
                                     <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('quotations.total') }}</th>
-                                    <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('quotations.profit_per_unit') }}</th>
+                                    @if ($canViewProfit)
+                                        <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('quotations.profit_per_unit') }}</th>
+                                    @endif
                                     <th class="px-3 py-2.5"></th>
                                 </tr>
                             </thead>
@@ -270,9 +358,11 @@
                                             <input type="number" step="0.01" min="0" x-model.number="item.discount_amount"
                                                 class="w-24 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                         </td>
-                                        <td class="px-3 py-2 text-gray-500" x-text="((item.tax_rate || 0) * 100) + '%'"></td>
+                                        <td class="px-3 py-2 text-gray-500" x-text="formatTaxRate(item.tax_rate) + '%'"></td>
                                         <td class="px-3 py-2 font-semibold text-[#0F1B4C]" x-text="lineTotal(item).toFixed(2)"></td>
-                                        <td class="px-3 py-2" :class="lineProfit(item) < 0 ? 'text-red-600' : 'text-emerald-600'" x-text="lineProfit(item).toFixed(2)"></td>
+                                        @if ($canViewProfit)
+                                            <td class="px-3 py-2" :class="lineProfit(item) < 0 ? 'text-red-600' : 'text-emerald-600'" x-text="lineProfit(item).toFixed(2)"></td>
+                                        @endif
                                         <td class="px-3 py-2">
                                             <button type="button" @click="removeItem(index)"
                                                 class="inline-flex items-center gap-1 text-red-600 hover:text-red-700 text-xs font-medium">
@@ -285,7 +375,7 @@
                                     </tr>
                                 </template>
                                 <tr x-show="items.length === 0">
-                                    <td colspan="10" class="px-3 py-8 text-center text-gray-400">
+                                    <td colspan="{{ $canViewProfit ? 10 : 9 }}" class="px-3 py-8 text-center text-gray-400">
                                         {{ __('quotations.no_items_yet') }}
                                     </td>
                                 </tr>
@@ -305,7 +395,7 @@
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                    <div class="grid grid-cols-2 {{ $canViewProfit ? 'md:grid-cols-5' : 'md:grid-cols-4' }} gap-4 mt-6">
                         <div class="bg-[#0F1B4C]/5 border border-[#0F1B4C]/10 rounded-lg p-4 text-center">
                             <div class="text-xs text-gray-500 mb-1">{{ __('quotations.subtotal') }}</div>
                             <div class="font-semibold text-[#0F1B4C]" x-text="subtotal.toFixed(2)"></div>
@@ -318,6 +408,12 @@
                             <div class="text-xs text-gray-500 mb-1">{{ __('quotations.tax_total') }}</div>
                             <div class="font-semibold text-[#0F1B4C]" x-text="taxTotal.toFixed(2)"></div>
                         </div>
+                        @if ($canViewProfit)
+                            <div class="bg-emerald-50 border border-emerald-100 rounded-lg p-4 text-center">
+                                <div class="text-xs text-gray-500 mb-1">{{ __('quotations.total_profit') }}</div>
+                                <div class="font-semibold text-emerald-700" x-text="totalProfit.toFixed(2)"></div>
+                            </div>
+                        @endif
                         <div class="rounded-lg p-4 text-center text-white bg-[#0F1B4C] relative overflow-hidden">
                             <span class="absolute inset-x-0 bottom-0 h-0.5 bg-[#F5811E]"></span>
                             <div class="text-xs text-white/50 mb-1">{{ __('quotations.grand_total') }}</div>
@@ -338,6 +434,8 @@
                 </div>
             </form>
         </div>
+
+        @include('partials.tax-calculator-modal')
 
         {{-- مودال إضافة عميل سريع (نفس مودال شاشة الفواتير) --}}
         <div x-show="customerModalOpen" x-cloak
@@ -423,11 +521,19 @@
         <div x-show="productModalOpen" x-cloak
             class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div class="bg-white rounded-xl p-6 w-full max-w-2xl my-8" @click.outside="productModalOpen = false">
-                <h3 class="font-semibold text-lg text-gray-800 mb-4">{{ __('quotations.quick_add_product') }}</h3>
+                <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <h3 class="font-semibold text-lg text-gray-800">{{ __('quotations.quick_add_product') }}</h3>
+                    <label class="flex items-center gap-2 text-sm font-medium text-red-600 cursor-pointer">
+                        <input type="checkbox" x-model="translateEnabled"
+                               @change="translateEnabled && newProduct.name ? translateProductName() : null"
+                               class="rounded border-gray-300 text-[#1456E8] focus:ring-[#1456E8]">
+                        تفعيل الترجمة
+                    </label>
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('quotations.product_name') }} *</label>
-                        <input type="text" x-model="newProduct.name"
+                        <input type="text" x-model="newProduct.name" @blur="translateEnabled ? translateProductName() : null"
                             class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
@@ -599,6 +705,7 @@
                 searchResults: [],
                 customerModalOpen: false,
                 productModalOpen: false,
+                translateEnabled: false,
                 productPickerOpen: false,
                 pickerSearch: '',
                 pickerProducts: [],
@@ -644,7 +751,7 @@
                 cashAmount: 0,
                 bankAmount: 0,
                 extraDiscount: 0,
-                defaultTaxRate: 0.15,
+                defaultTaxRate: {{ $defaultTaxRate }},
                 init() {
                     const el = document.getElementById('customer_select');
                     if (el && window.TomSelect) {
@@ -652,6 +759,19 @@
                             create: false,
                             allowEmptyOption: true,
                             placeholder: '-',
+                            valueField: 'id',
+                            labelField: 'text',
+                            searchField: [],
+                            load: (query, callback) => {
+                                if (!query || query.length < 2) {
+                                    callback();
+                                    return;
+                                }
+                                fetch(`{{ route('customers.search') }}?q=` + encodeURIComponent(query))
+                                    .then((res) => res.json())
+                                    .then((json) => callback(json))
+                                    .catch(() => callback());
+                            },
                             onChange: (value) => {
                                 this.selectedCustomerId = value;
                                 this.loadCustomerHistory();
@@ -659,7 +779,7 @@
                         });
                     }
                 },
-                // بتتنفذ لما تختاري عميل - بتجيب كل التسعيرات السابقة بتاعته
+                // بتتنفذ لما تختار عميل - بتجيب كل التسعيرات السابقة بتاعته
                 // (مهما كان المنتج) وتعرضها في اللوحة اللي فوق جدول الأصناف.
                 async loadCustomerHistory() {
                     if (!this.selectedCustomerId) {
@@ -748,8 +868,19 @@
                 lineProfit(item) {
                     return (parseFloat(item.unit_price) || 0) - (parseFloat(item.purchase_price) || 0);
                 },
+                // بيرجع نسبة الضريبة كنص منسّق لمنزلتين عشريتين بعد التقريب
+                // عشان نتجنب مشاكل الفاصلة العشرية في JavaScript (0.14 * 100
+                // ممكن تطلع 14.000000000000002 بدل 14 بالظبط).
+                formatTaxRate(rate) {
+                    const value = Math.round(((parseFloat(rate) || 0) * 100) * 100) / 100;
+                    return (Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2)).replace(/\.00$/, '');
+                },
                 get subtotal() {
                     return this.items.reduce((sum, i) => sum + this.lineSubtotal(i), 0);
+                },
+                get totalProfit() {
+                    // إجمالي الربح = مجموع (الربح على القطعة × الكمية) لكل الأصناف
+                    return this.items.reduce((sum, i) => sum + (this.lineProfit(i) * (parseFloat(i.quantity) || 0)), 0);
                 },
                 get taxTotal() {
                     return this.items.reduce((sum, i) => sum + this.lineTax(i), 0);
@@ -842,7 +973,7 @@
                     if (data.id) {
                         if (this.customerTomSelect) {
                             this.customerTomSelect.addOption({
-                                value: String(data.id),
+                                id: String(data.id),
                                 text: data.name
                             });
                             this.customerTomSelect.addItem(String(data.id));
@@ -872,6 +1003,20 @@
                             plot_identification: '',
                             postal_code: '',
                         };
+                    }
+                },
+                async translateProductName() {
+                    if (!this.newProduct.name) {
+                        return;
+                    }
+                    try {
+                        const res = await fetch(`{{ route('products.translate') }}?text=` + encodeURIComponent(this.newProduct.name));
+                        const data = await res.json();
+                        if (data && data.translated) {
+                            this.newProduct.name_en = data.translated;
+                        }
+                    } catch (e) {
+                        // نتجاهل أي خطأ شبكة/ترجمة بهدوء - الحقل هيفضل قابل للتعديل يدويًا
                     }
                 },
                 async createProduct() {

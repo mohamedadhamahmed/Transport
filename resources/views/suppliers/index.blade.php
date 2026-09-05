@@ -14,6 +14,7 @@
                         <p class="text-white/45 text-xs mt-0.5">{{ __('suppliers.subtitle') }}</p>
                     </div>
                 </div>
+                @can('suppliers.create')
                 <a href="{{ route('suppliers.create') }}"
                    class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition whitespace-nowrap">
                     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -21,6 +22,7 @@
                     </svg>
                     {{ __('suppliers.new_supplier') }}
                 </a>
+                @endcan
             </div>
 
             @if(session('success'))
@@ -54,10 +56,12 @@
                                 <td class="px-4 py-3 font-medium text-gray-800">{{ $supplier->name }}</td>
                                 <td class="px-4 py-3 text-gray-600">{{ $supplier->phone }}</td>
                                 <td class="px-4 py-3">
+                                    @can('suppliers.edit')
                                     <a href="{{ route('suppliers.edit', $supplier->id) }}"
                                        class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[#1456E8] bg-[#1456E8]/10 hover:bg-[#1456E8]/20 transition">
                                         {{ __('suppliers.edit') }}
                                     </a>
+                                    @endcan
                                 </td>
                             </tr>
                             @empty

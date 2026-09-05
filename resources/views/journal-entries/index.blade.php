@@ -1,7 +1,7 @@
 <x-app-layout>
 
     <div class="py-6">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+        <div class="dc-max-w-page mx-auto sm:px-6 lg:px-8 space-y-6">
 
             <div class="rounded-2xl bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] px-5 sm:px-6 py-5 shadow-lg shadow-[#0F1B4C]/15 flex items-center justify-between flex-wrap gap-4">
                 <div class="flex items-center gap-3">

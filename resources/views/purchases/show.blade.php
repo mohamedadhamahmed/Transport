@@ -17,10 +17,30 @@
                         <p class="text-white/45 text-xs mt-0.5">{{ optional($purchase->issue_date)->format('Y-m-d') ?? $purchase->created_at->format('Y-m-d') }}</p>
                     </div>
                 </div>
-                <a href="{{ route('purchases.index') }}"
-                   class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
-                    {{ __('purchases.back_to_list') }}
-                </a>
+                <div class="flex items-center gap-2">
+                    @can('purchases.edit')
+                    @if ($purchase->isEditable())
+                    <a href="{{ route('purchases.edit', $purchase) }}"
+                       class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                        {{ __('purchases.edit') }}
+                    </a>
+                    @endif
+                    @endcan
+                    <a href="{{ route('purchases.pdf', $purchase) }}"
+                       class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/>
+                        </svg>
+                        {{ __('purchases.download_pdf') }}
+                    </a>
+                    <a href="{{ route('purchases.index') }}"
+                       class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
+                        {{ __('purchases.back_to_list') }}
+                    </a>
+                </div>
             </div>
 
             @include('partials.sweet-alert-flash')

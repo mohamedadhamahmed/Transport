@@ -9,6 +9,8 @@ class TaxController extends Controller
 {
     public function index()
     {
+        $this->authorize('settings.taxes');
+
         // جلب الضرائب مرتبة حسب الأولوية تصاعدياً (الأول فالأول)
         $taxes = Tax::orderBy('priority', 'asc')->get();
         return view('taxes.index', compact('taxes'));
@@ -16,6 +18,8 @@ class TaxController extends Controller
 
 public function store(Request $request)
 {
+    $this->authorize('settings.taxes');
+
     $request->validate([
         'name' => 'required|string|max:255',
         'rate' => 'required|numeric|min:0|max:100',
@@ -34,6 +38,8 @@ public function store(Request $request)
 
 public function destroy(Tax $tax)
 {
+    $this->authorize('settings.taxes');
+
     $tax->delete();
     return redirect()->route('taxes.index')->with('success', __('taxes.success_delete'));
 }

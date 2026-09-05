@@ -41,7 +41,7 @@ return new class extends Migration
 
             // الحالة
             // ملحوظة: القيم الرقمية بالظبط لحالة الفاتورة مش موثقة من النظام
-            // القديم - لو عندك معاني محددة (مثلاً 0=مسودة، 1=مؤكدة...) قوليلي
+            // القديم - لو عندك معاني محددة (مثلاً 0=مسودة، 1=مؤكدة...) قوللي
             // عشان أعملها enum واضح.
             $table->unsignedTinyInteger('status')->default(0);
             $table->boolean('is_finalized')->default(false);

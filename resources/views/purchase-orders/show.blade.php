@@ -51,14 +51,16 @@
                                class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition">
                                 {{ __('purchase_orders.convert_to_purchase') }}
                             </a>
-                            <form method="POST" action="{{ route('purchase-orders.cancel', $purchaseOrder) }}"
-                                  onsubmit="return confirm(@js(__('purchase_orders.cancel_confirm')))">
-                                @csrf
-                                <button type="submit"
-                                        class="px-4 py-2 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition">
-                                    {{ __('purchase_orders.cancel_order') }}
-                                </button>
-                            </form>
+                            @can('purchases.orders')
+                                <form method="POST" action="{{ route('purchase-orders.cancel', $purchaseOrder) }}"
+                                      onsubmit="return confirm(@js(__('purchase_orders.cancel_confirm')))">
+                                    @csrf
+                                    <button type="submit"
+                                            class="px-4 py-2 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition">
+                                        {{ __('purchase_orders.cancel_order') }}
+                                    </button>
+                                </form>
+                            @endcan
                         </div>
                     @elseif ($purchaseOrder->isConverted() && $purchaseOrder->convertedPurchase)
                         <a href="{{ route('purchases.show', $purchaseOrder->convertedPurchase) }}"

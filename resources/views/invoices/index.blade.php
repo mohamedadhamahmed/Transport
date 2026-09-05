@@ -1,7 +1,7 @@
 <x-app-layout>
 
     <div class="py-6">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+        <div class="dc-max-w-page mx-auto sm:px-6 lg:px-8 space-y-6">
 
             {{-- هيدر الصفحة بلون البراند الكحلي --}}
             <div class="rounded-2xl bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] px-5 sm:px-6 py-5 shadow-lg shadow-[#0F1B4C]/15 flex items-center justify-between flex-wrap gap-4">
@@ -35,10 +35,14 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-500 mb-1">{{ __('invoices.customer') }}</label>
-                            <select name="customer_id" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            <select name="customer_id" data-ajax-select data-ajax-url="{{ route('customers.search') }}"
+                                    data-ajax-placeholder="{{ __('invoices.all_customers') }}"
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                 <option value="">{{ __('invoices.all_customers') }}</option>
-                                @foreach ($customers as $customer)
-                                    <option value="{{ $customer->id }}" @selected(request('customer_id') == $customer->id)>{{ $customer->name }}</option>
+                                @foreach ($customers as $id => $name)
+                                    @if ($name)
+                                        <option value="{{ $id }}" selected>{{ $name }}</option>
+                                    @endif
                                 @endforeach
                             </select>
                         </div>
@@ -156,9 +160,28 @@
             </span>
         @endif
 
+        {{-- تعديل: بيظهر بس لو المستخدم عنده صلاحية invoices.edit والفاتورة
+             نفسها قابلة للتعديل (isEditable() في موديل Invoice) --}}
+        @can('invoices.edit')
+            @if ($invoice->isEditable())
+                <a href="{{ route('invoices.edit', $invoice) }}" title="{{ __('invoices.edit') }}"
+                   class="w-7 h-7 flex items-center justify-center rounded-md bg-amber-50 text-amber-600 hover:bg-amber-100 transition">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                    </svg>
+                </a>
+            @else
+                <span title="{{ __('invoices.not_editable') }}"
+                      class="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 text-gray-400 cursor-not-allowed">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                    </svg>
+                </span>
+            @endif
+        @endcan
+
         @php
             $comingSoonIcons = [
-                'edit' => '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
                 'print' => '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
             ];
         @endphp
@@ -214,4 +237,6 @@
             </div>
         </div>
     </div>
+
+    @include('partials.ajax-select-assets')
 </x-app-layout>

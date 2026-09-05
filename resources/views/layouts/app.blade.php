@@ -34,5 +34,8 @@
     
     <script src="{{ asset('assets/libs/tom-select/js/tom-select.complete.min.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    {{-- ودجت "المساعد" العائمة - بتظهر في كل شاشات النظام بعد تسجيل الدخول --}}
+    @include('partials.assistant-widget')
 </body>
 </html>

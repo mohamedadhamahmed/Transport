@@ -1,15 +1,14 @@
 <x-app-layout>
 
     <div class="py-6">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+        <div class="dc-max-w-page mx-auto sm:px-6 lg:px-8 space-y-6">
 
             {{-- هيدر الصفحة بلون البراند الكحلي --}}
             <div class="rounded-2xl bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] px-5 sm:px-6 py-5 shadow-lg shadow-[#0F1B4C]/15 flex items-center justify-between flex-wrap gap-4">
                 <div class="flex items-center gap-3">
                     <span class="w-11 h-11 shrink-0 rounded-xl bg-white/10 flex items-center justify-center">
                         <svg class="w-5 h-5 text-white/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 3h2l2.4 12.4a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L22 8H6"/>
-                            <path d="M9 21a9 9 0 1 1 9-9"/><path d="M9 8v5h5"/>
+                            <path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>
                         </svg>
                     </span>
                     <h2 class="text-white font-bold text-lg">{{ __('purchase_returns.title') }}</h2>
@@ -29,7 +28,9 @@
                     <form method="GET" action="{{ route('purchases.returns.index') }}" class="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div>
                             <label class="block text-xs font-medium text-gray-500 mb-1">{{ __('purchase_returns.filter_by_supplier') }}</label>
-                            <select name="supplier_id" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            <select name="supplier_id" data-ajax-select data-ajax-url="{{ route('suppliers.search') }}"
+                                    data-ajax-placeholder="{{ __('purchase_returns.all_suppliers') }}"
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                 <option value="">{{ __('purchase_returns.all_suppliers') }}</option>
                                 @foreach ($suppliers as $supplier)
                                     <option value="{{ $supplier->id }}" @selected(request('supplier_id') == $supplier->id)>{{ $supplier->name }}</option>
@@ -59,8 +60,9 @@
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('purchase_returns.linked_purchase') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('purchase_returns.supplier') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('purchase_returns.date') }}</th>
-                                <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('purchase_returns.created_by') }}</th>
+                                <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('purchase_returns.branch') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('purchase_returns.grand_total') }}</th>
+                                <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('purchase_returns.created_by') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('purchase_returns.actions') }}</th>
                             </tr>
                         </thead>
@@ -79,18 +81,27 @@
                                     </td>
                                     <td class="px-4 py-3 text-gray-500">{{ $return->supplier?->name ?? '-' }}</td>
                                     <td class="px-4 py-3 text-gray-500">{{ optional($return->return_date)->format('Y-m-d') ?? $return->created_at->format('Y-m-d') }}</td>
-                                    <td class="px-4 py-3 text-gray-500">{{ $return->creator?->name ?? '-' }}</td>
+                                    <td class="px-4 py-3 text-gray-500">{{ $return->branch?->name ?? '-' }}</td>
                                     <td class="px-4 py-3 font-semibold text-[#0F1B4C]">{{ number_format($return->grand_total, 2) }}</td>
+                                    <td class="px-4 py-3 text-gray-500">{{ $return->creator?->name ?? '-' }}</td>
                                     <td class="px-4 py-3">
-                                        <a href="{{ route('purchases.returns.show', $return) }}" title="{{ __('purchase_returns.view') }}"
-                                           class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
-                                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                                        </a>
+                                        <div class="flex items-center gap-2">
+                                            <a href="{{ route('purchases.returns.show', $return) }}" title="{{ __('purchase_returns.view') }}"
+                                               class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
+                                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                            </a>
+                                            <a href="{{ route('purchases.returns.pdf', $return) }}" title="{{ __('purchase_returns.download_pdf') }}"
+                                               class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
+                                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/>
+                                                </svg>
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-4 py-10 text-center text-gray-400">
+                                    <td colspan="8" class="px-4 py-10 text-center text-gray-400">
                                         {{ __('purchase_returns.no_returns_found') }}
                                     </td>
                                 </tr>
@@ -130,4 +141,6 @@
             </div>
         </div>
     </div>
+
+    @include('partials.ajax-select-assets')
 </x-app-layout>

@@ -17,7 +17,7 @@
     <!-- Scripts -->
     <?php echo app('Illuminate\Foundation\Vite')(['resources/css/app.css', 'resources/js/app.js']); ?>
 
-    <!-- الاستايل الخاص بيكي - ملف عادي، أي تعديل فيه يظهر فورًا من غير npm -->
+    <!-- الاستايل الخاص بيك - ملف عادي، أي تعديل فيه يظهر فورًا من غير npm -->
     <link rel="stylesheet" href="<?php echo e(asset('css/custom.css')); ?>?v=<?php echo e(filemtime(public_path('css/custom.css'))); ?>">
 </head>
 <?php /**PATH C:\xampp\htdocs\my-erp\resources\views/layouts/head.blade.php ENDPATH**/ ?>

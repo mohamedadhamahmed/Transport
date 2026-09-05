@@ -1,0 +1,37 @@
+<?php
+return [
+    'title' => 'إعدادات الموارد البشرية',
+    'subtitle' => 'أوقات الدوام الرسمي، سماحية التأخير، مضاعف الأوفرتايم، الإجازات',
+    'branch' => 'الفرع',
+    'work_start_time' => 'بداية الدوام الرسمي',
+    'work_end_time' => 'نهاية الدوام الرسمي',
+    'late_grace_minutes' => 'سماحية التأخير (دقائق)',
+    'overtime_multiplier' => 'مضاعف قيمة ساعة الأوفرتايم',
+    'weekly_off_days' => 'أيام الإجازة الأسبوعية',
+    'day_saturday' => 'السبت',
+    'day_sunday' => 'الأحد',
+    'day_monday' => 'الاثنين',
+    'day_tuesday' => 'الثلاثاء',
+    'day_wednesday' => 'الأربعاء',
+    'day_thursday' => 'الخميس',
+    'day_friday' => 'الجمعة',
+    'save' => 'حفظ الإعدادات',
+
+    'absence_rules_title' => 'قاعدة خصم الغياب غير المصرح به',
+    'absence_deduction_multiplier' => 'مضاعف خصم يوم الغياب',
+    'absence_deduction_multiplier_hint' => '1 = خصم يوم كامل عن كل يوم غياب، أكبر من 1 = عقوبة إضافية',
+    'extend_deduction_to_weekly_off' => 'مد الخصم لأيام الإجازة الأسبوعية/الرسمية المتصلة بالغياب',
+    'extend_deduction_hint' => 'إذا غاب الموظف بدون إذن في يوم عمل متصل بيوم إجازة أسبوعية أو رسمية، سيتم خصم يوم الإجازة المتصل أيضًا',
+
+    'holidays_title' => 'الإجازات الرسمية',
+    'holiday_date' => 'التاريخ',
+    'holiday_name' => 'اسم الإجازة',
+    'holiday_branch' => 'الفرع (اختياري - كل الفروع إذا كان فارغًا)',
+    'add_holiday' => 'إضافة إجازة',
+    'delete' => 'حذف',
+    'no_holidays' => 'لا توجد إجازات مسجلة',
+
+    'updated_success' => 'تم تحديث إعدادات الموارد البشرية بنجاح',
+    'holiday_added_success' => 'تم إضافة الإجازة بنجاح',
+    'holiday_deleted_success' => 'تم حذف الإجازة بنجاح',
+];

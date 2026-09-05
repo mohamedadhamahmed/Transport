@@ -216,6 +216,34 @@
           </button>
         </div>
 
+        {{-- إرسال الفاتورة للزكاة - بنفس حالات زرار شاشة "الفواتير
+        الضريبية (ZATCA)" (zatca/index.blade.php): لسه ما اترسلتش/
+        اترسلت بنجاح/فشلت. الصفحة دي مش صفحة Tailwind عادية (هيدر
+        وسكريبت مستقلين بالكامل زي النظام القديم) فالزرار هنا بـ jQuery
+        عادي بدل Alpine، وبيستخدم نفس route('zatca.send') الحقيقي بدل
+        أي endpoint قديم غير موجود في المشروع ده. .invoice-topbar
+        بتتخفي تلقائيًا وقت الطباعة (@media print في الأعلى) فمش هتظهر
+        في الورقة المطبوعة. --}}
+        <div class="invoice-topbar" id="zatca_button_wrap" style="padding-top:0;">
+          @if(!$data['invoiceData']->is_sent_to_zatca)
+            <button type="button" id="sendzatca"
+                    style="background:#F5811E; color:#fff; border:none; padding:8px 20px; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer;">
+                {{ __('zatca.send') }}
+            </button>
+          @elseif($data['invoiceData']->zatca_status === 'PASS')
+            <a href="{{ route('zatca.download-xml', $data['invoiceData']->id) }}"
+               style="display:inline-block; background:#059669; color:#fff; text-decoration:none; padding:8px 20px; border-radius:8px; font-weight:600; font-size:13px;">
+                {{ __('zatca.download_xml') }}
+            </a>
+          @else
+            <span style="color:#DC2626; font-weight:600; font-size:13px; margin-inline-end:10px;">{{ __('zatca.failed') }}</span>
+            <button type="button" id="sendzatca"
+                    style="background:#F5811E; color:#fff; border:none; padding:8px 20px; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer;">
+                {{ __('zatca.retry') }}
+            </button>
+          @endif
+        </div>
+
         {{-- الهيدر: بيانات الشركة عربي / شعار / بيانات الشركة إنجليزي --}}
         <div class="invoice-header" dir="rtl">
           <div class="company-block">
@@ -471,6 +499,36 @@
   </div>
 </div>
 
+{{-- مودال "إرسال للزكاة / طباعة" - بيظهر مرة واحدة بس فور إنشاء
+     الفاتورة (?saved=1 من InvoiceController::store()/approveDraft())
+     بدل ما الصفحة تطبع أوتوماتيك على طول زي ما كان بيحصل قبل كده.
+     زرار "إرسال للزكاة" بيظهر بس لو المستخدم عنده صلاحية zatca.send
+     (بعض الشركات مش رابطة مع زكاة أصلاً) ولو الفاتورة لسه ما اترسلتش. --}}
+@if(request('saved') && !$data['invoiceData']->is_sent_to_zatca)
+    <div id="save-choice-modal" style="position:fixed;inset:0;background:rgba(15,27,76,.55);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px;">
+        <div style="background:#fff;border-radius:14px;padding:28px 30px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,.25);">
+            <h3 style="margin:0 0 8px;font-size:16px;font-weight:700;color:#1F2937;">{{ __('invoices.created_successfully') }}</h3>
+            <p style="margin:0 0 22px;font-size:13px;color:#6B7280;">{{ __('invoices.save_choice_prompt') }}</p>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                @can('zatca.send')
+                    <button type="button" onclick="modalSendZatca()"
+                            style="background:#F5811E;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">
+                        {{ __('zatca.send') }}
+                    </button>
+                @endcan
+                <button type="button" onclick="modalPrint()"
+                        style="background:linear-gradient(90deg, var(--brand-blue), var(--brand-purple));color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;">
+                    {{ __('invoices.print') }}
+                </button>
+                <button type="button" onclick="closeSaveModal()"
+                        style="background:#F3F4F6;color:#374151;border:none;padding:9px 20px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">
+                    {{ __('invoices.close') }}
+                </button>
+            </div>
+        </div>
+    </div>
+@endif
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script type="text/javascript">
     function printDiv() {
@@ -482,12 +540,60 @@
         location.reload();
     }
 
+    // مودال الاختيار بعد الحفظ - مش أوتوماتيك، المستخدم هو اللي يختار
+    // "إرسال للزكاة" أو "طباعة" أو يقفل المودال من غير ما يعمل أي حاجة.
+    function closeSaveModal() {
+        var el = document.getElementById('save-choice-modal');
+        if (el) { el.remove(); }
+    }
+    function modalPrint() {
+        closeSaveModal();
+        printDiv();
+    }
+    function modalSendZatca() {
+        // بنستخدم نفس زرار #sendzatca وعملية الإرسال الحقيقية اللي في
+        // شريط الفاتورة (تحت) بدل تكرار كود الـ AJAX هنا.
+        $('#sendzatca').trigger('click');
+    }
+
+    // إرسال الفاتورة للزكاة - نفس منطق sendToZatca() في
+    // zatca/index.blade.php بس بـ jQuery/$.ajax عادي (الصفحة دي مالهاش
+    // Alpine/SweetAlert محملين). #sendzatca هنا موجود بعد استبدال
+    // document.body.innerHTML فوق (نفس المحتوى اتنسخ بالظبط)، فربط
+    // الحدث لازم يحصل في $(document).ready منفصل بعد الاستبدال ده -
+    // ترتيب الـ <script> في الصفحة بيضمن إن ready() ده بيتنفذ بعد اللي
+    // فوقه.
     $(document).ready(function() {
-        var printContents = document.getElementById('print').innerHTML;
-        var originalContents = document.body.innerHTML;
-        document.body.innerHTML = printContents;
-        setTimeout(() => { window.print(); }, 500);
-        setTimeout(() => { window.close(); }, 10000);
+        $(document).on('click', '#sendzatca', function () {
+            var $btn = $(this);
+            var invoiceId = $('#show_invoice_number').val();
+            var token = $('#token_search').val();
+
+            $btn.prop('disabled', true).css('opacity', '0.6');
+
+            $.ajax({
+                url: "{{ url('zatca') }}/" + invoiceId + "/send",
+                type: 'POST',
+                dataType: 'json',
+                headers: { 'X-CSRF-TOKEN': token },
+                success: function (data) {
+                    if (data && data.success) {
+                        alert(@json(__('zatca.sent_successfully')));
+                        window.location.reload();
+                    } else {
+                        alert((data && data.message) || @json(__('zatca.send_failed')));
+                        $btn.prop('disabled', false).css('opacity', '1');
+                    }
+                },
+                error: function (xhr) {
+                    var msg = (xhr.responseJSON && xhr.responseJSON.message)
+                        ? xhr.responseJSON.message
+                        : @json(__('zatca.send_failed'));
+                    alert(msg);
+                    $btn.prop('disabled', false).css('opacity', '1');
+                }
+            });
+        });
     });
 </script>
 </body>

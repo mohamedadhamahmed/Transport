@@ -123,7 +123,7 @@
                                                    @input="if (item.return_qty > item.remaining_quantity) item.return_qty = item.remaining_quantity; if (item.return_qty < 0) item.return_qty = 0;"
                                                    class="w-24 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                         </td>
-                                        <td class="px-3 py-2 text-gray-500" x-text="((item.tax_rate || 0) * 100) + '%'"></td>
+                                        <td class="px-3 py-2 text-gray-500" x-text="formatTaxRate(item.tax_rate) + '%'"></td>
                                         <td class="px-3 py-2 font-semibold text-[#0F1B4C]" x-text="lineNetRefund(item).toFixed(2)"></td>
                                     </tr>
                                 </template>
@@ -223,6 +223,13 @@
                     this.items = data.items.map(item => ({ ...item, return_qty: 0 }));
                 },
 
+                // بيرجع نسبة الضريبة كنص منسّق لمنزلتين عشريتين بعد التقريب
+                // عشان نتجنب مشاكل الفاصلة العشرية في JavaScript (0.14 * 100
+                // ممكن تطلع 14.000000000000002 بدل 14 بالظبط).
+                formatTaxRate(rate) {
+                    const value = Math.round(((parseFloat(rate) || 0) * 100) * 100) / 100;
+                    return (Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2)).replace(/\.00$/, '');
+                },
                 // نفس منطق حساب المرتجع اللي في الكنترولر - ده بس لعرض تقريبي
                 // للمستخدم قبل الحفظ، السيرفر بيعيد حسابها بدقة وقت submitReturn().
                 lineNetRefund(item) {

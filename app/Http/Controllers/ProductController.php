@@ -38,24 +38,31 @@ public function index(Request $request, Branch $branch)
 
     public function create()
     {
-        $branches = Branch::orderBy('name')->get();
+        $this->authorize('products.create');
 
-        return view('products.create', compact('branches'));
+        $branches = Branch::orderBy('name')->get();
+        $productGroups = DB::table('productgroup')->orderBy('group_ar')->get();
+
+        return view('products.create', compact('branches', 'productGroups'));
     }
 
     public function store(Request $request)
     {
+        $this->authorize('products.create');
+
         $validated = $this->validated($request);
         $validated['created_by'] = Auth::id();
 
-        Product::create($validated);
+        $product = Product::create($validated);
 
-        return redirect()->route('products.index')
+        return redirect()->route('products.index', $product->branch_id)
             ->with('success', __('products.created_successfully'));
     }
 
     public function edit(Product $product)
     {
+        $this->authorize('products.edit');
+
         $branches = Branch::orderBy('name')->get();
     $productGroups = DB::table('productgroup')->orderBy('group_ar')->get();
 
@@ -64,6 +71,7 @@ public function index(Request $request, Branch $branch)
 
     public function update(Request $request, Product $product)
     {
+        $this->authorize('products.edit');
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -93,9 +101,12 @@ public function index(Request $request, Branch $branch)
 
     public function destroy(Product $product)
     {
+        $this->authorize('products.delete');
+
+        $branchId = $product->branch_id;
         $product->delete();
 
-        return redirect()->route('products.index')
+        return redirect()->route('products.index', $branchId)
             ->with('success', __('products.deleted_successfully'));
     }
 

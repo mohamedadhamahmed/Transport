@@ -32,9 +32,11 @@
                     <input type="text" id="tree-search" autocomplete="off" placeholder="{{ __('accounts.search_placeholder') }}"
                            class="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8] text-sm">
                     <div class="flex items-center gap-2">
-                        <button type="button" id="expand-all-btn" class="px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200 transition whitespace-nowrap">
-                            {{ __('accounts.expand_all') }}
-                        </button>
+                        {{-- زرار "توسيع الكل" مش موجود عمدًا: مع شجرة ممكن يكون
+                             فيها عشرات آلاف الحسابات، توسيع كل حاجة هيبقى
+                             معناه مئات الطلبات المتتالية للسيرفر دفعة واحدة -
+                             "طي الكل" بس آمن لإنه بيشتغل على اللي اتحمّل
+                             فعلاً في المتصفح من غير أي طلب جديد. --}}
                         <button type="button" id="collapse-all-btn" class="px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200 transition whitespace-nowrap">
                             {{ __('accounts.collapse_all') }}
                         </button>
@@ -51,18 +53,24 @@
                     <span class="w-[68px] shrink-0"></span>
                 </div>
 
-                <div id="tree-root" class="p-2">
-                    @forelse ($roots as $node)
-                        @include('accounts.tree-node', ['node' => $node, 'depth' => 0])
-                    @empty
-                        <div class="px-4 py-10 text-center text-gray-400">
-                            {{ __('accounts.no_accounts_found') }}
-                        </div>
-                    @endforelse
-                </div>
+                <div id="tree-container">
+                    <div id="tree-root" class="p-2">
+                        @forelse ($roots as $node)
+                            @include('accounts.tree-node', ['account' => $node['account'], 'depth' => 0, 'hasChildren' => $node['hasChildren']])
+                        @empty
+                            <div class="px-4 py-10 text-center text-gray-400">
+                                {{ __('accounts.no_accounts_found') }}
+                            </div>
+                        @endforelse
+                    </div>
 
-                <div id="tree-empty-search" class="px-4 py-10 text-center text-gray-400 hidden">
-                    {{ __('accounts.no_accounts_found') }}
+                    {{-- نتائج البحث (AJAX - راجع AccountController::treeSearch)
+                         بتحل محل الشجرة العادية مؤقتًا لحد ما مربع البحث يتفضى. --}}
+                    <div id="tree-search-results" class="p-2 hidden"></div>
+
+                    <div id="tree-empty-search" class="px-4 py-10 text-center text-gray-400 hidden">
+                        {{ __('accounts.no_accounts_found') }}
+                    </div>
                 </div>
             </div>
         </div>
@@ -71,13 +79,17 @@
     <style>
         .toggle-icon { transition: transform .15s ease; transform: rotate(90deg); }
         .toggle-btn[aria-expanded="false"] .toggle-icon { transform: rotate(0deg); }
+        .toggle-btn[disabled] { opacity: .5; cursor: wait; }
     </style>
 
     <script>
     (function () {
+        const treeContainer = document.getElementById('tree-container');
         const treeRoot = document.getElementById('tree-root');
         const searchInput = document.getElementById('tree-search');
+        const searchResultsBox = document.getElementById('tree-search-results');
         const emptySearchBox = document.getElementById('tree-empty-search');
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
         function setExpanded(node, expanded) {
             const btn = node.querySelector(':scope > .tree-row > .toggle-btn');
@@ -86,53 +98,174 @@
             if (childrenWrap) childrenWrap.classList.toggle('hidden', !expanded);
         }
 
-        treeRoot.addEventListener('click', (e) => {
+        /**
+         * بتجيب أبناء حساب معيّن بـ AJAX أول مرة يتفتح بس (راجع
+         * AccountController::treeChildren) - عشان شجرة فيها عشرات آلاف
+         * الحسابات متتحملش كلها دفعة واحدة، بس اللي المستخدم فعلاً فتحه.
+         * بعد أول تحميل، btn.dataset.loaded بيبقى "1" فمنعملش الطلب تاني.
+         */
+        function loadChildren(btn, node, childrenWrap) {
+            btn.disabled = true;
+            childrenWrap.classList.remove('hidden');
+            childrenWrap.innerHTML = '<div class="py-2 px-2 text-xs text-gray-400">' + @json(__('accounts.loading')) + '</div>';
+
+            const nextDepth = (parseInt(btn.dataset.depth, 10) || 0) + 1;
+
+            fetch(btn.dataset.childrenUrl + '?depth=' + nextDepth, {
+                headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
+            })
+                .then((res) => {
+                    if (!res.ok) throw new Error('load_children_failed');
+                    return res.text();
+                })
+                .then((html) => {
+                    childrenWrap.innerHTML = html;
+                    btn.dataset.loaded = '1';
+                    setExpanded(node, true);
+                })
+                .catch(() => {
+                    childrenWrap.innerHTML = '<div class="py-2 px-2 text-xs text-red-500">' + @json(__('accounts.load_children_failed')) + '</div>';
+                    if (window.Swal) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'bottom-end',
+                            icon: 'error',
+                            title: @json(__('accounts.load_children_failed')),
+                            showConfirmButton: false,
+                            timer: 2500,
+                        });
+                    }
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                });
+        }
+
+        treeContainer.addEventListener('click', (e) => {
             const btn = e.target.closest('.toggle-btn');
-            if (!btn) return;
+            if (!btn || btn.disabled) return;
+
             const node = btn.closest('.tree-node');
+            const childrenWrap = node.querySelector(':scope > .children-wrap');
             const expanded = btn.getAttribute('aria-expanded') === 'true';
-            setExpanded(node, !expanded);
+            const willExpand = !expanded;
+
+            if (willExpand) {
+                // لما نفتح فرع، بنقفل إخوته في نفس المستوى تلقائيًا
+                // (سلوك أكورديون) - يسهّل التصفح في شجرة كبيرة بدل ما
+                // كل الفروع تفضل مفتوحة مع بعض.
+                const siblingsContainer = node.parentElement;
+                siblingsContainer.querySelectorAll(':scope > .tree-node').forEach((sibling) => {
+                    if (sibling !== node) setExpanded(sibling, false);
+                });
+
+                if (btn.dataset.loaded === '0') {
+                    loadChildren(btn, node, childrenWrap);
+                    return; // loadChildren هي اللي هتفتح العقدة لما البيانات توصل.
+                }
+            }
+
+            setExpanded(node, willExpand);
         });
 
-        document.getElementById('expand-all-btn').addEventListener('click', () => {
-            treeRoot.querySelectorAll('.tree-node').forEach((node) => setExpanded(node, true));
+        // سويتش تفعيل/تعطيل الحساب مباشرة (AJAX بدون إعادة تحميل
+        // الصفحة) - على مستوى الحاوية الكلية عشان يشتغل مع الشجرة
+        // العادية ونتائج البحث المحمّلة ديناميكيًا سوا.
+        treeContainer.addEventListener('change', (e) => {
+            const checkbox = e.target.closest('.account-active-checkbox');
+            if (!checkbox) return;
+
+            const previousState = !checkbox.checked;
+            checkbox.disabled = true;
+
+            fetch(checkbox.dataset.toggleUrl, {
+                method: 'PATCH',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                },
+            })
+                .then((res) => {
+                    if (!res.ok) throw new Error('toggle_failed');
+                    return res.json();
+                })
+                .then((data) => {
+                    checkbox.checked = !!data.active;
+                    if (window.Swal) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'bottom-end',
+                            icon: 'success',
+                            title: data.message,
+                            showConfirmButton: false,
+                            timer: 2000,
+                            timerProgressBar: true,
+                        });
+                    }
+                })
+                .catch(() => {
+                    checkbox.checked = previousState;
+                    if (window.Swal) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'bottom-end',
+                            icon: 'error',
+                            title: @json(__('accounts.toggle_failed')),
+                            showConfirmButton: false,
+                            timer: 2500,
+                        });
+                    }
+                })
+                .finally(() => {
+                    checkbox.disabled = false;
+                });
         });
+
         document.getElementById('collapse-all-btn').addEventListener('click', () => {
             treeRoot.querySelectorAll('.tree-node').forEach((node) => setExpanded(node, false));
         });
 
-        // فلترة الشجرة بالبحث: أي حساب اسمه أو رقمه يطابق النص بيفضل
-        // ظاهر هو وكل أجداده (اتوسّعوا تلقائيًا)، والباقي بيتخفي.
-        function filterNode(node, query) {
-            const ownMatch = node.dataset.name.includes(query) || node.dataset.number.includes(query);
-            const childrenWrap = node.querySelector(':scope > .children-wrap');
-            let childMatch = false;
+        // البحث بقى بـ AJAX (راجع AccountController::treeSearch) بدل
+        // فلترة العميل على كل الشجرة - مع شجرة فيها عشرات آلاف الحسابات
+        // مش كل الحسابات محمّلة في المتصفح أصلاً، فمفيش حاجة تتفلتر.
+        let searchDebounceTimer = null;
+        let searchRequestToken = 0;
 
-            if (childrenWrap) {
-                childrenWrap.querySelectorAll(':scope > .tree-node').forEach((child) => {
-                    if (filterNode(child, query)) childMatch = true;
-                });
-            }
-
-            const visible = query === '' || ownMatch || childMatch;
-            node.classList.toggle('hidden', !visible);
-
-            if (query !== '' && childMatch) {
-                setExpanded(node, true);
-            }
-
-            return visible;
+        function resetToTreeView() {
+            searchResultsBox.classList.add('hidden');
+            searchResultsBox.innerHTML = '';
+            emptySearchBox.classList.add('hidden');
+            treeRoot.classList.remove('hidden');
         }
 
         searchInput.addEventListener('input', () => {
-            const query = searchInput.value.trim().toLowerCase();
-            let anyVisible = false;
+            const query = searchInput.value.trim();
+            clearTimeout(searchDebounceTimer);
 
-            treeRoot.querySelectorAll(':scope > .tree-node').forEach((node) => {
-                if (filterNode(node, query)) anyVisible = true;
-            });
+            if (query === '') {
+                resetToTreeView();
+                return;
+            }
 
-            emptySearchBox.classList.toggle('hidden', anyVisible || query === '');
+            treeRoot.classList.add('hidden');
+            emptySearchBox.classList.add('hidden');
+
+            const requestToken = ++searchRequestToken;
+
+            searchDebounceTimer = setTimeout(() => {
+                fetch('{{ route('accounts.tree.search') }}?q=' + encodeURIComponent(query), {
+                    headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
+                })
+                    .then((res) => res.text())
+                    .then((html) => {
+                        if (requestToken !== searchRequestToken) return; // نتيجة بحث قديمة اتأخرت - نتجاهلها.
+
+                        searchResultsBox.innerHTML = html;
+                        const hasResults = searchResultsBox.querySelector('.tree-node') !== null;
+                        searchResultsBox.classList.toggle('hidden', !hasResults);
+                        emptySearchBox.classList.toggle('hidden', hasResults);
+                    });
+            }, 300);
         });
     })();
     </script>

@@ -39,6 +39,38 @@ return [
     'email_address'       => 'Email Address',
     'production_mode'     => 'Production Mode',
     'save_zakat_settings' => 'Save Zakat & E-Invoicing Settings',
+    'save_zakat_info'     => 'Save Zakat & E-Invoicing Settings',
+
+    // Certificate fields (required for ZATCA onboarding)
+    'certificate_fields_hint'   => 'These fields are required when connecting to the ZATCA e-invoicing system (the "Connect to ZATCA" screen)',
+    'common_name'               => 'Common Name',
+    'organization_name'         => 'Organization Name',
+    'organization_unit_name'    => 'Organization Unit Name',
+    'country_name'              => 'Country Code',
+    'egs_serial_number'         => 'EGS Serial Number',
+    'registered_address'        => 'Registered Address',
+    'go_to_onboarding'          => 'Connect to ZATCA',
+
+    // ZATCA Onboarding screen
+    'onboarding_title'              => 'Connect to ZATCA E-Invoicing',
+    'onboarding_subtitle'           => 'This screen generates the digital certificate and links this branch to the ZATCA Fatoora portal',
+    'onboarding_branch_info'        => 'Current Branch Information',
+    'onboarding_missing_zakat_info' => 'Please complete the Zakat & e-invoicing settings first (including the certificate fields) from the Settings screen before connecting',
+    'connection_type'               => 'Environment',
+    'connection_type_simulation'    => 'Simulation Environment',
+    'connection_type_production'    => 'Production Environment',
+    'invoice_type_both'             => 'Standard & Simplified Invoice (Both)',
+    'invoice_type_standard'         => 'Standard Invoice (B2B)',
+    'invoice_type_simplified'       => 'Simplified Invoice (B2C)',
+    'otp_label'                     => 'OTP from Fatoora Portal',
+    'otp_hint'                      => 'You can get the OTP code from the ZATCA Fatoora portal',
+    'get_otp_from_fatoora'          => 'Go to Fatoora Portal to get the OTP',
+    'connect_now'                   => 'Connect Now',
+    'onboarding_success'            => 'Successfully connected to ZATCA',
+    'onboarding_failed'             => 'Failed to connect to ZATCA',
+    'certificate_status'            => 'Certificate Status',
+    'certificate_issued'            => 'A production certificate has been issued',
+    'certificate_not_issued'        => 'No certificate issued yet',
 
     // Employee Discounts
     'employee_discounts_title'     => 'Employee Discount Settings',

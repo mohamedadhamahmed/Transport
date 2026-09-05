@@ -1,0 +1,60 @@
+@php
+    $branch = $branch ?? null;
+@endphp
+
+@if ($errors->any())
+    <div class="rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-sm px-4 py-2.5 mb-4">
+        <ul class="list-disc ps-5 space-y-1">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('branches.name') }} *</label>
+        <input type="text" name="name" value="{{ old('name', $branch->name ?? '') }}" required
+               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+    </div>
+    <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('branches.name_en') }}</label>
+        <input type="text" name="name_en" value="{{ old('name_en', $branch->name_en ?? '') }}"
+               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+    </div>
+    <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('branches.location') }}</label>
+        <input type="text" name="location" value="{{ old('location', $branch->location ?? '') }}"
+               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+    </div>
+    <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('branches.type') }} *</label>
+        <select name="type"
+                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            <option value="main" @selected(old('type', $branch->type ?? 'main') === 'main')>{{ __('branches.type_main') }}</option>
+            <option value="sub" @selected(old('type', $branch->type ?? 'main') === 'sub')>{{ __('branches.type_sub') }}</option>
+        </select>
+    </div>
+    <div class="md:col-span-2">
+        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('branches.parent_branch') }}</label>
+        <select name="parent_branch_id"
+                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            <option value="">{{ __('branches.parent_branch_placeholder') }}</option>
+            @foreach ($parentOptions as $id => $name)
+                <option value="{{ $id }}" @selected((string) old('parent_branch_id', $branch->parent_branch_id ?? '') === (string) $id)>
+                    {{ $name }}
+                </option>
+            @endforeach
+        </select>
+    </div>
+</div>
+
+<div class="flex items-center gap-3 mt-6">
+    <button type="submit" class="px-5 py-2 rounded-lg bg-[#0F1B4C] text-white text-sm font-medium hover:bg-[#0F1B4C]/90 transition">
+        {{ __('branches.save') }}
+    </button>
+    <a href="{{ route('branches.index') }}" class="px-5 py-2 rounded-lg bg-gray-100 text-gray-600 text-sm hover:bg-gray-200 transition">
+        {{ __('branches.cancel') }}
+    </a>
+</div>

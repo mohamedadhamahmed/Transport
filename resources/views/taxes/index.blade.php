@@ -12,6 +12,7 @@
                 @endif
 
                 <!-- نموذج إضافة ضريبة جديدة -->
+                @can('settings.taxes')
                 <form action="{{ route('taxes.store') }}" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 p-4 bg-gray-50 rounded-xl">
                     @csrf
                     <div>
@@ -32,6 +33,7 @@
                         </button>
                     </div>
                 </form>
+                @endcan
 
                 <!-- جدول عرض الضرائب -->
                 <div class="overflow-x-auto">
@@ -57,11 +59,13 @@
                                     </span>
                                 </td>
                                 <td class="py-3 px-4">
+                                    @can('settings.taxes')
                                     <form action="{{ route('taxes.destroy', $tax->id) }}" method="POST" onsubmit="return confirm('{{ __('taxes.confirm_delete') }}');">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="text-red-500 hover:text-red-700 text-sm font-medium">{{ __('taxes.delete') }}</button>
                                     </form>
+                                    @endcan
                                 </td>
                             </tr>
                             @empty

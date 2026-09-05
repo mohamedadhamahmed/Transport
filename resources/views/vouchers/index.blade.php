@@ -1,7 +1,7 @@
 <x-app-layout>
 
     <div class="py-6">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+        <div class="dc-max-w-page mx-auto sm:px-6 lg:px-8 space-y-6">
 
             <div class="rounded-2xl bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] px-5 sm:px-6 py-5 shadow-lg shadow-[#0F1B4C]/15 flex items-center justify-between flex-wrap gap-4">
                 <div class="flex items-center gap-3">
@@ -61,7 +61,7 @@
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('vouchers.voucher_no') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('vouchers.voucher_date') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('vouchers.treasury_account') }}</th>
-                                <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ $type === 'receipt' ? __('vouchers.counterpart_account_receipt') : __('vouchers.counterpart_account_payment') }}</th>
+                                <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('vouchers.items_count') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('vouchers.amount') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('vouchers.view') }}</th>
                             </tr>
@@ -72,18 +72,20 @@
                                     <td class="px-4 py-3 font-medium text-gray-800">#{{ $voucher->voucher_number }}</td>
                                     <td class="px-4 py-3 text-gray-500">{{ $voucher->voucher_date->format('Y-m-d') }}</td>
                                     <td class="px-4 py-3 text-gray-500">{{ $voucher->treasuryAccount?->name ?? '-' }}</td>
-                                    <td class="px-4 py-3 text-gray-500">{{ $voucher->counterpartAccount?->name ?? '-' }}</td>
-                                    <td class="px-4 py-3 font-semibold text-[#0F1B4C]">{{ number_format($voucher->amount, 2) }}</td>
+                                    <td class="px-4 py-3 text-gray-500">{{ $voucher->lines_count }}</td>
+                                    <td class="px-4 py-3 font-semibold text-[#0F1B4C]">{{ number_format($voucher->lines_total ?? 0, 2) }}</td>
                                     <td class="px-4 py-3">
                                         <div class="flex items-center gap-1.5">
                                             <a href="{{ route('vouchers.show', $voucher) }}" title="{{ __('vouchers.view') }}"
                                                class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
                                                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                                             </a>
+                                            @can('vouchers.edit')
                                             <a href="{{ route('vouchers.edit', $voucher) }}" title="{{ __('vouchers.edit_voucher') }}"
                                                class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-amber-50 text-amber-600 hover:bg-amber-100 transition">
                                                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                                             </a>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>

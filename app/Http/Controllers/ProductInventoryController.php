@@ -22,12 +22,16 @@ class ProductInventoryController extends Controller
 // عرض فورم إضافة فئة جديدة
 public function createGroup()
 {
+    $this->authorize('products.groups');
+
     return view('products.groups.create');
 }
 
 // حفظ الفئة الجديدة في جدول productgroup
 public function storeGroup(Request $request)
 {
+    $this->authorize('products.groups');
+
     $validated = $request->validate([
         'group_ar' => ['required', 'string', 'max:255'],
         'group_en' => ['nullable', 'string', 'max:255'],
@@ -48,6 +52,8 @@ public function storeGroup(Request $request)
 
     public function chooseBranch()
     {
+        $this->authorize('products.view');
+
         $branches = Branch::orderBy('name')->get();
 
         return view('products.choose-branch', compact('branches'));
@@ -58,6 +64,8 @@ public function storeGroup(Request $request)
      */
 public function index(Request $request, Branch $branch)
 {
+    $this->authorize('products.view');
+
     $query = Product::where('branch_id', $branch->id);
 
     if ($request->filled('product_group')) {
@@ -86,6 +94,8 @@ public function index(Request $request, Branch $branch)
 }
 public function edit(Product $product)
 {
+    $this->authorize('products.edit');
+
     // جلب الفئات من جدول productgroup
     $productGroups = DB::table('productgroup')->orderBy('group_ar')->get();
     // التأكد من تمرير $productGroups عبر دالة compact
@@ -93,6 +103,7 @@ public function edit(Product $product)
 }
 public function update(Request $request, Product $product)
     {
+        $this->authorize('products.edit');
 
     dd( $request);
         $validated = $request->validate([
@@ -124,6 +135,8 @@ public function update(Request $request, Product $product)
      */
     public function updateStock(Request $request, Product $product)
     {
+        $this->authorize('products.edit');
+
         $validated = $request->validate([
             'stock_quantity' => ['required', 'numeric'],
             'reason' => ['nullable', 'string'],
@@ -139,6 +152,8 @@ public function update(Request $request, Product $product)
      */
     public function showImportForm(Branch $branch)
     {
+        $this->authorize('products.edit');
+
         return view('products.import', compact('branch'));
     }
 
@@ -147,6 +162,8 @@ public function update(Request $request, Product $product)
      */
     public function importExcel(Request $request, Branch $branch)
     {
+        $this->authorize('products.edit');
+
         $request->validate([
             'file' => ['required', 'file', 'mimes:xlsx,xls,csv'],
             'mode' => ['required', 'in:opening_stock,adjustment'],

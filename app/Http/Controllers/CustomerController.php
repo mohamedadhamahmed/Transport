@@ -22,6 +22,8 @@ class CustomerController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('customers.view');
+
         $query = Customer::query();
 
         if ($request->filled('search')) {
@@ -37,8 +39,39 @@ class CustomerController extends Controller
         return view('customers.index', compact('customers'));
     }
 
+    /**
+     * بحث سريع (Ajax) عن العملاء لاستخدامه في قوائم TomSelect - بيرجع
+     * أول 20 نتيجة بس وبيرفض البحث لو أقل من حرفين، عشان منحملش الصفحة
+     * بكل الـ 20 ألف عميل زي ما كان بيحصل قبل كده مع قايمة select عادية.
+     */
+    public function search(Request $request)
+    {
+        $q = trim((string) $request->input('q'));
+
+        if (mb_strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        $customers = Customer::query()
+            ->where(function ($w) use ($q) {
+                $w->where('name', 'like', "%{$q}%")
+                    ->orWhere('phone', 'like', "%{$q}%");
+            })
+            ->orderBy('name')
+            ->limit(20)
+            ->get(['id', 'name', 'phone']);
+
+        return response()->json($customers->map(fn ($c) => [
+            'id' => $c->id,
+            'name' => $c->name,
+            'text' => $c->name . ($c->phone ? " ({$c->phone})" : ''),
+        ]));
+    }
+
     public function create()
     {
+        $this->authorize('customers.create');
+
         $customer = new Customer();
 
         return view('customers.create', compact('customer'));
@@ -46,6 +79,8 @@ class CustomerController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('customers.create');
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:255'],
@@ -121,11 +156,15 @@ class CustomerController extends Controller
 
     public function edit(Customer $customer)
     {
+        $this->authorize('customers.edit');
+
         return view('customers.edit', compact('customer'));
     }
 
     public function update(Request $request, Customer $customer)
     {
+        $this->authorize('customers.edit');
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:255'],

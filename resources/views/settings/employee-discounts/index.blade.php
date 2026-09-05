@@ -29,6 +29,7 @@
             <div class="bg-white shadow-sm sm:rounded-xl p-6">
                 <div class="font-semibold text-gray-700 mb-4">{{ __('settings.branch_default_discount') }}</div>
 
+                @can('settings.employee_discounts')
                 <form method="POST" action="{{ route('employee-discounts.branch-default') }}"
                       class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                     @csrf
@@ -56,6 +57,7 @@
                         </button>
                     </div>
                 </form>
+                @endcan
             </div>
 
             {{-- تخصيص نسبة لكل موظف --}}
@@ -84,6 +86,7 @@
                                         @endif
                                     </td>
                                     <td class="px-4 py-3">
+                                        @can('settings.employee_discounts')
                                         <form method="POST" action="{{ route('employee-discounts.user-override') }}"
                                               class="flex items-center gap-2">
                                             @csrf
@@ -102,6 +105,7 @@
                                                 {{ __('settings.save') }}
                                             </button>
                                         </form>
+                                        @endcan
                                     </td>
                                 </tr>
                             @endforeach

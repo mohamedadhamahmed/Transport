@@ -12,13 +12,16 @@ use App\Models\PurchaseAttachment;
 use App\Models\PurchaseItem;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
+use App\Models\Tax;
 use App\Services\Purchases\PurchaseItemsImporter;
 use App\Services\Purchases\PurchaseItemsTemplateExporter;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
 
 class PurchaseController extends Controller
@@ -32,7 +35,7 @@ class PurchaseController extends Controller
      * موجود مسبقًا في نظامك)، فمقدرش أعرف الرقم الأب (parent_account_number)
      * الصحيح للموردين عندك زي ما عرفت رقم العملاء (2) من
      * InvoiceController@quickStoreCustomer. حطيت 3 كافتراض (مباشرة بعد
-     * العملاء) - *** لازم تتأكدي منه قبل ما تشغلي النظام على بيانات
+     * العملاء) - *** لازم تتأكد منه قبل ما تشغل النظام على بيانات
      * حقيقية *** وتغيّريه هنا لو مختلف عندك.
      */
     const SUPPLIER_PARENT_ACCOUNT_NUMBER = 3;
@@ -45,6 +48,8 @@ class PurchaseController extends Controller
 
     public function index(Request $request)
     {
+        $this->authorize('purchases.view');
+
         $query = Purchase::with(['supplier', 'branch', 'creator'])->latest();
 
         if ($request->filled('supplier_id')) {
@@ -56,23 +61,29 @@ class PurchaseController extends Controller
         }
 
         $purchases = $query->paginate(15)->withQueryString();
-        $suppliers = Supplier::orderBy('name')->get();
+
+        // فلتر المورد بقى بحث Ajax حي (منحملش كل جدول الموردين).
+        $selectedSupplierId = $request->filled('supplier_id') ? (int) $request->input('supplier_id') : null;
+        $suppliers = $selectedSupplierId
+            ? [$selectedSupplierId => optional(Supplier::find($selectedSupplierId))->name]
+            : [];
 
         return view('purchases.index', compact('purchases', 'suppliers'));
     }
 
     public function create(Request $request)
     {
-        $suppliers = Supplier::orderBy('name')->get();
+        $this->authorize('purchases.create');
+
         $branches = Branch::orderBy('name')->get();
         $costCenters = CostCenter::orderBy('cost_center_ar')->get();
 
         // حسابات الدفع الفوري (نقدي/بنك/شبكة) الخاصة بالفرع الافتراضي
         // بس (فرع المستخدم الحالي، أو أول فرع لو مفيش) - بتتفلتر حسب
-        // الفرع عشان لما تختاري فرع تاني من الفورم، تشوفي خزينة/بنك
+        // الفرع عشان لما تختار فرع تاني من الفورم، تشوف خزينة/بنك
         // الفرع ده بالظبط مش كل حسابات كل الفروع مع بعض. تحديث القايمة
         // ده بيحصل لايف بالـ JS (راوت purchases.payment-accounts) لما
-        // تغيّري الفرع في الفورم؛ هنا بس بنجهز القايمة الأولية.
+        // تغيّر الفرع في الفورم؛ هنا بس بنجهز القايمة الأولية.
         $defaultBranchId = $request->input('branch_id', auth()->user()->branch_id ?? $branches->first()?->id);
         $paymentAccounts = $this->paymentAccountsQuery($defaultBranchId)->get();
 
@@ -89,7 +100,19 @@ class PurchaseController extends Controller
             }
         }
 
-        return view('purchases.create', compact('suppliers', 'branches', 'paymentAccounts', 'costCenters', 'sourcePurchaseOrder'));
+        // منحملش كل جدول الموردين هنا (بحث Ajax حي في الفورم نفسه) - لو
+        // الفورم جاي من تحويل أمر شراء، بس محتاجين اسم المورد بتاعه عشان
+        // يظهر كخيار مبدئي.
+        $suppliers = $sourcePurchaseOrder
+            ? [$sourcePurchaseOrder->supplier_id => optional(Supplier::find($sourcePurchaseOrder->supplier_id))->name]
+            : [];
+
+        // نسبة الضريبة الافتراضية اللي المفروض تتحدد تلقائيًا لكل بند جديد
+        // بتتحدد حسب أولوية الضريبة في جدول الضرائب (Tax::defaultRateFraction())
+        // مش رقم ثابت 15% زي ما كان بيحصل قبل كده.
+        $defaultTaxRate = Tax::defaultRateFraction();
+
+        return view('purchases.create', compact('suppliers', 'branches', 'paymentAccounts', 'costCenters', 'sourcePurchaseOrder', 'defaultTaxRate'));
     }
 
     /**
@@ -107,7 +130,7 @@ class PurchaseController extends Controller
 
     /**
      * بيرجع حسابات الدفع الفوري (خزينة/بنك) الخاصة بفرع معيّن بس - بتتنادى
-     * بالـ ajax لما تغيّري الفرع في فورم فاتورة المشتريات الجديدة، عشان
+     * بالـ ajax لما تغيّر الفرع في فورم فاتورة المشتريات الجديدة، عشان
      * دروب داون "طريقة الدفع" يفضل مقصور على حسابات الفرع المختار بالظبط
      * ومايجيبش حسابات فروع تانية.
      */
@@ -148,8 +171,8 @@ class PurchaseController extends Controller
      * تحميل قالب إكسيل فاضي (نفس شكل الملف اللي بعتّه لي بالظبط:
      * product_name_ar, product_name_en, product_code, sale_price,
      * price, quantity, location, refnumber) - بتتعباه إنتِ بره النظام
-     * وبعدين ترفعيه تاني في importItems() تحت عشان يتضاف كل صف كصنف في
-     * جدول فاتورة المشتريات دفعة واحدة، بدل ما تختاري منتج منتج.
+     * وبعدين ترفعه تاني في importItems() تحت عشان يتضاف كل صف كصنف في
+     * جدول فاتورة المشتريات دفعة واحدة، بدل ما تختار منتج منتج.
      *
      * منطق بناء الملف نفسه منقول لكلاس منفصل: PurchaseItemsTemplateExporter
      * (app/Services/Purchases) - نفس السلوك بالظبط، بس بتنظيم أوضح.
@@ -167,12 +190,12 @@ class PurchaseController extends Controller
      * عندك خالص (لا بالكود ولا بالاسم)، بيتضاف **تلقائيًا كمنتج جديد**
      * في جدول المنتجات فورًا (حسب اختيارك) ببيانات الصف (الاسم، الكود،
      * الموقع، الرقم المرجعي، سعر الشراء، سعر البيع) - ده بيحصل فور رفع
-     * الملف، حتى لو لسه مكملتيش حفظ فاتورة المشتريات نفسها.
+     * الملف، حتى لو لسه مكملتش حفظ فاتورة المشتريات نفسها.
      *
      * منطق القراءة/المطابقة نفسه منقول لكلاس منفصل: PurchaseItemsImporter
      * (app/Services/Purchases) - نفس السلوك بالظبط، بس بتنظيم أوضح.
      *
-     * محتاجة مكتبة phpoffice/phpspreadsheet مركبة عندك (composer require
+     * محتاج مكتبة phpoffice/phpspreadsheet مركبة عندك (composer require
      * phpoffice/phpspreadsheet) عشان الميثود دي تشتغل - تفاصيل التركيب
      * في ملف التعليمات المرفق.
      */
@@ -191,15 +214,200 @@ class PurchaseController extends Controller
 
     public function show(Purchase $purchase)
     {
+        $this->authorize('purchases.view');
+
         $purchase->load(['supplier', 'branch', 'creator', 'items.product', 'attachments', 'paymentAccount', 'costCenter']);
 
         return view('purchases.show', compact('purchase'));
     }
 
     /**
+     * تحميل فاتورة المشتريات PDF - نفس فكرة InvoiceController::downloadPdf()
+     * و buildInvoicePdf() بالظبط، بس على قالب purchases.pdf.
+     */
+    public function downloadPdf(Purchase $purchase)
+    {
+        $this->authorize('purchases.view');
+
+        $pdf = $this->buildPurchasePdf($purchase);
+
+        return $pdf->download('purchase-' . ($purchase->purchase_number ?? $purchase->id) . '.pdf');
+    }
+
+    protected function buildPurchasePdf(Purchase $purchase)
+    {
+        $purchase->load(['supplier', 'branch', 'creator', 'items.product', 'paymentAccount', 'costCenter']);
+
+        return Pdf::loadView('purchases.pdf', compact('purchase'))->setPaper('a4');
+    }
+
+    /**
+     * تعديل فاتورة مشتريات - مسموح بس للفواتير "القابلة للتعديل"
+     * (Purchase::isEditable()، راجعي تعليقها للتفاصيل). الفورم هنا نفس
+     * فورم الإنشاء بالظبط، بس معبّى ببيانات الفاتورة الحالية.
+     */
+    public function edit(Purchase $purchase)
+    {
+        $this->authorize('purchases.edit');
+
+        if (!$purchase->isEditable()) {
+            abort(403, __('purchases.not_editable'));
+        }
+
+        $purchase->load(['items.product', 'supplier']);
+
+        $branches = Branch::orderBy('name')->get();
+        $costCenters = CostCenter::orderBy('cost_center_ar')->get();
+        // حسابات الدفع الخاصة بفرع الفاتورة الحالي (زي create()) - بتتحدّث
+        // لايف بالـ JS لو المستخدم غيّر الفرع.
+        $paymentAccounts = $this->paymentAccountsQuery($purchase->branch_id)->get();
+        // منحملش كل جدول الموردين (بحث Ajax حي) - بس محتاجين اسم مورد
+        // الفاتورة الحالي عشان يظهر كخيار مبدئي في الدروب داون.
+        $suppliers = [$purchase->supplier_id => optional($purchase->supplier)->name];
+        $defaultTaxRate = Tax::defaultRateFraction();
+
+        // بيانات الفاتورة الحالية بشكل مبسّط عشان نعبي بيه فورم Alpine.js
+        // (نفس شكل $sourcePurchaseOrderData في create() بالظبط).
+        $existingPurchaseData = [
+            'supplier_id' => $purchase->supplier_id,
+            'branch_id' => $purchase->branch_id,
+            'payment_account_id' => $purchase->payment_account_id,
+            'cost_center_id' => $purchase->cost_center_id,
+            'shipping_fee' => (float) $purchase->shipping_fee,
+            'invoice_level_discount' => (float) $purchase->invoice_level_discount,
+            'items' => $purchase->items->map(function (PurchaseItem $item) {
+                return [
+                    'product_id' => $item->product_id,
+                    'name' => $item->product_name_snapshot ?? $item->product?->name,
+                    'code' => $item->product_code_snapshot ?? $item->product?->code,
+                    'quantity' => (float) $item->quantity,
+                    'unit_price' => (float) $item->unit_price,
+                    'sale_price' => (float) ($item->sale_price ?? $item->product?->sale_price ?? 0),
+                    'discount_amount' => (float) $item->discount_amount,
+                    'tax_rate' => (float) $item->tax_rate,
+                ];
+            })->values(),
+        ];
+
+        return view('purchases.edit', compact(
+            'purchase',
+            'suppliers',
+            'branches',
+            'paymentAccounts',
+            'costCenters',
+            'defaultTaxRate',
+            'existingPurchaseData'
+        ));
+    }
+
+    public function update(Request $request, Purchase $purchase)
+    {
+        $this->authorize('purchases.edit');
+
+        if (!$purchase->isEditable()) {
+            abort(403, __('purchases.not_editable'));
+        }
+
+        $items = json_decode((string) $request->input('items_json'), true) ?: [];
+        $request->merge(['items' => $items]);
+
+        $validated = Validator::make($request->all(), [
+            'supplier_id' => ['required', 'exists:suppliers,id'],
+            'branch_id' => ['required', 'exists:branches,id'],
+            'payment_account_id' => ['nullable', 'exists:financial_accounts,id'],
+            'supplier_invoice_number' => ['nullable', 'string', 'max:255'],
+            'warehouse_name' => ['nullable', 'string', 'max:255'],
+            'cost_center_id' => ['nullable', 'exists:cost_centers,id'],
+            'shipping_fee' => ['nullable', 'numeric', 'min:0'],
+            'invoice_level_discount' => ['nullable', 'numeric', 'min:0'],
+            'note' => ['nullable', 'string'],
+            'issue_date' => ['nullable', 'date'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.sale_price' => ['nullable', 'numeric', 'min:0'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'items.*.tax_rate' => ['required', 'numeric', 'min:0'],
+            'attachments.*' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+        ])->validate();
+
+        DB::transaction(function () use ($purchase, $validated) {
+            // نتأكد تاني من قابلية التعديل جوه الـ transaction - لو حصل
+            // مرتجع على الفاتورة في نفس اللحظة (سباق نادر)، نوقف فورًا
+            // قبل ما نلمس أي بيانات.
+            $purchase->refresh();
+            if (!$purchase->isEditable()) {
+                throw ValidationException::withMessages([
+                    'items' => __('purchases.not_editable'),
+                ]);
+            }
+
+            $this->reversePurchaseEffects($purchase);
+
+            $totals = $this->computeTotals(
+                $validated['items'],
+                (float) ($validated['invoice_level_discount'] ?? 0),
+                (float) ($validated['shipping_fee'] ?? 0)
+            );
+            $branchId = $validated['branch_id'];
+            $paymentAccountId = $validated['payment_account_id'] ?? null;
+
+            $purchase->update([
+                'supplier_id' => $validated['supplier_id'],
+                'branch_id' => $branchId,
+                'payment_account_id' => $paymentAccountId,
+                'supplier_invoice_number' => $validated['supplier_invoice_number'] ?? null,
+                'warehouse_name' => $validated['warehouse_name'] ?? null,
+                'cost_center_id' => $validated['cost_center_id'] ?? null,
+                'shipping_fee' => $totals['shippingFee'],
+                'subtotal' => $totals['subtotal'],
+                'discount_amount' => $totals['discountTotal'],
+                'invoice_level_discount' => $totals['invoiceLevelDiscount'],
+                'tax_amount' => $totals['taxTotal'],
+                'grand_total' => $totals['grandTotal'],
+                'total_quantity' => $totals['totalQuantity'],
+                'note' => $validated['note'] ?? null,
+                'issue_date' => $validated['issue_date'] ?? $purchase->issue_date,
+            ]);
+
+            $this->applyItemsToProducts($purchase, $validated['items'], $totals['shippingFee']);
+            $this->recordPurchaseAccounting(
+                $purchase,
+                $totals['subtotal'],
+                $totals['taxTotal'],
+                $totals['invoiceLevelDiscount'],
+                $totals['shippingFee'],
+                $paymentAccountId,
+                $branchId
+            );
+        });
+
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $file) {
+                if (!$file->isValid()) {
+                    continue;
+                }
+                $path = $file->store('purchase-attachments/' . $purchase->id, 'public');
+                PurchaseAttachment::create([
+                    'purchase_id' => $purchase->id,
+                    'file_path' => $path,
+                    'original_name' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getClientMimeType(),
+                    'size' => $file->getSize(),
+                    'uploaded_by' => Auth::id(),
+                ]);
+            }
+        }
+
+        return redirect()->route('purchases.show', $purchase)
+            ->with('success', __('purchases.updated_successfully'));
+    }
+
+    /**
      * آخر N سعر شراء لمنتج معيّن ("التكلفات السابقة للمنتج" في الشاشة
-     * القديمة) - بتتستخدم بالـ ajax لما تختاري منتج في جدول الأصناف،
-     * عشان تشوفي كنتي بتشتريه بكام آخر مرة قبل ما تحددي السعر الجديد.
+     * القديمة) - بتتستخدم بالـ ajax لما تختار منتج في جدول الأصناف،
+     * عشان تشوف كنتي بتشتريه بكام آخر مرة قبل ما تحدد السعر الجديد.
      */
     public function productCostHistory(Request $request, Product $product)
     {
@@ -267,13 +475,21 @@ $supplier = DB::transaction(function () use ($request) {
         'postcode' => $request->postal_code,        // postal_code في الفورم -> postcode في الجدول
     ]);
 
-    $nextAccountNumber = FinancialAccount::where('account_type', 1)
+    // parent_account_number + orginal_type بدل account_type القديم -
+    // account_type بقى بيحمل تصنيف محاسبي (أصول/خصوم/...) مش نوع الكيان
+    // بعد ميجريشن 2026_09_02_000028.
+    $nextAccountNumber = FinancialAccount::where('parent_account_number', self::SUPPLIER_PARENT_ACCOUNT_NUMBER)
         ->where('orginal_type', 2)
         ->max('account_number') + 1;
 
+    // account_type و account_category_id بيتورثوا مع بعض من نفس تصنيف
+    // حساب الموردين الأب.
+    $inheritedCategoryId = FinancialAccount::inheritedCategoryId(self::SUPPLIER_PARENT_ACCOUNT_NUMBER);
+
     FinancialAccount::create([
         'name' => $request->name,
-        'account_type' => 1,
+        'account_type' => $inheritedCategoryId,
+        'account_category_id' => $inheritedCategoryId,
         'parent_account_number' => self::SUPPLIER_PARENT_ACCOUNT_NUMBER,
         'account_number' => $nextAccountNumber,
         'start_balance' => 0,
@@ -306,6 +522,8 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
 
     public function store(Request $request)
     {
+        $this->authorize('purchases.create');
+
         $items = json_decode((string) $request->input('items_json'), true) ?: [];
         $request->merge(['items' => $items]);
 
@@ -390,21 +608,11 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
      */
     protected function finalizePurchase(array $validated): Purchase
     {
-        $subtotal = 0;
-        $taxTotal = 0;
-        $discountTotal = 0;
-
-        foreach ($validated['items'] as $item) {
-            $lineSubtotal = ($item['unit_price'] * $item['quantity']) - ($item['discount_amount'] ?? 0);
-            $subtotal += $lineSubtotal;
-            $taxTotal += $lineSubtotal * $item['tax_rate'];
-            $discountTotal += $item['discount_amount'] ?? 0;
-        }
-
-        $invoiceLevelDiscount = min($validated['invoice_level_discount'] ?? 0, $subtotal + $taxTotal);
-        $shippingFee = $validated['shipping_fee'] ?? 0;
-        $grandTotal = $subtotal + $taxTotal - $invoiceLevelDiscount + $shippingFee;
-        $totalQuantity = array_sum(array_column($validated['items'], 'quantity'));
+        $totals = $this->computeTotals(
+            $validated['items'],
+            (float) ($validated['invoice_level_discount'] ?? 0),
+            (float) ($validated['shipping_fee'] ?? 0)
+        );
         $branchId = $validated['branch_id'];
         $paymentAccountId = $validated['payment_account_id'] ?? null;
 
@@ -417,25 +625,77 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
             'supplier_invoice_number' => $validated['supplier_invoice_number'] ?? null,
             'warehouse_name' => $validated['warehouse_name'] ?? null,
             'cost_center_id' => $validated['cost_center_id'] ?? null,
-            'shipping_fee' => $shippingFee,
-            'subtotal' => $subtotal,
-            'discount_amount' => $discountTotal,
-            'invoice_level_discount' => $invoiceLevelDiscount,
-            'tax_amount' => $taxTotal,
-            'grand_total' => $grandTotal,
-            'total_quantity' => $totalQuantity,
+            'shipping_fee' => $totals['shippingFee'],
+            'subtotal' => $totals['subtotal'],
+            'discount_amount' => $totals['discountTotal'],
+            'invoice_level_discount' => $totals['invoiceLevelDiscount'],
+            'tax_amount' => $totals['taxTotal'],
+            'grand_total' => $totals['grandTotal'],
+            'total_quantity' => $totals['totalQuantity'],
             'note' => $validated['note'] ?? null,
             'issue_date' => $validated['issue_date'] ?? now()->toDateString(),
         ]);
         $purchase->update(['purchase_number' => (string) $purchase->id]);
 
         // 2. تحديث تكلفة كل منتج (متوسط مرجّح) + المخزون + بنود الفاتورة
+        $this->applyItemsToProducts($purchase, $validated['items'], $totals['shippingFee']);
+
+        // 3-7. كل القيود المحاسبية المرتبطة (شحن/مورد أو دفع فوري/مخزون/ضريبة)
+        $this->recordPurchaseAccounting(
+            $purchase,
+            $totals['subtotal'],
+            $totals['taxTotal'],
+            $totals['invoiceLevelDiscount'],
+            $totals['shippingFee'],
+            $paymentAccountId,
+            $branchId
+        );
+
+        return $purchase;
+    }
+
+    /**
+     * حساب إجماليات فاتورة المشتريات (الإجمالي قبل الضريبة، الضريبة،
+     * الخصم، الإجمالي النهائي...) من مصفوفة الأصناف - نفس الحسابات
+     * المستخدمة في finalizePurchase() بالظبط، بس منقولة هنا عشان
+     * update() يقدر يستخدمها هي كمان من غير تكرار.
+     */
+    protected function computeTotals(array $items, float $invoiceLevelDiscountInput, float $shippingFee): array
+    {
+        $subtotal = 0;
+        $taxTotal = 0;
+        $discountTotal = 0;
+
+        foreach ($items as $item) {
+            $lineSubtotal = ($item['unit_price'] * $item['quantity']) - ($item['discount_amount'] ?? 0);
+            $subtotal += $lineSubtotal;
+            $taxTotal += $lineSubtotal * $item['tax_rate'];
+            $discountTotal += $item['discount_amount'] ?? 0;
+        }
+
+        $invoiceLevelDiscount = min($invoiceLevelDiscountInput, $subtotal + $taxTotal);
+        $grandTotal = $subtotal + $taxTotal - $invoiceLevelDiscount + $shippingFee;
+        $totalQuantity = array_sum(array_column($items, 'quantity'));
+
+        return compact('subtotal', 'taxTotal', 'discountTotal', 'invoiceLevelDiscount', 'shippingFee', 'grandTotal', 'totalQuantity');
+    }
+
+    /**
+     * بتنشئ بنود الفاتورة (PurchaseItem) وتحدّث تكلفة/مخزون كل منتج
+     * (متوسط مرجّح بعد توزيع رسوم الشحن) - مستخدمة في الإنشاء وفي إعادة
+     * التطبيق بعد التعديل (update()) بنفس المنطق بالظبط. بتسجّل كمان
+     * قيم المنتج "قبل" التعديل (stock_before/purchase_price_before/
+     * average_cost_before) على كل بند، عشان لو الفاتورة دي اتعدلت
+     * تاني بعدين نقدر نرجّع التكلفة لقيمتها الصح.
+     */
+    protected function applyItemsToProducts(Purchase $purchase, array $items, float $shippingFee): void
+    {
         $totalInvoiceValue = array_sum(array_map(
             fn ($item) => $item['unit_price'] * $item['quantity'],
-            $validated['items']
+            $items
         ));
 
-        foreach ($validated['items'] as $item) {
+        foreach ($items as $item) {
             $product = Product::find($item['product_id']);
             $lineSubtotal = ($item['unit_price'] * $item['quantity']) - ($item['discount_amount'] ?? 0);
             $lineTax = $lineSubtotal * $item['tax_rate'];
@@ -452,6 +712,9 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
                 'product_name_snapshot' => $product?->name,
                 'product_code_snapshot' => $product?->code,
                 'created_by' => Auth::id(),
+                'stock_before' => $product?->stock_quantity ?? 0,
+                'purchase_price_before' => $product?->purchase_price ?? 0,
+                'average_cost_before' => $product?->average_cost ?? 0,
             ]);
 
             if ($product) {
@@ -477,13 +740,28 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
                 ]);
             }
         }
+    }
 
+    /**
+     * كل القيود المحاسبية المرتبطة بفاتورة مشتريات (مصروف الشحن، حساب
+     * المورد أو حساب الدفع الفوري، المخزون، ضريبة القيمة المضافة
+     * المدخلة) - نفس منطق finalizePurchase() الأصلي بالظبط، بس منقول
+     * هنا عشان update() يقدر يعيد تسجيلها بعد التعديل من غير تكرار.
+     */
+    protected function recordPurchaseAccounting(
+        Purchase $purchase,
+        float $subtotal,
+        float $taxTotal,
+        float $invoiceLevelDiscount,
+        float $shippingFee,
+        ?int $paymentAccountId,
+        int $branchId
+    ): void {
         $purchaseNote = 'فاتورة مشتريات رقم :' . $purchase->id;
         $payMethodName = $paymentAccountId ? 'Immediate' : 'Credit';
 
-        // 3. مصروف الشحن (لو فيه) - بيتسجل كمديونية على حساب مصروف
-        //    الشحن الثابت، بغض النظر عن كون الفاتورة آجل أو فورية (زي
-        //    بالظبط منطق النظام القديم).
+        // مصروف الشحن (لو فيه) - بيتسجل كمديونية على حساب مصروف الشحن
+        // الثابت، بغض النظر عن كون الفاتورة آجل أو فورية.
         if ($shippingFee > 0) {
             $shippingAccount = FinancialAccount::lockForUpdate()->find(self::SHIPPING_EXPENSE_ACCOUNT_ID);
             if ($shippingAccount) {
@@ -514,7 +792,7 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
         $goodsTotal = $subtotal + $taxTotal - $invoiceLevelDiscount;
 
         if (is_null($paymentAccountId)) {
-            // 4. آجل: يزيد رصيد المورد (المديونية عليه) + حسابه المالي.
+            // آجل: يزيد رصيد المورد (المديونية عليه) + حسابه المالي.
             $supplier = Supplier::find($purchase->supplier_id);
             if ($supplier) {
                 $supplier->increment('balance', $goodsTotal);
@@ -545,7 +823,7 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
                 ]);
             }
         } else {
-            // 5. دفع فوري: بينخصم من حساب الدفع المختار (نقدي/بنك/شبكة).
+            // دفع فوري: بينخصم من حساب الدفع المختار (نقدي/بنك/شبكة).
             $payValue = $goodsTotal + $shippingFee;
             $paymentAccount = FinancialAccount::lockForUpdate()->find($paymentAccountId);
             if ($paymentAccount) {
@@ -571,7 +849,7 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
             }
         }
 
-        // 6. قيد المخزون (حساب 181) - بيزيد بقيمة البضاعة بدون الضريبة.
+        // قيد المخزون (حساب 181) - بيزيد بقيمة البضاعة بدون الضريبة.
         $costWithoutTax = $subtotal - $invoiceLevelDiscount;
         $inventoryAccount = FinancialAccount::where('parent_account_number', 181)
             ->where('branchs_id', $branchId)
@@ -598,8 +876,8 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
             ]);
         }
 
-        // 7. ضريبة القيمة المضافة المدخلة (حساب 102) - بتزيد رصيدها
-        //    المدين (ضريبة مستردة من المشتريات).
+        // ضريبة القيمة المضافة المدخلة (حساب 102) - بتزيد رصيدها المدين
+        // (ضريبة مستردة من المشتريات).
         if ($taxTotal > 0) {
             $vatAccount = FinancialAccount::where('parent_account_number', 102)
                 ->where('branchs_id', $branchId)
@@ -630,7 +908,101 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
                 ]);
             }
         }
+    }
 
-        return $purchase;
+    /**
+     * بترجع تأثير فاتورة مشتريات بالكامل (استعدادًا لتعديلها): بترجّع
+     * تكلفة/سعر شراء كل منتج لقيمتها بالظبط قبل الفاتورة دي (snapshot)،
+     * وتشيل الكمية اللي الفاتورة دي كانت زودتها بس من المخزون الحالي
+     * (delta - مش استبدال كامل، عشان لو حصلت مبيعات على المنتج بعد
+     * الفاتورة دي تفضل متسجلة صح)، وبترجع كل القيود المحاسبية المرتبطة
+     * (شحن/مورد أو دفع فوري/مخزون/ضريبة) وتمسحها، وبترجع رصيد المورد
+     * (لو آجل) وتمسح بنود الفاتورة القديمة. مسموح نستخدمها بس على فاتورة
+     * "قابلة للتعديل" (Purchase::isEditable()) - راجعي تعليقها لتفاصيل
+     * الشروط.
+     */
+    protected function reversePurchaseEffects(Purchase $purchase): void
+    {
+        $purchase->load('items.product');
+
+        foreach ($purchase->items as $item) {
+            if ($item->product) {
+                $item->product->update([
+                    'stock_quantity' => $item->product->stock_quantity - $item->quantity,
+                    'purchase_price' => $item->purchase_price_before,
+                    'average_cost' => $item->average_cost_before,
+                ]);
+            }
+        }
+
+        $this->reversePurchaseAccounting($purchase);
+
+        $purchase->items()->delete();
+    }
+
+    /**
+     * بترجع القيود المحاسبية (credittransactions) المرتبطة بفاتورة
+     * مشتريات معيّنة - بتتعرف عليها بـ (invoice_number = رقم الفاتورة +
+     * operation_type = 3)، وده مضمون يكون فريد لكل فاتورة (purchase_number
+     * = ID الفاتورة نفسه)، ومضمون يشمل بس حركات الفاتورة دي (مش أي
+     * مرتجع عليها) لإن Purchase::isEditable() بيرفض التعديل أصلاً لو
+     * فيه أي كمية اترجعت. كل حركة بترجع لحسابها المالي بعكس الاتجاه
+     * اللي اتسجلت بيه بالظبط (حسب نوعها: مصروف/مخزون/ضريبة "مدين"،
+     * حساب مورد آجل "دائن"، حساب دفع فوري "مدين بس بعكس اتجاه الرصيد
+     * الحالي")، بعدين بتتمسح كلها. رصيد المورد نفسه (جدول suppliers)
+     * بيترجع كمان لو الفاتورة كانت آجلة.
+     */
+    protected function reversePurchaseAccounting(Purchase $purchase): void
+    {
+        $transactions = CreditTransaction::where('invoice_number', $purchase->purchase_number)
+            ->where('operation_type', 3)
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($transactions as $transaction) {
+            $account = FinancialAccount::lockForUpdate()->find($transaction->customer_id);
+            if (!$account) {
+                continue;
+            }
+
+            $isPaymentAccountRow = !is_null($purchase->payment_account_id)
+                && (int) $transaction->customer_id === (int) $purchase->payment_account_id
+                && (float) $transaction->debtor > 0;
+
+            if ($isPaymentAccountRow) {
+                // حساب الدفع الفوري: الرصيد كان نقص وقت الدفع (فلوس
+                // خرجت) - بنرجعه زي ما كان.
+                $account->update([
+                    'current_balance' => $account->current_balance + $transaction->debtor,
+                    'debtor_current' => $account->debtor_current - $transaction->debtor,
+                ]);
+            } elseif ((float) $transaction->creditor > 0) {
+                // حساب المورد (آجل): الرصيد كان زاد (مديونية علينا) -
+                // بننقصه.
+                $account->update([
+                    'current_balance' => $account->current_balance - $transaction->creditor,
+                    'creditor_current' => $account->creditor_current - $transaction->creditor,
+                ]);
+            } else {
+                // النمط العادي (شحن / مخزون / ضريبة): الرصيد كان زاد -
+                // بننقصه.
+                $account->update([
+                    'current_balance' => $account->current_balance - $transaction->debtor,
+                    'debtor_current' => $account->debtor_current - $transaction->debtor,
+                ]);
+            }
+        }
+
+        CreditTransaction::where('invoice_number', $purchase->purchase_number)
+            ->where('operation_type', 3)
+            ->delete();
+
+        if (is_null($purchase->payment_account_id)) {
+            $goodsTotal = (float) $purchase->subtotal + (float) $purchase->tax_amount - (float) $purchase->invoice_level_discount;
+            $supplier = Supplier::find($purchase->supplier_id);
+            if ($supplier) {
+                $supplier->decrement('balance', $goodsTotal);
+            }
+        }
     }
 }

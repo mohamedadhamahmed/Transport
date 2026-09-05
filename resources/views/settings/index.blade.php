@@ -111,7 +111,13 @@
 
             {{-- بيانات الزكاة والفوترة الإلكترونية --}}
             <div class="bg-white shadow-sm sm:rounded-xl p-6">
-                <div class="font-semibold text-gray-700 mb-4">{{ __('settings.zakat_zatca_settings') }}</div>
+                <div class="flex items-center justify-between mb-4">
+                    <div class="font-semibold text-gray-700">{{ __('settings.zakat_zatca_settings') }}</div>
+                    <a href="{{ route('settings.onboarding', ['branch_id' => $selectedBranchId]) }}"
+                       class="rounded-lg py-2 px-4 text-white text-xs font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90">
+                        {{ __('settings.go_to_onboarding') }}
+                    </a>
+                </div>
 
                 <form method="POST" action="{{ route('settings.zakat.update') }}"
                       class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -201,6 +207,43 @@
                                @checked(old('is_production', $zakatSetting->is_production))
                                class="rounded border-gray-300 text-[#1456E8] focus:ring-[#1456E8]">
                         <label class="text-sm text-gray-600">{{ __('settings.production_mode') }}</label>
+                    </div>
+
+                    <div class="md:col-span-2 border-t pt-4 mt-2 text-xs text-gray-500">
+                        {{ __('settings.certificate_fields_hint') }}
+                    </div>
+
+                    <div>
+                        <label class="text-xs text-gray-500 mb-1 block">{{ __('settings.common_name') }}</label>
+                        <input type="text" name="common_name" value="{{ old('common_name', $zakatSetting->common_name) }}"
+                               class="w-full rounded-lg border-gray-300 focus:ring-[#1456E8] focus:border-[#1456E8]">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500 mb-1 block">{{ __('settings.organization_name') }}</label>
+                        <input type="text" name="organization_name" value="{{ old('organization_name', $zakatSetting->organization_name) }}"
+                               class="w-full rounded-lg border-gray-300 focus:ring-[#1456E8] focus:border-[#1456E8]">
+                    </div>
+
+                    <div>
+                        <label class="text-xs text-gray-500 mb-1 block">{{ __('settings.organization_unit_name') }}</label>
+                        <input type="text" name="organization_unit_name" value="{{ old('organization_unit_name', $zakatSetting->organization_unit_name) }}"
+                               class="w-full rounded-lg border-gray-300 focus:ring-[#1456E8] focus:border-[#1456E8]">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500 mb-1 block">{{ __('settings.country_name') }}</label>
+                        <input type="text" name="country_name" maxlength="5" value="{{ old('country_name', $zakatSetting->country_name ?? 'SA') }}"
+                               class="w-full rounded-lg border-gray-300 focus:ring-[#1456E8] focus:border-[#1456E8]">
+                    </div>
+
+                    <div>
+                        <label class="text-xs text-gray-500 mb-1 block">{{ __('settings.egs_serial_number') }}</label>
+                        <input type="text" name="egs_serial_number" value="{{ old('egs_serial_number', $zakatSetting->egs_serial_number) }}"
+                               class="w-full rounded-lg border-gray-300 focus:ring-[#1456E8] focus:border-[#1456E8]">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500 mb-1 block">{{ __('settings.registered_address') }}</label>
+                        <input type="text" name="registered_address" value="{{ old('registered_address', $zakatSetting->registered_address) }}"
+                               class="w-full rounded-lg border-gray-300 focus:ring-[#1456E8] focus:border-[#1456E8]">
                     </div>
 
                     <div class="md:col-span-2">

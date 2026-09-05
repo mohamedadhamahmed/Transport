@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
+use App\Models\Tax;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -87,6 +88,8 @@ public function downloadQuotationPdf(Quotation $quotation)
 
     public function index(Request $request)
     {
+        $this->authorize('quotations.view');
+
         $query = Quotation::with(['customer', 'branch', 'creator'])->latest();
 
         if ($request->filled('customer_id')) {
@@ -102,14 +105,22 @@ public function downloadQuotationPdf(Quotation $quotation)
         }
 
         $quotations = $query->paginate(15)->withQueryString();
-        $customers = Customer::orderBy('name')->get();
+
+        // فلتر العميل بقى بحث Ajax حي (منحملش كل جدول العملاء).
+        $selectedCustomerId = $request->filled('customer_id') ? (int) $request->input('customer_id') : null;
+        $customers = $selectedCustomerId
+            ? [$selectedCustomerId => optional(Customer::find($selectedCustomerId))->name]
+            : [];
 
         return view('quotations.index', compact('quotations', 'customers'));
     }
 
     public function create(Request $request)
     {
-        $customers = Customer::orderBy('name')->get();
+        $this->authorize('quotations.create');
+
+        // منحملش كل جدول العملاء هنا (بحث Ajax حي في الفورم نفسه).
+        $customers = [];
         $branches = Branch::orderBy('name')->get();
 
         $maxDiscountPercent = DB::table('employee_discount_settings')
@@ -117,7 +128,13 @@ public function downloadQuotationPdf(Quotation $quotation)
             ->where('branchs_id', Auth::user()->branch_id ?? null)
             ->value('max_discount') ?? 0;
 
-        return view('quotations.create', compact('customers', 'branches', 'maxDiscountPercent'));
+        // نسبة الضريبة الافتراضية اللي المفروض تتحدد تلقائيًا في شاشة
+        // الإنشاء بتتحدد حسب أولوية الضريبة في جدول الضرائب
+        // (Tax::defaultRateFraction()) مش رقم ثابت 15% زي ما كان بيحصل
+        // قبل كده.
+        $defaultTaxRate = Tax::defaultRateFraction();
+
+        return view('quotations.create', compact('customers', 'branches', 'maxDiscountPercent', 'defaultTaxRate'));
     }
 
     /**
@@ -126,6 +143,167 @@ public function downloadQuotationPdf(Quotation $quotation)
      * في شاشة عرض تسعيرة واحدة (تحت البيانات، للمقارنة مع تسعيرات قديمة
      * لنفس العميل).
      */
+    /**
+     * فورم تعديل تسعيرة - متاحة بس لو التسعيرة لسه "قيد المراجعة"
+     * (pending). التسعيرة المعتمدة اتحولت بالفعل لفاتورة رسمية (بأثرها
+     * المالي والمخزني)، والمرفوضة انتهى أمرها - تعديل أي منهم يعتبر
+     * غير منطقي وممكن يسبب تعارض مع الفاتورة الناتجة، فبنمنعه تمامًا
+     * زي ما بيحصل بالظبط في approve()/reject().
+     */
+    public function edit(Quotation $quotation)
+    {
+        $this->authorize('quotations.edit');
+
+        if (!$quotation->isPending()) {
+            return redirect()->route('quotations.show', $quotation)
+                ->with('error', __('quotations.already_processed'));
+        }
+
+        $quotation->load(['customer', 'branch', 'items.product']);
+
+        // منحملش كل جدول العملاء (بحث Ajax حي زي شاشة الإنشاء)، بس
+        // بنبعت العميل الحالي بتاع التسعيرة عشان يظهر محدد مسبقًا.
+        $customers = [$quotation->customer_id => optional($quotation->customer)->name];
+
+        $maxDiscountPercent = DB::table('employee_discount_settings')
+            ->where('user_id', Auth::id())
+            ->where('branchs_id', Auth::user()->branch_id ?? null)
+            ->value('max_discount') ?? 0;
+
+        $defaultTaxRate = Tax::defaultRateFraction();
+
+        // نجهز شكل الأصناف بنفس البنية اللي بيتوقعها addProduct() في
+        // الفرونت (product_id/name/code/quantity/unit_price/purchase_price/
+        // discount_amount/tax_rate) عشان جدول الأصناف يبان مليان من أول
+        // ما الصفحة تفتح.
+        $existingItems = $quotation->items->map(function (QuotationItem $item) {
+            return [
+                'product_id' => $item->product_id,
+                'name' => $item->product_name_snapshot ?? optional($item->product)->name,
+                'code' => $item->product_code_snapshot ?? optional($item->product)->code,
+                'quantity' => (float) $item->quantity,
+                'unit_price' => (float) $item->unit_price,
+                'purchase_price' => (float) (optional($item->product)->purchase_price ?? 0),
+                'discount_amount' => (float) $item->discount_amount,
+                'tax_rate' => (float) $item->tax_rate,
+            ];
+        })->values();
+
+        return view('quotations.edit', compact('quotation', 'customers', 'maxDiscountPercent', 'defaultTaxRate', 'existingItems'));
+    }
+
+    /**
+     * حفظ التعديل: نفس منطق الحساب (subtotal/tax/discount/grandTotal)
+     * المستخدم في store() بالظبط، ومفيش أي حاجة نرجعها لأن عروض
+     * الأسعار (على عكس المشتريات/المبيعات) مالهاش أي أثر على المخزون
+     * أو القيود المحاسبية أو رصيد العميل - فبنمسح البنود القديمة ونعيد
+     * إنشاءها بالبيانات الجديدة جوه ترانزاكشن واحدة.
+     */
+    public function update(Request $request, Quotation $quotation)
+    {
+        $this->authorize('quotations.edit');
+
+        if (!$quotation->isPending()) {
+            return redirect()->route('quotations.show', $quotation)
+                ->with('error', __('quotations.already_processed'));
+        }
+
+        $items = json_decode((string) $request->input('items_json'), true) ?: [];
+        $request->merge(['items' => $items]);
+
+        $validated = Validator::make($request->all(), [
+            'customer_id' => ['required', 'exists:customers,id'],
+            'branch_id' => ['required', 'exists:branches,id'],
+            'payment_method' => ['required', 'in:cash,bank_transfer,card,credit,split'],
+            'cash_amount' => ['nullable', 'numeric', 'min:0'],
+            'bank_amount' => ['nullable', 'numeric', 'min:0'],
+            'note' => ['nullable', 'string'],
+            'purchase_order_number' => ['nullable', 'string', 'max:255'],
+            'invoice_level_discount' => ['nullable', 'numeric', 'min:0'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'items.*.tax_rate' => ['required', 'numeric', 'min:0'],
+        ])->validate();
+
+        // بنتأكد تاني جوه الترانزاكشن إن التسعيرة لسه pending - عشان
+        // نقفل احتمال (نادر لكن وارد) إن حد يعتمدها/يرفضها في نفس
+        // اللحظة اللي المستخدم فاتح فيها فورم التعديل وضاغط حفظ. بنرجع
+        // false من الترانزاكشن بدل ما نعمل abort() جواها عشان نقدر نوريه
+        // رسالة الخطأ في صفحة عادية (redirect) مش صفحة خطأ HTTP خام.
+        $stillPending = DB::transaction(function () use ($validated, $quotation) {
+            $quotation->refresh();
+
+            if (!$quotation->isPending()) {
+                return false;
+            }
+
+            $subtotal = 0;
+            $taxTotal = 0;
+            $discountTotal = 0;
+
+            foreach ($validated['items'] as $item) {
+                $lineSubtotal = ($item['unit_price'] * $item['quantity']) - ($item['discount_amount'] ?? 0);
+                $subtotal += $lineSubtotal;
+                $taxTotal += $lineSubtotal * $item['tax_rate'];
+                $discountTotal += $item['discount_amount'] ?? 0;
+            }
+
+            $invoiceLevelDiscount = min($validated['invoice_level_discount'] ?? 0, $subtotal + $taxTotal);
+            $grandTotal = $subtotal + $taxTotal - $invoiceLevelDiscount;
+            $totalQuantity = array_sum(array_column($validated['items'], 'quantity'));
+
+            $quotation->update([
+                'customer_id' => $validated['customer_id'],
+                'branch_id' => $validated['branch_id'],
+                'payment_method' => $validated['payment_method'],
+                'cash_amount' => $validated['cash_amount'] ?? 0,
+                'bank_amount' => $validated['bank_amount'] ?? 0,
+                'subtotal' => $subtotal,
+                'discount_amount' => $discountTotal,
+                'invoice_level_discount' => $invoiceLevelDiscount,
+                'tax_amount' => $taxTotal,
+                'grand_total' => $grandTotal,
+                'total_quantity' => $totalQuantity,
+                'note' => $validated['note'] ?? null,
+                'purchase_order_number' => $validated['purchase_order_number'] ?? null,
+            ]);
+
+            $quotation->items()->delete();
+
+            foreach ($validated['items'] as $item) {
+                $product = Product::find($item['product_id']);
+                $lineSubtotal = ($item['unit_price'] * $item['quantity']) - ($item['discount_amount'] ?? 0);
+                $lineTax = $lineSubtotal * $item['tax_rate'];
+
+                QuotationItem::create([
+                    'quotation_id' => $quotation->id,
+                    'product_id' => $item['product_id'],
+                    'unit_price' => $item['unit_price'],
+                    'quantity' => $item['quantity'],
+                    'discount_amount' => $item['discount_amount'] ?? 0,
+                    'tax_rate' => $item['tax_rate'],
+                    'tax_amount' => $lineTax,
+                    'product_name_snapshot' => $product?->name,
+                    'product_code_snapshot' => $product?->code,
+                    'created_by' => Auth::id(),
+                ]);
+            }
+
+            return true;
+        });
+
+        if (!$stillPending) {
+            return redirect()->route('quotations.show', $quotation)
+                ->with('error', __('quotations.already_processed'));
+        }
+
+        return redirect()->route('quotations.show', $quotation)
+            ->with('success', __('quotations.updated_successfully'));
+    }
+
     public function customerHistory(Request $request, Customer $customer)
     {
         $excludeId = $request->integer('exclude');
@@ -167,6 +345,8 @@ public function downloadQuotationPdf(Quotation $quotation)
 
     public function store(Request $request)
     {
+        $this->authorize('quotations.create');
+
         $items = json_decode((string) $request->input('items_json'), true) ?: [];
         $request->merge(['items' => $items]);
 
@@ -257,6 +437,8 @@ public function downloadQuotationPdf(Quotation $quotation)
      */
     public function approve(Quotation $quotation)
     {
+        $this->authorize('quotations.edit');
+
         if (!$quotation->isPending()) {
             return redirect()->route('quotations.show', $quotation)
                 ->with('error', __('quotations.already_processed'));
@@ -316,6 +498,8 @@ public function downloadQuotationPdf(Quotation $quotation)
 
     public function reject(Quotation $quotation)
     {
+        $this->authorize('quotations.edit');
+
         if (!$quotation->isPending()) {
             return redirect()->route('quotations.show', $quotation)
                 ->with('error', __('quotations.already_processed'));

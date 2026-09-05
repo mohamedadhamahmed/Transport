@@ -33,6 +33,31 @@ class FinancialAccount extends Model
     }
 
     /**
+     * نوع/تصنيف الحساب المحاسبي (أصول/خصوم/إيرادات/مصروفات/حقوق ملكية)
+     * - عمود account_category_id، مستقل عن account_type القديم (راجع
+     * تعليق ميجريشن 2026_09_01_000024_create_account_types_table).
+     */
+    public function accountCategory()
+    {
+        return $this->belongsTo(AccountType::class, 'account_category_id');
+    }
+
+    /**
+     * تصنيف الحساب الأب (لو موجود) - بتُستخدم وقت إنشاء حساب جديد
+     * (عميل/مورد/موظف/حساب عام) عشان يورّث تصنيف أبوه تلقائيًا، بدل ما
+     * يفضل account_category_id فاضي لكل حساب هيتعمل بعد ميجريشن
+     * 2026_09_01_000025 (اللي وسمت الحسابات الموجودة وقت تشغيلها بس).
+     */
+    public static function inheritedCategoryId(?int $parentId): ?int
+    {
+        if (!$parentId) {
+            return null;
+        }
+
+        return static::find($parentId)?->account_category_id;
+    }
+
+    /**
      * كل حركات القيد (credittransaction) المسجلة على الحساب ده.
      */
     public function creditTransactions()

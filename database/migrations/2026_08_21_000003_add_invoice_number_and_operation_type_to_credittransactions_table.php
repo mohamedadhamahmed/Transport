@@ -19,7 +19,7 @@ return new class extends Migration
      *
      * القيم دي متعرفة كـ constants في App\Models\CreditTransaction
      * (CreditTransaction::TYPE_SALES وهكذا) عشان تستخدميها في الكود
-     * بدل ما تكتبي الرقم صريح.
+     * بدل ما تكتب الرقم صريح.
      */
     public function up(): void
     {

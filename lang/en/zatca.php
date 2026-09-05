@@ -50,4 +50,7 @@ return [
     'missing_customer_address' => 'The customer\'s national address is incomplete - please complete it first',
     'xml_not_found' => 'XML file not found for this invoice',
     'ok' => 'OK',
+
+    // Credit note (sales return) - see ZatcaController@sendReturn
+    'credit_note_not_found' => 'This credit note was not found',
 ];

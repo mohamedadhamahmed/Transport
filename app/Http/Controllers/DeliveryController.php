@@ -20,12 +20,21 @@ class DeliveryController extends Controller
         /**
      * قائمة منتجات مقسّمة صفحات (20 في كل صفحة) لمودال "اختيار منتج" في
      * شاشة تسليم منتج - نفس منطق InvoiceController::pickProducts() تمامًا.
+     *
+     * ملحوظة: كانت الدالة دي مبتفلترش على branch_id خالص (بعكس نفس الدالة
+     * في InvoiceController وDeliveryNoteController)، يعني المودال كان بيورّي
+     * منتجات كل الفروع مخلوطة مع بعض - ضفنا نفس فلتر الفرع المتبع في باقي
+     * الشاشات.
      */
     public function pickProducts(Request $request)
     {
         $search = (string) $request->query('q', '');
+        $branchId = $request->query('branch_id', Auth::user()?->branch_id);
 
         $products = Product::query()
+            ->when($branchId, function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId);
+            })
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($qq) use ($search) {
                     $qq->where('name', 'like', "%{$search}%")
@@ -58,31 +67,84 @@ class DeliveryController extends Controller
      */
     public function create()
     {
-        $customers = Customer::orderBy('name')->get();
+        $this->authorize('delivery.create');
+
+        // منحملش كل جدول العملاء هنا (بحث Ajax حي في الفورم نفسه).
+        $customers = [];
 
         return view('delivery.create', compact('customers'));
     }
 
     /**
      * البحث اللحظي عن منتجات بالاسم/الكود (يُستخدم عبر Alpine.js من صفحة التسليم)
+     *
+     * ملحوظة: الدالة كانت اسمها "searchProduct" (مفرد) بينما الراوت في
+     * routes/web.php بيستدعي "searchProducts" (جمع) - يعني صندوق البحث
+     * السريع في شاشة "تسليم منتج" كان بيرمي خطأ 500 (Method does not
+     * exist) من غير ما يشتغل خالص. كمان كانت بتفلتر على عمود
+     * "product_number" مش موجود في جدول المنتجات (العمود الصح "code")
+     * وعلى "branchs_id" (خطأ إملائي، الصح "branch_id") فمكانتش هتفلتر
+     * بالفرع حتى لو الاسم كان صح.
      */
-    public function searchProduct(Request $request)
+    public function searchProducts(Request $request)
     {
         $search = (string) $request->query('q', '');
-        $branchId = $request->query('branch_id', Auth::user()?->branchs_id);
+        $branchId = $request->query('branch_id', Auth::user()?->branch_id);
 
-        $Product = Product::query()
+        $products = Product::query()
             ->when($branchId, function ($q) use ($branchId) {
                 $q->where('branch_id', $branchId);
             })
             ->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('product_number', 'like', "%{$search}%"); // عدّل اسم عمود الكود حسب جدولك
+                    ->orWhere('code', 'like', "%{$search}%");
             })
             ->limit(20)
-            ->get(['id', 'name', 'product_number as code', 'sale_price', 'purchase_price']);
+            ->get(['id', 'name', 'code', 'sale_price', 'purchase_price', 'stock_quantity']);
 
-        return response()->json($Product);
+        return response()->json($products);
+    }
+
+    /**
+     * إضافة منتج سريع من مودال "منتج جديد" في شاشة تسليم منتج.
+     *
+     * ملحوظة: الدالة دي مكانتش موجودة خالص في الكنترولر رغم إن الراوت
+     * "delivery.products.quick" والفورم في resources/views/delivery/create.blade.php
+     * (زرار "منتج جديد") بينادوها - يعني زرار "منتج جديد" في شاشة تسليم
+     * منتج كان بيرمي خطأ 500 (Method does not exist) من غير ما يشتغل
+     * خالص. الدالة هنا بنفس منطق DeliveryNoteController::quickStoreProduct().
+     */
+    public function quickStoreProduct(Request $request)
+    {
+        $branchId = Auth::user()?->branch_id;
+        $request->merge(['branch_id' => $branchId, 'status' => 'active']);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'name_en' => ['nullable', 'string', 'max:255'],
+            'branch_id' => ['nullable', 'exists:branches,id'],
+            'code' => ['nullable', 'string', 'max:255'],
+            'location' => ['nullable', 'string', 'max:255'],
+            'unit' => ['nullable', 'string', 'max:255'],
+            'purchase_price' => ['nullable', 'numeric', 'min:0'],
+            'sale_price' => ['nullable', 'numeric', 'min:0'],
+            'stock_quantity' => ['nullable', 'numeric'],
+            'low_stock_alert_quantity' => ['nullable', 'integer', 'min:0'],
+            'status' => ['required', 'in:active,inactive'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $validated['created_by'] = Auth::id();
+
+        $product = Product::create($validated);
+
+        return response()->json([
+            'id' => $product->id,
+            'name' => $product->name,
+            'code' => $product->code,
+            'sale_price' => $product->sale_price,
+            'purchase_price' => $product->purchase_price,
+        ]);
     }
 
     /**
@@ -90,6 +152,8 @@ class DeliveryController extends Controller
      */
     public function history(Request $request)
     {
+        $this->authorize('delivery.view');
+
         $start_at = $request->start_at ?? date('Y-m-01');
         $end_at   = $request->end_at ?? date('Y-m-d');
 
@@ -103,7 +167,12 @@ class DeliveryController extends Controller
         }
 
         $invoices = $query->orderByDesc('created_at')->paginate(20);
-        $Customer = Customer::orderBy('name')->get();
+
+        // فلتر العميل بقى بحث Ajax حي (منحملش كل جدول العملاء).
+        $selectedCustomerId = $request->filled('customer_id') ? (int) $request->input('customer_id') : null;
+        $Customer = $selectedCustomerId
+            ? [$selectedCustomerId => optional(Customer::find($selectedCustomerId))->name]
+            : [];
 
         return view('delivery.history', compact('invoices', 'Customer'));
     }
@@ -113,6 +182,8 @@ class DeliveryController extends Controller
      */
     public function show($id)
     {
+        $this->authorize('delivery.view');
+
         $invoice = delivery_to_customer_withoud_tax_invoices::with(['customer', 'user'])->findOrFail($id);
         $items = sales_withoud_taxes::where('invoice_id', $id)
             ->where('save', 1)
@@ -132,6 +203,8 @@ class DeliveryController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('delivery.create');
+
         $items = json_decode((string) $request->input('items_json'), true) ?: [];
         $request->merge(['items' => $items]);
 

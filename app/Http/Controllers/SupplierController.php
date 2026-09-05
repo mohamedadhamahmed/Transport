@@ -23,6 +23,8 @@ class SupplierController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('suppliers.view');
+
         $query = Supplier::query();
 
         if ($request->filled('search')) {
@@ -38,8 +40,38 @@ class SupplierController extends Controller
         return view('suppliers.index', compact('suppliers'));
     }
 
+    /**
+     * بحث سريع (Ajax) عن الموردين لاستخدامه في قوائم TomSelect - نفس فكرة
+     * CustomerController::search() بالظبط.
+     */
+    public function search(Request $request)
+    {
+        $q = trim((string) $request->input('q'));
+
+        if (mb_strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        $suppliers = Supplier::query()
+            ->where(function ($w) use ($q) {
+                $w->where('name', 'like', "%{$q}%")
+                    ->orWhere('phone', 'like', "%{$q}%");
+            })
+            ->orderBy('name')
+            ->limit(20)
+            ->get(['id', 'name', 'phone']);
+
+        return response()->json($suppliers->map(fn ($s) => [
+            'id' => $s->id,
+            'name' => $s->name,
+            'text' => $s->name . ($s->phone ? " ({$s->phone})" : ''),
+        ]));
+    }
+
     public function create()
     {
+        $this->authorize('suppliers.create');
+
         $supplier = new Supplier();
 
         return view('suppliers.create', compact('supplier'));
@@ -47,6 +79,8 @@ class SupplierController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('suppliers.create');
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'name_en' => ['nullable', 'string', 'max:255'],
@@ -90,13 +124,23 @@ class SupplierController extends Controller
             // حساب مالي مرتبط بالمورد في شجرة الحسابات
             // ⚠️ parent_account_number = 3 افتراض تخميني للحساب الأب
             // الخاص بالموردين - راجعه حسب شجرة حساباتك الفعلية.
-            $nextAccountNumber = FinancialAccount::where('account_type', 2)
+            // بنستخدم parent_account_number + orginal_type بدل
+            // account_type القديم (اللي كان هنا =2 بينما
+            // PurchaseController@quickStoreSupplier كان بيحط =1 لنفس
+            // نوع الحساب - تضارب قديم) - account_type بقى بيحمل تصنيف
+            // محاسبي بعد ميجريشن 2026_09_02_000028.
+            $nextAccountNumber = FinancialAccount::where('parent_account_number', 3)
                 ->where('orginal_type', 2)
                 ->max('account_number') + 1;
 
+            // account_type و account_category_id بيتورثوا مع بعض من نفس
+            // تصنيف حساب الموردين الأب.
+            $inheritedCategoryId = FinancialAccount::inheritedCategoryId(3);
+
             FinancialAccount::create([
                 'name' => $supplier->name,
-                'account_type' => 2,
+                'account_type' => $inheritedCategoryId,
+                'account_category_id' => $inheritedCategoryId,
                 'parent_account_number' => 3,
                 'account_number' => $nextAccountNumber,
                 'start_balance' => 0,
@@ -119,11 +163,15 @@ class SupplierController extends Controller
 
     public function edit(Supplier $supplier)
     {
+        $this->authorize('suppliers.edit');
+
         return view('suppliers.edit', compact('supplier'));
     }
 
     public function update(Request $request, Supplier $supplier)
     {
+        $this->authorize('suppliers.edit');
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'name_en' => ['nullable', 'string', 'max:255'],

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>دفتركوم - Daftercom</title>
+    <title>NEW VISION</title>
     <style>
         body {
             margin: 0;
@@ -44,7 +44,7 @@
 </head>
 <body>
     <div class="container">
-        <img src="{{ asset('images/logo.jpeg') }}" alt="دفتركوم">
+        <img src="{{ asset('images/logo.jpeg') }}" alt="NEW VISION">
         <div class="actions">
             @auth
                 <a href="{{ url('/dashboard') }}" class="btn-register">لوحة التحكم</a>

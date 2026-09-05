@@ -56,4 +56,8 @@ return [
     'upload_and_process' => 'Upload & Process',
     'import_success' => ':count products updated successfully',
     'import_not_found' => 'The following codes were not found: :codes',
+    'new_product' => 'Add New Product',
+    'created_successfully' => 'Product added successfully',
+    'deleted_successfully' => 'Product deleted successfully',
+    'initial_stock_quantity' => 'Initial Stock Quantity',
 ];

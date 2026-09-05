@@ -22,6 +22,9 @@ class PurchaseItem extends Model
         'product_name_snapshot',
         'product_code_snapshot',
         'created_by',
+        'stock_before',
+        'purchase_price_before',
+        'average_cost_before',
     ];
 
     public function purchase()

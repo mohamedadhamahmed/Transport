@@ -10,8 +10,8 @@
     class="fixed lg:static inset-y-0 right-0 z-40 w-64 shrink-0 bg-[#0F1B4C] text-white flex flex-col transition-transform duration-200 ease-in-out">
     <!-- الشعار -->
     <div class="flex items-center justify-center gap-2 py-5 border-b border-white/10">
-        <img src="{{ asset('images/sidebar-icon.png') }}" alt="{{ config('app.name', 'دفتركوم') }}" class="h-9 w-9 object-contain">
-        <span class="text-white font-bold text-lg">دفتركوم</span>
+        <img src="{{ asset('images/sidebar-icon.png') }}" alt="{{ config('app.name', 'NEW VISION') }}" class="h-9 w-9 object-contain">
+        <span class="text-white font-bold text-lg">{{ config('app.name', 'NEW VISION') }}</span>
     </div>
 
     <!-- بطاقة المستخدم -->
@@ -109,7 +109,7 @@
         [
         'key' => 'delivery',
         'label' => __('delivery.delivery_product'),
-        'icon' => 'box',
+        'icon' => 'clock',
         'items' => [
         ['label' => __('delivery.delivery_product'), 'url' => route('delivery.create')],
         ['label' => __('delivery.delivery_history'), 'url' => route('delivery.history')],
@@ -160,18 +160,50 @@
         'key' => 'customers',
         'label' => __('customers.title'),
         'icon' => 'store',
-        'items' => [
-        ['label' => __('customers.title'), 'url' => route('customers.index')],
-        ['label' => __('customers.new_customer'), 'url' => route('customers.create')],
-        ],
+        'items' => array_values(array_filter([
+        auth()->user()?->hasPermission('customers.view') ? ['label' => __('customers.title'), 'url' => route('customers.index')] : null,
+        auth()->user()?->hasPermission('customers.create') ? ['label' => __('customers.new_customer'), 'url' => route('customers.create')] : null,
+        ])),
         ],
         [
         'key' => 'suppliers',
         'label' => __('suppliers.title'),
         'icon' => 'store',
+        'items' => array_values(array_filter([
+        auth()->user()?->hasPermission('suppliers.view') ? ['label' => __('suppliers.title'), 'url' => route('suppliers.index')] : null,
+        auth()->user()?->hasPermission('suppliers.create') ? ['label' => __('suppliers.new_supplier'), 'url' => route('suppliers.create')] : null,
+        ])),
+        ],
+        ],
+        ],
+        [
+        // قسم "الموارد البشرية" - كان قبل كده 8 مجموعات (أكورديون) منفصلة
+        // تحت بعض، دلوقتي مدموجين في مجموعة واحدة بس (زي "المشتريات"
+        // بالظبط) - زرار واحد يفتح كل حاجة تحته. الـ 'match' بتحمل كل
+        // الـ prefixes القديمة عشان الأكورديون يتفتح تلقائي لو المستخدم
+        // داخل أي شاشة من شاشات الموارد البشرية (راجع استخدامها تحت في
+        // نفس الملف بدل $group['key'] المفرد).
+        'label' => __('employees.hr_section_title'),
+        'groups' => [
+        [
+        'key' => 'hr',
+        'match' => ['employees', 'attendance', 'employee-loans', 'asset-custodies', 'leave-requests', 'end-of-service', 'payroll', 'hr-settings'],
+        'label' => __('employees.hr_section_title'),
+        'icon' => 'user',
         'items' => [
-        ['label' => __('suppliers.title'), 'url' => route('suppliers.index')],
-        ['label' => __('suppliers.new_supplier'), 'url' => route('suppliers.create')],
+        ['label' => __('employees.title'), 'url' => route('employees.index')],
+        ['label' => __('employees.new_employee'), 'url' => route('employees.create')],
+        ['label' => __('employees.import_title'), 'url' => route('employees.import.form')],
+        ['label' => __('attendance.title'), 'url' => route('attendance.index')],
+        ['label' => __('attendance.new_entry'), 'url' => route('attendance.create')],
+        ['label' => __('attendance.import_from_biometric'), 'url' => route('attendance.import.form')],
+        ['label' => __('employee_loans.title'), 'url' => route('employee-loans.index')],
+        ['label' => __('asset_custodies.title'), 'url' => route('asset-custodies.index')],
+        ['label' => __('leave_requests.title'), 'url' => route('leave-requests.index')],
+        ['label' => __('end_of_service.title'), 'url' => route('end-of-service.index')],
+        ['label' => __('end_of_service.new_settlement'), 'url' => route('end-of-service.create')],
+        ['label' => __('payroll.title'), 'url' => route('payroll.index')],
+        ['label' => __('hr_settings.title'), 'url' => route('hr-settings.index')],
         ],
         ],
         ],
@@ -206,6 +238,7 @@
         ['label' => __('accounts.list_title'), 'url' => route('accounts.index')],
         ['label' => __('accounts.tree_title'), 'url' => route('accounts.tree')],
         ['label' => __('accounts.new_account'), 'url' => route('accounts.create')],
+        ['label' => __('account_types.title'), 'url' => route('account-types.index')],
         ],
         ],
         [
@@ -233,6 +266,93 @@
         ],
         ],
         [
+        // قسم جديد: "التقارير" - مركز تقارير موحّد لكل أقسام النظام
+        // (حسابات/مبيعات/تسليم منتج/مشتريات/منتجات/موارد بشرية). كل
+        // تقرير جوه دلوقتي ليه صلاحيته المستقلة بنفسه (reports_*.* في
+        // config/permissions.php)، فالرابط بيظهر بس لو المستخدم عنده
+        // صلاحية التقرير ده بالذات - راجع ReportController.
+        'label' => __('reports.section_title'),
+        'groups' => [
+        [
+        'key' => 'reports',
+        'label' => __('reports.section_title'),
+        'icon' => 'doc',
+        'items' => array_values(array_filter([
+        (auth()->user()?->hasPermission('reports_accounting.trial_balance')
+            || auth()->user()?->hasPermission('reports_accounting.balance_sheet')
+            || auth()->user()?->hasPermission('reports_accounting.income_statement')
+            || auth()->user()?->hasPermission('reports_accounting.equity_changes')
+            || auth()->user()?->hasPermission('reports_accounting.cash_flow')
+            || auth()->user()?->hasPermission('reports_sales.summary')
+            || auth()->user()?->hasPermission('reports_sales.by_customer')
+            || auth()->user()?->hasPermission('reports_sales.by_employee')
+            || auth()->user()?->hasPermission('reports_sales.by_product')
+            || auth()->user()?->hasPermission('reports_sales.returns')
+            || auth()->user()?->hasPermission('reports_purchases.summary')
+            || auth()->user()?->hasPermission('reports_purchases.by_supplier')
+            || auth()->user()?->hasPermission('reports_purchases.by_employee')
+            || auth()->user()?->hasPermission('reports_purchases.by_product')
+            || auth()->user()?->hasPermission('reports_purchases.returns')
+            || auth()->user()?->hasPermission('reports_products.stock')
+            || auth()->user()?->hasPermission('reports_products.low_stock')
+            || auth()->user()?->hasPermission('reports_products.stock_transfers')
+            || auth()->user()?->hasPermission('reports_hr.payroll')
+            || auth()->user()?->hasPermission('reports_hr.attendance')
+            || auth()->user()?->hasPermission('reports_hr.loans')
+            || auth()->user()?->hasPermission('reports_hr.employees')
+            || auth()->user()?->hasPermission('reports_hr.bonuses_deductions')
+            || auth()->user()?->hasPermission('reports_hr.leaves')
+            || auth()->user()?->hasPermission('reports_delivery.summary')
+            || auth()->user()?->hasPermission('reports_delivery.pending')
+            || auth()->user()?->hasPermission('reports_delivery.by_employee'))
+            ? ['label' => __('reports.hub_title'), 'url' => route('reports.index')] : null,
+        auth()->user()?->hasPermission('reports_accounting.trial_balance') ? ['label' => __('reports.accounts.trial_balance'), 'url' => route('reports.accounts.trial-balance')] : null,
+        auth()->user()?->hasPermission('reports_accounting.income_statement') ? ['label' => __('reports.accounts.income_statement'), 'url' => route('reports.accounts.income-statement')] : null,
+        auth()->user()?->hasPermission('reports_accounting.balance_sheet') ? ['label' => __('reports.accounts.balance_sheet'), 'url' => route('reports.accounts.balance-sheet')] : null,
+        auth()->user()?->hasPermission('reports_accounting.equity_changes') ? ['label' => __('reports.accounts.equity_changes'), 'url' => route('reports.accounts.equity-changes')] : null,
+        auth()->user()?->hasPermission('reports_accounting.cash_flow') ? ['label' => __('reports.accounts.cash_flow'), 'url' => route('reports.accounts.cash-flow')] : null,
+        (auth()->user()?->hasPermission('reports_sales.summary') || auth()->user()?->hasPermission('reports_sales.by_customer')
+            || auth()->user()?->hasPermission('reports_sales.by_employee') || auth()->user()?->hasPermission('reports_sales.by_product')
+            || auth()->user()?->hasPermission('reports_sales.returns'))
+            ? ['label' => __('reports.sections.sales'), 'url' => route('reports.sales.index')] : null,
+        (auth()->user()?->hasPermission('reports_delivery.summary') || auth()->user()?->hasPermission('reports_delivery.pending')
+            || auth()->user()?->hasPermission('reports_delivery.by_employee'))
+            ? ['label' => __('reports.sections.delivery'), 'url' => route('reports.delivery.index')] : null,
+        (auth()->user()?->hasPermission('reports_purchases.summary') || auth()->user()?->hasPermission('reports_purchases.by_supplier')
+            || auth()->user()?->hasPermission('reports_purchases.by_employee') || auth()->user()?->hasPermission('reports_purchases.by_product')
+            || auth()->user()?->hasPermission('reports_purchases.returns'))
+            ? ['label' => __('reports.sections.purchases'), 'url' => route('reports.purchases.index')] : null,
+        (auth()->user()?->hasPermission('reports_products.stock') || auth()->user()?->hasPermission('reports_products.low_stock')
+            || auth()->user()?->hasPermission('reports_products.stock_transfers'))
+            ? ['label' => __('reports.sections.products'), 'url' => route('reports.products.index')] : null,
+        (auth()->user()?->hasPermission('reports_hr.payroll') || auth()->user()?->hasPermission('reports_hr.attendance')
+            || auth()->user()?->hasPermission('reports_hr.loans') || auth()->user()?->hasPermission('reports_hr.employees')
+            || auth()->user()?->hasPermission('reports_hr.bonuses_deductions') || auth()->user()?->hasPermission('reports_hr.leaves'))
+            ? ['label' => __('reports.sections.hr'), 'url' => route('reports.hr.index')] : null,
+        ])),
+        ],
+        ],
+        ],
+        [
+        // قسم جديد: "المستودعات" - تحويل منتجات بين فروع الشركة (سند
+        // صرف + سند استلام)، منفصل تمامًا عن سندات التسليم للعميل.
+        'label' => __('stock_transfers.title'),
+        'groups' => [
+        [
+        'key' => 'stock-transfers',
+        'label' => __('stock_transfers.title'),
+        'icon' => 'box',
+        'items' => [
+        ['label' => __('stock_transfers.new_dispatch'), 'url' => route('stock-transfers.choose-branch', ['mode' => 'dispatch'])],
+        ['label' => __('stock_transfers.box_sent'), 'url' => route('stock-transfers.index', ['box' => 'sent'])],
+        ['label' => __('stock_transfers.new_receive'), 'url' => route('stock-transfers.choose-branch', ['mode' => 'receive'])],
+        ['label' => __('stock_transfers.box_received'), 'url' => route('stock-transfers.index', ['box' => 'received'])],
+        ['label' => __('stock_transfers.box_draft'), 'url' => route('stock-transfers.index', ['box' => 'draft'])],
+        ],
+        ],
+        ],
+        ],
+        [
         'label' => __('settings.title'),
         'groups' => [
         [
@@ -248,6 +368,45 @@
         ],
         ],
         ];
+
+        // قسم "الإدارة" (مستخدمين/فروع/أدوار وصلاحيات) - بيظهر بس لو
+        // المستخدم عنده صلاحية وحدة على الأقل من التلاتة دي (عادةً
+        // المدير العام بس، حسب نظام الصلاحيات الجديد). لو مالوش أي
+        // صلاحية منهم، القسم كله مش بيتضاف لـ $sections أصلًا.
+        $adminItems = [];
+        if (auth()->user()?->hasPermission('users.view')) {
+            $adminItems[] = ['label' => __('users.title'), 'url' => route('users.index')];
+        }
+        if (auth()->user()?->hasPermission('branches.view')) {
+            $adminItems[] = ['label' => __('branches.title'), 'url' => route('branches.index')];
+        }
+        if (auth()->user()?->hasPermission('roles.manage')) {
+            $adminItems[] = ['label' => __('roles.title'), 'url' => route('roles.index')];
+        }
+        if (! empty($adminItems)) {
+        $sections[] = [
+        'label' => __('messages.administration'),
+        'groups' => [
+        [
+        'key' => 'administration',
+        'label' => __('messages.administration'),
+        'icon' => 'shield',
+        'items' => $adminItems,
+        ],
+        ],
+        ];
+        }
+
+        // تنضيف عام: أي مجموعة (group) صلاحيات المستخدم خلّت الـ items
+        // بتاعتها فاضية (يعني مالوش صلاحية ولا حاجة فيها) بتتشال
+        // تلقائيًا من القائمة، وأي قسم (section) خلصت كل مجموعاته فاضية
+        // بيتشال هو كمان - عشان القائمة الجانبية تفضل نضيفة ومطابقة
+        // لصلاحيات كل مستخدم (حاليًا بيطبّق ده على مجموعتي العملاء
+        // والموردين بس - باقي الأقسام لسه بتظهر لأي مستخدم مسجّل دخول).
+        foreach ($sections as $sIndex => $section) {
+        $sections[$sIndex]['groups'] = array_values(array_filter($section['groups'], fn ($g) => ! empty($g['items'])));
+        }
+        $sections = array_values(array_filter($sections, fn ($s) => ! empty($s['groups'])));
 
         $icons = [
         'bag' => '
@@ -280,6 +439,18 @@
         <path d="M4 21V6a2 2 0 0 1 2-2h9l5 5v12a0 0 0 0 1 0 0H6a2 2 0 0 1-2-2Z" />
         <path d="M15 4v4a1 1 0 0 0 1 1h4" />
         <path d="M8 12h8M8 16h5" />',
+        'user' => '
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" />',
+        'clock' => '
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 3" />',
+        'wallet' => '
+        <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
+        <path d="M16 12h3" />',
+        'shield' => '
+        <path d="M12 2 4 5v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V5l-8-3Z" />
+        <path d="M9 12l2 2 4-4" />',
         ];
         @endphp
 
@@ -290,7 +461,14 @@
             </p>
             <div class="space-y-1">
                 @foreach ($section['groups'] as $group)
-                <div x-data="{ open: {{ request()->is($group['key'].'*') ? 'true' : 'false' }} }">
+                @php
+                    // 'match' اختياري - لو المجموعة مدموجة من أكتر من
+                    // شاشة (زي الموارد البشرية) بتحمل كل الـ prefixes
+                    // القديمة، وإلا بيترجع لسلوك $group['key'] المفرد.
+                    $groupIsActive = collect($group['match'] ?? [$group['key']])
+                        ->contains(fn ($prefix) => request()->is($prefix . '*'));
+                @endphp
+                <div x-data="{ open: {{ $groupIsActive ? 'true' : 'false' }} }">
                     <button type="button" @click="open = !open"
                         class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-300 hover:bg-white/5 hover:text-white transition">
                         <span class="flex items-center gap-3">

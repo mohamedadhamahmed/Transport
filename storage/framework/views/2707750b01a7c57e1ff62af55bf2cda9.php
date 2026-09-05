@@ -23,6 +23,7 @@
                         <p class="text-white/45 text-xs mt-0.5"><?php echo e(__('customers.subtitle')); ?></p>
                     </div>
                 </div>
+                <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('customers.create')): ?>
                 <a href="<?php echo e(route('customers.create')); ?>"
                    class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition whitespace-nowrap">
                     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -31,6 +32,7 @@
                     <?php echo e(__('customers.new_customer')); ?>
 
                 </a>
+                <?php endif; ?>
             </div>
 
             <?php if(session('success')): ?>
@@ -68,11 +70,13 @@
                                 <td class="px-4 py-3 text-gray-600"><?php echo e($customer->phone); ?></td>
                                 <td class="px-4 py-3 text-gray-600"><?php echo e(number_format($customer->Balance ?? 0, 2)); ?></td>
                                 <td class="px-4 py-3">
+                                    <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('customers.edit')): ?>
                                     <a href="<?php echo e(route('customers.edit', $customer->id)); ?>"
                                        class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[#1456E8] bg-[#1456E8]/10 hover:bg-[#1456E8]/20 transition">
                                         <?php echo e(__('customers.edit')); ?>
 
                                     </a>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>

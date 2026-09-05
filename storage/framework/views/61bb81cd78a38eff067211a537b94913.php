@@ -36,5 +36,8 @@
     
     <script src="<?php echo e(asset('assets/libs/tom-select/js/tom-select.complete.min.js')); ?>"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    
+    <?php echo $__env->make('partials.assistant-widget', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 </body>
 </html><?php /**PATH C:\xampp\htdocs\my-erp\resources\views/layouts/app.blade.php ENDPATH**/ ?>

@@ -1,0 +1,102 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * كل حسابات الموارد البشرية العامة (ذمم الموظفين، رواتب الموظفين،
+ * مكافآت الموظفين، خصومات الموظفين، مستحقات رواتب الموظفين، مصروف/
+ * مخصص مكافأة نهاية الخدمة) كانت بتتعمل كل واحد جذر مستقل لوحده في
+ * الشجرة (parent_account_number = null) - طلب تنظيمها تحت حساب رئيسي
+ * واحد اسمه "الموارد البشرية" بدل ما تكون متفرقة في جذر الشجرة.
+ *
+ * التعديل في HrAccountService (resolveHrParentAccountId/findOrCreateGeneralAccount)
+ * بيخلي أي حساب جديد من دلوقتي يتحط تحت "الموارد البشرية" مباشرة - لكن
+ * ده بيأثرش على حسابات اتعملت بالفعل قبل التعديل ده (find-or-create
+ * بيرجع الموجود زي ما هو من غير ما يغيّر أباه). فالميجريشن دي بتعمل
+ * التصحيح مرة واحدة بس:
+ *  1. تنشئ (أو تجيب) حساب "الموارد البشرية" الرئيسي - جذر جديد في
+ *     الشجرة، بنفس بنية الحسابات العامة اللي HrAccountService بتعملها.
+ *  2. تنقل كل حساب من الأسماء المعروفة دي (لو موجود ومالوش أب حاليًا -
+ *     يعني لسه جذر مستقل ومحدش نقله يدوي من شاشة الحسابات) تحت الحساب
+ *     الرئيسي الجديد. حسابات الموظفين الفردية نفسها (تحت "ذمم
+ *     الموظفين") مش محتاج تتلمس - بمجرد ما "ذمم الموظفين" نفسه يتحرك
+ *     تحت "الموارد البشرية"، كل الموظفين اللي تحته بيتحركوا معاه تلقائيًا
+ *     (نفس شجرة الـ id، مفيش حاجة لازم تتغير فيهم).
+ *
+ * ملحوظة: بنشتغل على جدول financialaccount (الجدول الفعلي المستخدم في
+ * App\Models\FinancialAccount) - مش financial_accounts (اسم مختلف في
+ * ميجريشن قديمة تانية غير مستخدمة فعليًا في الموديل).
+ */
+return new class extends Migration
+{
+    private const HR_PARENT_ACCOUNT_NAME = 'الموارد البشرية';
+
+    private const HR_ACCOUNT_NAMES = [
+        'ذمم الموظفين',
+        'رواتب الموظفين',
+        'مكافآت الموظفين',
+        'خصومات الموظفين',
+        'مستحقات رواتب الموظفين',
+        'مصروف مكافأة نهاية الخدمة',
+        'مخصص مكافأة نهاية الخدمة',
+    ];
+
+    public function up(): void
+    {
+        $now = now();
+
+        $hrParentId = DB::table('financialaccount')
+            ->where('name', self::HR_PARENT_ACCOUNT_NAME)
+            ->whereNull('orginal_id')
+            ->value('id');
+
+        if (!$hrParentId) {
+            $nextAccountNumber = (int) (DB::table('financialaccount')->max('account_number') ?? 0) + 1;
+
+            $hrParentId = DB::table('financialaccount')->insertGetId([
+                'name' => self::HR_PARENT_ACCOUNT_NAME,
+                'account_type' => 4,
+                'parent_account_number' => null,
+                'account_number' => $nextAccountNumber,
+                'start_balance' => 0,
+                'current_balance' => 0,
+                'start_balance_status' => 3,
+                'added_by' => 1,
+                'com_code' => 1,
+                'date' => $now,
+                'active' => 1,
+                'is_parent' => 1,
+                'orginal_id' => null,
+                'orginal_type' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        DB::table('financialaccount')
+            ->whereIn('name', self::HR_ACCOUNT_NAMES)
+            ->whereNull('orginal_id')
+            ->whereNull('parent_account_number')
+            ->update(['parent_account_number' => $hrParentId, 'updated_at' => $now]);
+    }
+
+    public function down(): void
+    {
+        $hrParentId = DB::table('financialaccount')
+            ->where('name', self::HR_PARENT_ACCOUNT_NAME)
+            ->whereNull('orginal_id')
+            ->value('id');
+
+        if ($hrParentId) {
+            DB::table('financialaccount')
+                ->whereIn('name', self::HR_ACCOUNT_NAMES)
+                ->where('parent_account_number', $hrParentId)
+                ->update(['parent_account_number' => null]);
+        }
+
+        // مش بنمسح حساب "الموارد البشرية" نفسه هنا عمدًا - لو المستخدم
+        // عدّل فيه يدوي (اسم/ترتيب) من شاشة الحسابات بعد الترحيل، مسحه
+        // تلقائي في rollback ممكن يضيع تعديله من غير قصد.
+    }
+};

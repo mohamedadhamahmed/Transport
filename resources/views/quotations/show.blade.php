@@ -50,22 +50,30 @@
                 </div>
                 @if ($quotation->isPending())
                     <div class="flex items-center gap-2" x-data>
-                        <form method="POST" action="{{ route('quotations.approve', $quotation) }}"
-                              @submit="if (!confirm(@js(__('quotations.approve_confirm')))) $event.preventDefault();">
-                            @csrf
-                            <button type="submit"
-                                    class="px-4 py-2 rounded-lg text-white text-sm font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition shadow-sm">
-                                {{ __('quotations.approve') }}
-                            </button>
-                        </form>
-                        <form method="POST" action="{{ route('quotations.reject', $quotation) }}"
-                              @submit="if (!confirm(@js(__('quotations.reject_confirm')))) $event.preventDefault();">
-                            @csrf
-                            <button type="submit"
-                                    class="px-4 py-2 rounded-lg text-red-600 text-sm font-medium bg-red-50 hover:bg-red-100 transition">
-                                {{ __('quotations.reject') }}
-                            </button>
-                        </form>
+                        @can('quotations.edit')
+                            <a href="{{ route('quotations.edit', $quotation) }}"
+                               class="px-4 py-2 rounded-lg text-sm font-medium text-[#0F1B4C] bg-[#0F1B4C]/5 hover:bg-[#0F1B4C]/10 border border-[#0F1B4C]/10 transition">
+                                {{ __('messages.edit') }}
+                            </a>
+                        @endcan
+                        @can('quotations.edit')
+                            <form method="POST" action="{{ route('quotations.approve', $quotation) }}"
+                                  @submit="if (!confirm(@js(__('quotations.approve_confirm')))) $event.preventDefault();">
+                                @csrf
+                                <button type="submit"
+                                        class="px-4 py-2 rounded-lg text-white text-sm font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition shadow-sm">
+                                    {{ __('quotations.approve') }}
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ route('quotations.reject', $quotation) }}"
+                                  @submit="if (!confirm(@js(__('quotations.reject_confirm')))) $event.preventDefault();">
+                                @csrf
+                                <button type="submit"
+                                        class="px-4 py-2 rounded-lg text-red-600 text-sm font-medium bg-red-50 hover:bg-red-100 transition">
+                                    {{ __('quotations.reject') }}
+                                </button>
+                            </form>
+                        @endcan
                     </div>
                 @endif
             </div>

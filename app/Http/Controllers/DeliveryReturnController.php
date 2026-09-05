@@ -21,6 +21,8 @@ class DeliveryReturnController extends Controller
      */
     public function create($id)
     {
+        $this->authorize('delivery.view');
+
         $invoice = delivery_to_customer_withoud_tax_invoices::with('customer')->findOrFail($id);
         $items = sales_withoud_taxes::where('invoice_id', $id)
             ->where('save', 1)
@@ -35,6 +37,8 @@ class DeliveryReturnController extends Controller
      */
     public function store(Request $request, $id)
     {
+        $this->authorize('delivery.view');
+
         $items = json_decode((string) $request->input('items_json'), true) ?: [];
         $request->merge(['items' => $items]);
 

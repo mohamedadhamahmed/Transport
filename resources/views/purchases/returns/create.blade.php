@@ -213,7 +213,7 @@
             document.getElementById('info-purchase-no').textContent = '#' + (data.purchase.purchase_number ?? data.purchase.id);
             document.getElementById('info-supplier').textContent = data.purchase.supplier_name ?? '-';
             document.getElementById('info-payment-method').textContent = data.purchase.is_credit
-                ? __('purchase_returns.credit')
+                ? @json(__('purchase_returns.credit'))
                 : (data.purchase.payment_account_name ?? __('purchase_returns.payment_immediate'));
 
             if (data.purchase.is_credit) {
@@ -311,7 +311,7 @@
         // أول تحميل للصفحة: نجيب كل الفواتير القابلة للإرجاع (بدون فلترة)
         runSearch();
 
-        // منع الحفظ المتكرر: لو ضغطتِ "حفظ" أكتر من مرة بسرعة (دبل كليك، أو
+        // منع الحفظ المتكرر: لو ضغطت "حفظ" أكتر من مرة بسرعة (دبل كليك، أو
         // ضغط تاني قبل ما الصفحة تحمّل صفحة النتيجة)، كانت بتتبعت أكتر من
         // request بنفس الكميات - الطلب التاني كان بيوصل بعد ما الأول خلاص
         // نقص "المتاح للإرجاع" فعليًا، فكان بيظهر خطأ "الكمية أكبر من

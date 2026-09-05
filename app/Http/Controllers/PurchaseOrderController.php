@@ -18,6 +18,8 @@ class PurchaseOrderController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('purchases.orders');
+
         $query = PurchaseOrder::with(['supplier', 'branch', 'creator'])->latest();
 
         if ($request->filled('supplier_id')) {
@@ -40,6 +42,8 @@ class PurchaseOrderController extends Controller
 
     public function create()
     {
+        $this->authorize('purchases.orders');
+
         $suppliers = Supplier::orderBy('name')->get();
         $branches = Branch::orderBy('name')->get();
         $costCenters = CostCenter::orderBy('cost_center_ar')->get();
@@ -56,6 +60,8 @@ class PurchaseOrderController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('purchases.orders');
+
         $items = json_decode((string) $request->input('items_json'), true) ?: [];
         $request->merge(['items' => $items]);
 
@@ -154,6 +160,8 @@ class PurchaseOrderController extends Controller
      */
     public function cancel(PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('purchases.orders');
+
         if (!$purchaseOrder->isPending()) {
             return redirect()->route('purchase-orders.show', $purchaseOrder)
                 ->with('error', __('purchase_orders.already_processed'));

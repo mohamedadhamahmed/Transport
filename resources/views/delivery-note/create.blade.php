@@ -1,28 +1,94 @@
 <x-app-layout>
-    {{-- TomSelect - لتحسين قايمة اختيار العميل (بحث) --}}
-    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    @php
+        // صلاحية عرض الربح: صاحب الشركة ممكن يمنع بعض الموظفين من شوفان
+        // عمود/بطاقة الربح في شاشة سند التسليم (نفس الصلاحية مستخدمة في
+        // الفواتير وعروض الأسعار كمان).
+        $canViewProfit = auth()->user()?->hasPermission('sensitive_data.view_profit');
+    @endphp
+    {{-- TomSelect - لتحسين قايمة اختيار العميل (بحث).
+         ⚠️ منحملش قالب Bootstrap 5 الجاهز (tom-select.bootstrap5.min.css) لإن
+         المشروع كله Tailwind من غير Bootstrap - كان بيطلع شبه فاضي من غير
+         حدود/خلفية. الأنماط تحت مستقلة بالكامل ومطابقة لشكل حقول الفورم. --}}
     <style>
+        .ts-wrapper {
+            position: relative;
+            width: 100%;
+        }
         .ts-wrapper.single .ts-control {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            box-sizing: border-box;
             border-radius: 0.5rem;
-            border-color: #d1d5db;
+            border: 1px solid #d1d5db;
             background-color: #fff;
             min-height: 42px;
-            padding: 0.5rem 0.75rem;
+            padding-inline-start: 0.75rem;
+            padding-inline-end: 1.75rem;
+            padding-block: 0.5rem;
+            font-size: 0.875rem;
+            color: rgb(17 24 39);
+            cursor: pointer;
+            overflow: hidden;
+            transition: border-color .15s ease, box-shadow .15s ease;
         }
-        .ts-wrapper.single.focus .ts-control {
+        .ts-wrapper.single.focus .ts-control,
+        .ts-wrapper.single.dropdown-active .ts-control {
             border-color: #1456E8;
             box-shadow: 0 0 0 1px #1456E8;
         }
+        .ts-wrapper.single .ts-control::after {
+            content: "";
+            position: absolute;
+            inset-inline-end: 0.85rem;
+            top: 50%;
+            width: 0.4rem;
+            height: 0.4rem;
+            border-inline-end: 1.5px solid rgb(156 163 175);
+            border-block-end: 1.5px solid rgb(156 163 175);
+            transform: translateY(-70%) rotate(45deg);
+            pointer-events: none;
+        }
+        .ts-control input {
+            color: inherit;
+            font-size: inherit;
+            background: transparent;
+            min-width: 2rem;
+            cursor: pointer;
+        }
+        .ts-control input::placeholder { color: rgb(156 163 175); }
+        .ts-wrapper.single .ts-control > .item {
+            color: rgb(17 24 39);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         .ts-dropdown {
             z-index: 9999;
+            margin-top: 0.25rem;
             background-color: #fff;
             border-radius: 0.5rem;
-            border-color: #d1d5db;
+            border: 1px solid #d1d5db;
             box-shadow: 0 10px 25px -5px rgba(15, 27, 76, 0.18), 0 8px 10px -6px rgba(15, 27, 76, 0.12);
             overflow: hidden;
+            font-size: 0.875rem;
+            text-align: start;
         }
-        .ts-dropdown .option { white-space: normal; word-break: break-word; padding: 0.55rem 0.75rem; }
-        .ts-dropdown .active { background-color: #1456E8; color: #fff; }
+        .ts-dropdown .ts-dropdown-content { max-height: 15rem; overflow-y: auto; }
+        .ts-dropdown .option { white-space: normal; word-break: break-word; padding: 0.55rem 0.75rem; cursor: pointer; }
+        .ts-dropdown .option.active,
+        .ts-dropdown .option:hover { background-color: #1456E8; color: #fff; }
+        .ts-hidden-accessible {
+            border: 0 !important;
+            clip: rect(0 0 0 0) !important;
+            clip-path: inset(50%) !important;
+            height: 1px !important;
+            overflow: hidden !important;
+            padding: 0 !important;
+            position: absolute !important;
+            width: 1px !important;
+            white-space: nowrap !important;
+        }
     </style>
 
     @php
@@ -34,10 +100,15 @@
     <div class="py-6" x-data="deliveryForm()">
         <div class="max-w-[1680px] mx-auto sm:px-6 lg:px-8 space-y-6">
 
-            {{-- هيدر الصفحة بلون البراند الكحلي --}}
-            <div class="rounded-2xl bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] px-5 sm:px-6 py-5 shadow-lg shadow-[#0F1B4C]/15 flex items-center justify-between flex-wrap gap-4">
-                <div class="flex items-center gap-3">
-                    <span class="w-11 h-11 shrink-0 rounded-xl bg-white/10 flex items-center justify-center">
+            {{-- هيدر الصفحة بلون البراند الكحلي - نسخة أحدث بزخرفة خلفية
+                 خفيفة + شارة أيقونة برتقالية + تفرقة واضحة بين الزرار
+                 الأساسي (السجل، أبيض صريح) والثانوي (الحاسبة، شفاف) --}}
+            <div class="relative overflow-hidden rounded-2xl bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] px-5 sm:px-7 py-6 shadow-lg shadow-[#0F1B4C]/15 flex items-center justify-between flex-wrap gap-4">
+                <span class="absolute -top-12 -end-12 w-40 h-40 rounded-full bg-white/5 pointer-events-none"></span>
+                <span class="absolute -bottom-16 -start-16 w-52 h-52 rounded-full bg-[#F5811E]/10 pointer-events-none"></span>
+
+                <div class="relative flex items-center gap-4">
+                    <span class="w-12 h-12 shrink-0 rounded-xl bg-[#F5811E]/15 ring-1 ring-white/10 flex items-center justify-center">
                         <svg class="w-6 h-6 text-[#F5811E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M3 8l9-5 9 5-9 5-9-5Z" />
                             <path d="M3 8v8l9 5 9-5V8" />
@@ -45,13 +116,22 @@
                         </svg>
                     </span>
                     <div>
-                        <h2 class="text-white font-bold text-lg leading-tight">{{ __('deliverynote.delivery_product') }}</h2>
-                        <p class="text-white/45 text-xs mt-0.5">{{ __('deliverynote.delivery_product_subtitle') }}</p>
+                        <p class="text-[11px] font-bold text-white/40 uppercase tracking-wide">{{ __('deliverynote.title') }}</p>
+                        <h2 class="text-white font-bold text-xl leading-tight mt-0.5">{{ __('deliverynote.delivery_product') }}</h2>
+                        <p class="text-white/60 text-xs mt-1">{{ __('deliverynote.delivery_product_subtitle') }}</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="relative flex items-center gap-2">
+                    <button type="button" id="open-tax-calculator-btn"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-white/10 hover:bg-white/20 border border-white/10 transition whitespace-nowrap">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="4" y="2" width="16" height="20" rx="2" />
+                            <path d="M8 6h8M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01" />
+                        </svg>
+                        حاسبة الضريبة والخصم
+                    </button>
                     <a href="{{ route('deliverynote.history') }}"
-                       class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
+                       class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-[#0F1B4C] bg-white hover:bg-white/95 transition whitespace-nowrap shadow-sm">
                         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M4 19.5V6a2 2 0 0 1 2-2h9l5 5v10.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
                             <path d="M14 4v4a1 1 0 0 0 1 1h4" />
@@ -75,8 +155,8 @@
                                 <select name="customer_id" id="customer_select" x-model="selectedCustomerId"
                                         class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]" required>
                                     <option value="1">{{ __('deliverynote.cash_customer') }}</option>
-                                    @foreach($Customer as $customer)
-                                        <option value="{{ $customer->id }}">{{ $customer->name }}</option>
+                                    @foreach($Customer as $id => $name)
+                                        <option value="{{ $id }}" selected>{{ $name }}</option>
                                     @endforeach
                                 </select>
                                 <button type="button" @click="customerModalOpen = true"
@@ -97,6 +177,17 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">P.O#</label>
                             <input type="text" name="po_number" x-model="poNumber"
                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('deliverynote.tax') }}</label>
+                            <select x-model.number="taxRate"
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                <option value="0">{{ __('deliverynote.tax') }} 0%</option>
+                                @foreach ($taxes as $tax)
+                                    <option value="{{ $tax->rate / 100 }}" @selected(abs($tax->rate / 100 - $defaultTaxRate) < 0.0001)>({{ $tax->rate }}%) {{ $tax->name }}</option>
+                                @endforeach
+                            </select>
+                            <p class="text-[11px] text-gray-400 mt-1">{{ __('deliverynote.tax_estimate_note') }}</p>
                         </div>
                     </div>
                 </div>
@@ -148,6 +239,9 @@
                                     <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('deliverynote.unit_price') }}</th>
                                     <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('deliverynote.discount') }}</th>
                                     <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('deliverynote.total') }}</th>
+                                    @if ($canViewProfit)
+                                        <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('deliverynote.profit_per_unit') }}</th>
+                                    @endif
                                     <th class="px-3 py-2.5"></th>
                                 </tr>
                             </thead>
@@ -169,6 +263,9 @@
                                                    class="w-24 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                         </td>
                                         <td class="px-3 py-2 font-semibold text-[#0F1B4C]" x-text="lineTotal(item).toFixed(2)"></td>
+                                        @if ($canViewProfit)
+                                            <td class="px-3 py-2" :class="lineProfit(item) < 0 ? 'text-red-600' : 'text-emerald-600'" x-text="lineProfit(item).toFixed(2)"></td>
+                                        @endif
                                         <td class="px-3 py-2">
                                             <button type="button" @click="removeItem(index)"
                                                     class="inline-flex items-center gap-1 text-red-600 hover:text-red-700 text-xs font-medium">
@@ -181,7 +278,7 @@
                                     </tr>
                                 </template>
                                 <tr x-show="items.length === 0">
-                                    <td colspan="7" class="px-3 py-8 text-center text-gray-400">
+                                    <td colspan="{{ $canViewProfit ? 8 : 7 }}" class="px-3 py-8 text-center text-gray-400">
                                         {{ __('deliverynote.no_items_yet') }}
                                     </td>
                                 </tr>
@@ -199,7 +296,7 @@
                     </div>
 
                     {{-- الإجماليات --}}
-                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6">
+                    <div class="grid grid-cols-2 {{ $canViewProfit ? 'md:grid-cols-5' : 'md:grid-cols-4' }} gap-4 mt-6">
                         <div class="bg-[#0F1B4C]/5 border border-[#0F1B4C]/10 rounded-lg p-4 text-center">
                             <div class="text-xs text-gray-500 mb-1">{{ __('deliverynote.total') }}</div>
                             <div class="font-semibold text-[#0F1B4C]" x-text="subtotal.toFixed(2)"></div>
@@ -208,6 +305,16 @@
                             <div class="text-xs text-gray-500 mb-1">{{ __('deliverynote.discount_on_invoice') }}</div>
                             <div class="font-semibold text-[#0F1B4C]" x-text="(parseFloat(discountOnInvoice) || 0).toFixed(2)"></div>
                         </div>
+                        <div class="bg-[#0F1B4C]/5 border border-[#0F1B4C]/10 rounded-lg p-4 text-center">
+                            <div class="text-xs text-gray-500 mb-1">{{ __('deliverynote.tax_total') }}</div>
+                            <div class="font-semibold text-[#0F1B4C]" x-text="taxAmount.toFixed(2)"></div>
+                        </div>
+                        @if ($canViewProfit)
+                            <div class="bg-emerald-50 border border-emerald-100 rounded-lg p-4 text-center">
+                                <div class="text-xs text-gray-500 mb-1">{{ __('deliverynote.total_profit') }}</div>
+                                <div class="font-semibold text-emerald-700" x-text="totalProfit.toFixed(2)"></div>
+                            </div>
+                        @endif
                         <div class="rounded-lg p-4 text-center text-white bg-[#0F1B4C] relative overflow-hidden">
                             <span class="absolute inset-x-0 bottom-0 h-0.5 bg-[#F5811E]"></span>
                             <div class="text-xs text-white/50 mb-1">{{ __('deliverynote.pending_value') }}</div>
@@ -229,6 +336,8 @@
                 </div>
             </form>
         </div>
+
+        @include('partials.tax-calculator-modal')
 
         {{-- مودال إضافة عميل سريع --}}
         <div x-show="customerModalOpen" x-cloak
@@ -325,11 +434,24 @@
         <div x-show="productModalOpen" x-cloak
              class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div class="bg-white rounded-xl p-6 w-full max-w-2xl my-8" @click.outside="productModalOpen = false">
-                <h3 class="font-semibold text-lg text-gray-800 mb-4">{{ __('deliverynote.quick_add_product') }}</h3>
+                <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <h3 class="font-semibold text-lg text-gray-800">{{ __('deliverynote.quick_add_product') }}</h3>
+                    <label class="flex items-center gap-2 text-sm font-medium text-red-600 cursor-pointer">
+                        <input type="checkbox" x-model="translateEnabled"
+                               @change="translateEnabled && newProduct.name ? translateProductName() : null"
+                               class="rounded border-gray-300 text-[#1456E8] focus:ring-[#1456E8]">
+                        تفعيل الترجمة
+                    </label>
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('deliverynote.product_name') }} *</label>
-                        <input type="text" x-model="newProduct.name"
+                        <input type="text" x-model="newProduct.name" @blur="translateEnabled ? translateProductName() : null"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('deliverynote.product_name_en') }}</label>
+                        <input type="text" x-model="newProduct.name_en"
                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                     </div>
                     <div>
@@ -488,14 +610,16 @@
                     plot_identification: '', postal_code: '',
                 },
                 productModalOpen: false,
+                translateEnabled: false,
                 newProduct: {
-                    name: '', code: '', location: '', unit: '',
+                    name: '', name_en: '', code: '', location: '', unit: '',
                     stock_quantity: 0, purchase_price: 0, sale_price: 0,
                     low_stock_alert_quantity: 0, notes: '',
                 },
                 note: '',
                 poNumber: '',
                 discountOnInvoice: 0,
+                taxRate: {{ $defaultTaxRate }},
 
                 init() {
                     const el = document.getElementById('customer_select');
@@ -503,6 +627,19 @@
                         this.customerTomSelect = new TomSelect(el, {
                             create: false,
                             placeholder: '-',
+                            valueField: 'id',
+                            labelField: 'text',
+                            searchField: [],
+                            load: (query, callback) => {
+                                if (!query || query.length < 2) {
+                                    callback();
+                                    return;
+                                }
+                                fetch(`{{ route('customers.search') }}?q=` + encodeURIComponent(query))
+                                    .then((res) => res.json())
+                                    .then((json) => callback(json))
+                                    .catch(() => callback());
+                            },
                             onChange: (value) => {
                                 this.selectedCustomerId = value;
                             },
@@ -526,6 +663,7 @@
                         code: p.code,
                         quantity: 1,
                         unit_price: parseFloat(p.sale_price) || 0,
+                        purchase_price: parseFloat(p.purchase_price) || 0,
                         discount: 0,
                     });
                     this.searchQuery = '';
@@ -591,7 +729,7 @@
                     const data = await res.json();
                     if (data.id) {
                         if (this.customerTomSelect) {
-                            this.customerTomSelect.addOption({ value: String(data.id), text: data.name });
+                            this.customerTomSelect.addOption({ id: String(data.id), text: data.name });
                             this.customerTomSelect.addItem(String(data.id));
                         } else {
                             const select = document.getElementById('customer_select');
@@ -612,6 +750,20 @@
                     }
                 },
 
+                async translateProductName() {
+                    if (!this.newProduct.name) {
+                        return;
+                    }
+                    try {
+                        const res = await fetch(`{{ route('products.translate') }}?text=` + encodeURIComponent(this.newProduct.name));
+                        const data = await res.json();
+                        if (data && data.translated) {
+                            this.newProduct.name_en = data.translated;
+                        }
+                    } catch (e) {
+                        // نتجاهل أي خطأ شبكة/ترجمة بهدوء - الحقل هيفضل قابل للتعديل يدويًا
+                    }
+                },
                 async createProduct() {
                     if (!this.newProduct.name) {
                         Swal.fire({
@@ -636,7 +788,7 @@
                         this.addProduct(data);
                         this.productModalOpen = false;
                         this.newProduct = {
-                            name: '', code: '', location: '', unit: '',
+                            name: '', name_en: '', code: '', location: '', unit: '',
                             stock_quantity: 0, purchase_price: 0, sale_price: 0,
                             low_stock_alert_quantity: 0, notes: '',
                         };
@@ -647,12 +799,26 @@
                     return ((parseFloat(item.unit_price) || 0) * (parseFloat(item.quantity) || 0)) - (parseFloat(item.discount) || 0);
                 },
 
+                lineProfit(item) {
+                    return (parseFloat(item.unit_price) || 0) - (parseFloat(item.purchase_price) || 0);
+                },
+
                 get subtotal() {
                     return this.items.reduce((sum, i) => sum + this.lineTotal(i), 0);
                 },
 
+                get totalProfit() {
+                    // إجمالي الربح = مجموع (الربح على القطعة × الكمية) لكل الأصناف
+                    return this.items.reduce((sum, i) => sum + (this.lineProfit(i) * (parseFloat(i.quantity) || 0)), 0);
+                },
+
+                get taxAmount() {
+                    const net = this.subtotal - (parseFloat(this.discountOnInvoice) || 0);
+                    return net > 0 ? net * (parseFloat(this.taxRate) || 0) : 0;
+                },
+
                 get grandTotal() {
-                    const total = this.subtotal - (parseFloat(this.discountOnInvoice) || 0);
+                    const total = this.subtotal - (parseFloat(this.discountOnInvoice) || 0) + this.taxAmount;
                     return total > 0 ? total : 0;
                 },
 

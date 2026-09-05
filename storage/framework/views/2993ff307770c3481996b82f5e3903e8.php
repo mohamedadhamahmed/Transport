@@ -10,7 +10,7 @@
 <?php $component->withAttributes([]); ?>
 
     <div class="py-6">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+        <div class="dc-max-w-page mx-auto sm:px-6 lg:px-8 space-y-6">
 
             
             <div class="rounded-2xl bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] px-5 sm:px-6 py-5 shadow-lg shadow-[#0F1B4C]/15 flex items-center justify-between flex-wrap gap-4">
@@ -45,10 +45,14 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-500 mb-1"><?php echo e(__('invoices.customer')); ?></label>
-                            <select name="customer_id" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            <select name="customer_id" data-ajax-select data-ajax-url="<?php echo e(route('customers.search')); ?>"
+                                    data-ajax-placeholder="<?php echo e(__('invoices.all_customers')); ?>"
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                 <option value=""><?php echo e(__('invoices.all_customers')); ?></option>
-                                <?php $__currentLoopData = $customers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $customer): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <option value="<?php echo e($customer->id); ?>" <?php if(request('customer_id') == $customer->id): echo 'selected'; endif; ?>><?php echo e($customer->name); ?></option>
+                                <?php $__currentLoopData = $customers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $id => $name): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php if($name): ?>
+                                        <option value="<?php echo e($id); ?>" selected><?php echo e($name); ?></option>
+                                    <?php endif; ?>
                                 <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </select>
                         </div>
@@ -167,9 +171,27 @@
             </span>
         <?php endif; ?>
 
+        
+        <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('invoices.edit')): ?>
+            <?php if($invoice->isEditable()): ?>
+                <a href="<?php echo e(route('invoices.edit', $invoice)); ?>" title="<?php echo e(__('invoices.edit')); ?>"
+                   class="w-7 h-7 flex items-center justify-center rounded-md bg-amber-50 text-amber-600 hover:bg-amber-100 transition">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                    </svg>
+                </a>
+            <?php else: ?>
+                <span title="<?php echo e(__('invoices.not_editable')); ?>"
+                      class="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 text-gray-400 cursor-not-allowed">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                    </svg>
+                </span>
+            <?php endif; ?>
+        <?php endif; ?>
+
         <?php
             $comingSoonIcons = [
-                'edit' => '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
                 'print' => '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
             ];
         ?>
@@ -226,6 +248,8 @@
             </div>
         </div>
     </div>
+
+    <?php echo $__env->make('partials.ajax-select-assets', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
  <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
 <?php if (isset($__attributesOriginal9ac128a9029c0e4701924bd2d73d7f54)): ?>

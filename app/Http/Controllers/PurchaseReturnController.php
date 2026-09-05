@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\Validator;
  *   الفوري بنزود فيه (استرداد).
  *
  * المرتجع هنا لازم يكون مرتبط بفاتورة شراء موجودة بالفعل (purchase_id) -
- * مفيش مرتجع حر من غير فاتورة أصلية، ومينفعش ترجعي كمية أكتر من
+ * مفيش مرتجع حر من غير فاتورة أصلية، ومينفعش ترجع كمية أكتر من
  * "الكمية المتاحة" على كل سطر (quantity - returned_quantity).
  */
 class PurchaseReturnController extends Controller
@@ -43,7 +43,7 @@ class PurchaseReturnController extends Controller
      * InvoiceReturnController@store بيسجل بـ operation_type=2 (مش 1!).
      * يعني الترقيم المستخدم فعليًا في الكود هو: 1=فاتورة بيع، 2=مرتجع
      * بيع، 3=فاتورة شراء - فكملت نفس التسلسل الفعلي ده بـ 4=مرتجع شراء.
-     * *** تأكدي إن الرقم ده مش متاستخدم لحاجة تانية عندك قبل ما تشغلي
+     * *** تأكد إن الرقم ده مش متاستخدم لحاجة تانية عندك قبل ما تشغل
      * النظام على بيانات حقيقية ***.
      */
     const OPERATION_TYPE = 4;
@@ -53,6 +53,8 @@ class PurchaseReturnController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('purchases.returns');
+
         $query = PurchaseReturn::with(['purchase', 'supplier', 'branch', 'creator'])->latest();
 
         if ($request->filled('supplier_id')) {
@@ -71,6 +73,8 @@ class PurchaseReturnController extends Controller
      */
     public function create()
     {
+        $this->authorize('purchases.returns');
+
         return view('purchases.returns.create');
     }
 
@@ -154,7 +158,7 @@ class PurchaseReturnController extends Controller
     /**
      * حسابات الدفع الفورية (نقدي/بنك/شبكة) الخاصة بفرع معيّن - نفس
      * الاستعلام المستخدم في PurchaseController، بتتنادى بالـ ajax عشان
-     * تختاري منها "حساب الاسترداد" لو الفاتورة الأصلية كانت دفع فوري.
+     * تختار منها "حساب الاسترداد" لو الفاتورة الأصلية كانت دفع فوري.
      */
     public function refundAccountsForBranch(Request $request, $branchId)
     {
@@ -168,13 +172,32 @@ class PurchaseReturnController extends Controller
 
     public function show(PurchaseReturn $purchaseReturn)
     {
+        $this->authorize('purchases.returns');
+
         $purchaseReturn->load(['purchase', 'supplier', 'branch', 'creator', 'costCenter', 'items.product', 'refundAccount']);
 
         return view('purchases.returns.show', compact('purchaseReturn'));
     }
 
+    /**
+     * تحميل مرتجع المشتريات PDF - نفس فكرة PurchaseController::downloadPdf()
+     * بالظبط، بس على قالب purchases.returns.pdf.
+     */
+    public function downloadPdf(PurchaseReturn $purchaseReturn)
+    {
+        $this->authorize('purchases.returns');
+
+        $purchaseReturn->load(['purchase', 'supplier', 'branch', 'creator', 'costCenter', 'items.product', 'refundAccount']);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('purchases.returns.pdf', compact('purchaseReturn'))->setPaper('a4');
+
+        return $pdf->download('purchase-return-' . ($purchaseReturn->return_number ?? $purchaseReturn->id) . '.pdf');
+    }
+
     public function store(Request $request)
     {
+        $this->authorize('purchases.returns');
+
         $items = json_decode((string) $request->input('items_json'), true) ?: [];
         $request->merge(['items' => $items]);
 
@@ -205,7 +228,7 @@ class PurchaseReturnController extends Controller
 
     /**
      * القلب المحاسبي لمرتجع المشتريات - شوفي التعليق التفصيلي أعلى
-     * الكلاس. أهم فرضيتين لازم تتأكدي منهم:
+     * الكلاس. أهم فرضيتين لازم تتأكد منهم:
      *
      * 1) متوسط التكلفة (average_cost) وسعر الشراء (purchase_price) بتاع
      *    المنتج مش بيترجعوا لقيمتهم قبل الفاتورة الأصلية - بس بننقص
@@ -216,8 +239,8 @@ class PurchaseReturnController extends Controller
      *
      * 2) رسوم الشحن (shipping_fee) على الفاتورة الأصلية مش بترتد هنا
      *    خالص حتى لو رجعتِ كل أصناف الفاتورة - افتراض إن الشحن خدمة
-     *    اتنفذت فعلاً ومش قابلة للاسترجاع. لو عايزة رد نسبي منها مع كل
-     *    مرتجع، قوليلي أظبطها.
+     *    اتنفذت فعلاً ومش قابلة للاسترجاع. لو عايز رد نسبي منها مع كل
+     *    مرتجع، قوللي أظبطها.
      */
     protected function finalizePurchaseReturn(array $validated): PurchaseReturn
     {
@@ -437,7 +460,7 @@ class PurchaseReturnController extends Controller
         }
 
         // 5. عكس ضريبة القيمة المضافة المدخلة (102) - بتنقص رصيدها المدين
-        //    (بترجعي جزء من الضريبة اللي كانت هترجع ليكي كضريبة مشتريات).
+        //    (بترجع جزء من الضريبة اللي كانت هترجع ليكي كضريبة مشتريات).
         if ($returnTax > 0) {
             $vatAccount = FinancialAccount::where('parent_account_number', 102)
                 ->where('branchs_id', $branchId)

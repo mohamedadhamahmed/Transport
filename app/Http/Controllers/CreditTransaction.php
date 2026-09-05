@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Model;
  * نحدد $table صريح تحت عشان يفضل يشاور على نفس الجدول.
  *
  * ملاحظة: علاقة costCenter() بتشاور على موديل/جدول CostCenter اللي
- * لسه مش متبني في المشروع ده - هتحتاجي تعمليه لو هتستخدمي مراكز
+ * لسه مش متبني في المشروع ده - هتحتاج تعمله لو هتستخدم مراكز
  * التكلفة فعليًا.
  */
 class CreditTransaction extends Model

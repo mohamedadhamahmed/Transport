@@ -34,8 +34,8 @@ return new class extends Migration
             $table->string('supplier_invoice_number')->nullable();
             $table->string('purchase_number')->nullable();
 
-            // حقلين نصيين بسيطين (v1) - لو حابة تتحولوا لجداول كاملة
-            // (مخازن فرعية / مراكز تكلفة) بعدين قوليلي.
+            // حقلين نصيين بسيطين (v1) - لو حابب تتحولوا لجداول كاملة
+            // (مخازن فرعية / مراكز تكلفة) بعدين قوللي.
             $table->string('warehouse_name')->nullable();
             $table->string('cost_center')->nullable();
 

@@ -8,7 +8,7 @@ namespace App\Support;
  * الأرقام من 1 لـ 4 دي مش أنا اللي حطيتها - دي القيم اللي فعليًا
  * مستخدمة في الكود بتاعك بالفعل (PurchaseController -> 3، الشحن
  * والمورد والمخزون والضريبة كلهم operation_type = 3، و
- * PurchaseReturnController -> self::OPERATION_TYPE = 4). لاحظي إن ده
+ * PurchaseReturnController -> self::OPERATION_TYPE = 4). لاحظ إن ده
  * بيخالف تعليق الميجريشن القديمة اللي كانت مكتوب فيها "1=مبيعات،
  * 2=مشتريات، 3=سند قبض..." - يعني فيه تعارض بين التعليق والكود
  * الفعلي، وأنا هنا ماشي مع الكود الفعلي الشغال مش التعليق.
@@ -25,6 +25,14 @@ namespace App\Support;
  *   8 = سند صرف
  *   9 = قيد يومية (يدوي)
  *   10 = قيد افتتاحي (محجوز لاستخدام مستقبلي - مش مستخدم في الشاشات دي حاليًا)
+ *
+ * والأرقام الجديدة الخاصة بقسم الموارد البشرية (EmployeeLoanController/
+ * EndOfServiceController لاحقًا) - أرقام جديدة كليًا مش مستخدمة في أي
+ * حتة تانية في المشروع وقت كتابة الكود ده:
+ *   11 = صرف سلفة/عهدة لموظف
+ *   12 = تسوية/استرداد سلفة أو عهدة
+ *   13 = قيد مكافأة نهاية الخدمة
+ *   14 = ترحيل رواتب شهرية (PayrollController@postMonth)
  */
 class OperationType
 {
@@ -44,6 +52,14 @@ class OperationType
 
     public const OPENING_ENTRY = 10;
 
+    public const EMPLOYEE_LOAN = 11;
+
+    public const EMPLOYEE_LOAN_SETTLEMENT = 12;
+
+    public const END_OF_SERVICE = 13;
+
+    public const PAYROLL = 14;
+
     public const LABELS = [
         self::SALE_INVOICE => 'فاتورة مبيعات',
         self::SALE_RETURN => 'مرتجع مبيعات',
@@ -53,6 +69,10 @@ class OperationType
         self::PAYMENT_VOUCHER => 'سند صرف',
         self::JOURNAL_ENTRY => 'قيد يومية',
         self::OPENING_ENTRY => 'قيد افتتاحي',
+        self::EMPLOYEE_LOAN => 'صرف سلفة/عهدة لموظف',
+        self::EMPLOYEE_LOAN_SETTLEMENT => 'تسوية سلفة/عهدة',
+        self::END_OF_SERVICE => 'مكافأة نهاية الخدمة',
+        self::PAYROLL => 'ترحيل رواتب شهرية',
     ];
 
     public static function label(?int $type): ?string

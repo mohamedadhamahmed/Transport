@@ -17,6 +17,7 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
+                    @can('delivery.create')
                     <a href="{{ route('delivery.create') }}"
                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition whitespace-nowrap">
                         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -24,6 +25,7 @@
                         </svg>
                         {{ __('delivery.new_product') }}
                     </a>
+                    @endcan
                 </div>
             </div>
 
@@ -42,10 +44,14 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('delivery.chooseclient') }}</label>
-                        <select name="customer_id" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                        <select name="customer_id" data-ajax-select data-ajax-url="{{ route('customers.search') }}"
+                                data-ajax-placeholder="{{ __('delivery.all') }}"
+                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                             <option value="">{{ __('delivery.all') }}</option>
-                            @foreach($Customer as $customer)
-                                <option value="{{ $customer->id }}" @selected(request('customer_id') == $customer->id)>{{ $customer->name }}</option>
+                            @foreach($Customer as $id => $name)
+                                @if ($name)
+                                    <option value="{{ $id }}" selected>{{ $name }}</option>
+                                @endif
                             @endforeach
                         </select>
                     </div>
@@ -97,6 +103,7 @@
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="flex items-center gap-2">
+                                        @can('delivery.view')
                                         <a href="{{ route('delivery.show', $invoice->id) }}" target="_blank"
                                            class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#1456E8] bg-[#1456E8]/10 hover:bg-[#1456E8]/20 transition">
                                             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -104,6 +111,8 @@
                                             </svg>
                                             {{ __('delivery.view') }}
                                         </a>
+                                        @endcan
+                                        @can('delivery.view')
                                         <a href="{{ route('delivery.return.create', $invoice->id) }}"
                                            class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#F5811E] bg-[#F5811E]/10 hover:bg-[#F5811E]/20 transition">
                                             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -111,6 +120,7 @@
                                             </svg>
                                             {{ __('delivery.delivery_return') }}
                                         </a>
+                                        @endcan
                                     </div>
                                 </td>
                             </tr>
@@ -132,4 +142,6 @@
 
         </div>
     </div>
+
+    @include('partials.ajax-select-assets')
 </x-app-layout>

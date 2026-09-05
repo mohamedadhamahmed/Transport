@@ -41,6 +41,11 @@ return [
     'final' => 'Final',
     'draft' => 'Draft',
     'view' => 'View',
+    'edit' => 'Edit',
+    'edit_invoice' => 'Edit Sales Invoice',
+    'update_invoice' => 'Save Changes',
+    'updated_successfully' => 'Invoice updated successfully',
+    'not_editable' => 'This invoice cannot be edited - it is either a draft or has a sales return recorded against it',
     'back_to_list' => 'Back to invoices',
     'items' => 'Items',
     'created_by' => 'Created by',
@@ -90,4 +95,8 @@ return [
     'draft_saved_successfully' => 'Draft saved successfully',
     'draft_deleted_successfully' => 'Draft deleted successfully',
     'draft_loaded_notice' => 'You are editing a previous draft - clicking "Save Invoice" will turn it into an official invoice with a real number, or you can save your changes as a draft again.',
+
+    // "Send to ZATCA / Print" modal shown right after saving
+    'save_choice_prompt' => 'What would you like to do now?',
+    'close' => 'Close',
 ];

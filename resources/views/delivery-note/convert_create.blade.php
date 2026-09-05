@@ -1,6 +1,6 @@
 <x-app-layout>
     @php
-        $itemsForJs = $items->map(function ($item) {
+        $itemsForJs = $items->map(function ($item) use ($defaultTaxRate) {
             $available = $item->quantity - $item->quantityreturn - $item->invoiced_quantity;
             return [
                 'sales_item_id' => $item->id,
@@ -13,7 +13,7 @@
                 'unit_price' => (float) $item->Unit_Price,
                 'selected' => false,
                 'invoice_qty' => $available,
-                'tax_rate' => 0.15,
+                'tax_rate' => $defaultTaxRate,
             ];
         })->values();
     @endphp
@@ -79,7 +79,7 @@
                                                    class="w-24 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8] disabled:bg-gray-100">
                                         </td>
                                         <td class="px-3 py-2 text-gray-600" x-text="item.unit_price.toFixed(2)"></td>
-                                        <td class="px-3 py-2 text-gray-500" x-text="((item.tax_rate || 0) * 100) + '%'"></td>
+                                        <td class="px-3 py-2 text-gray-500" x-text="formatTaxRate(item.tax_rate) + '%'"></td>
                                         <td class="px-3 py-2 font-semibold text-[#0F1B4C]" x-text="lineTotal(item).toFixed(2)"></td>
                                     </tr>
                                 </template>
@@ -88,7 +88,7 @@
                     </div>
 
                     {{-- طريقة الدفع للفاتورة الناتجة --}}
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('deliverynote.payment_method') }} *</label>
                             <select name="payment_method" x-model="paymentMethod"
@@ -98,6 +98,15 @@
                                 <option value="card">{{ __('deliverynote.card') }}</option>
                                 <option value="credit">{{ __('deliverynote.credit') }}</option>
                                 <option value="split">{{ __('deliverynote.split') }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('deliverynote.tax') }}</label>
+                            <select x-model.number="defaultTaxRate" @change="applyDefaultTaxRate()"
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                @foreach ($taxes as $tax)
+                                    <option value="{{ $tax->rate / 100 }}">({{ $tax->rate }}%) {{ $tax->name }}</option>
+                                @endforeach
                             </select>
                         </div>
                         <div>
@@ -165,10 +174,17 @@
                 cashAmount: 0,
                 bankAmount: 0,
                 note: '',
+                defaultTaxRate: {{ $defaultTaxRate }},
 
                 init() {
                     const el = document.getElementById('convert-items-data');
                     this.items = el ? JSON.parse(el.textContent) : [];
+                },
+
+                applyDefaultTaxRate() {
+                    this.items.forEach(i => {
+                        i.tax_rate = this.defaultTaxRate;
+                    });
                 },
 
                 lineTotal(item) {
@@ -177,6 +193,14 @@
                     const price = parseFloat(item.unit_price) || 0;
                     const sub = qty * price;
                     return sub + (sub * (parseFloat(item.tax_rate) || 0));
+                },
+
+                // بيرجع نسبة الضريبة كنص منسّق لمنزلتين عشريتين بعد التقريب
+                // عشان نتجنب مشاكل الفاصلة العشرية في JavaScript (0.14 * 100
+                // ممكن تطلع 14.000000000000002 بدل 14 بالظبط).
+                formatTaxRate(rate) {
+                    const value = Math.round(((parseFloat(rate) || 0) * 100) * 100) / 100;
+                    return (Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2)).replace(/\.00$/, '');
                 },
 
                 get selectedItems() {

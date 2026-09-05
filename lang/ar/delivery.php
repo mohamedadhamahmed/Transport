@@ -11,16 +11,17 @@
 return [
 
     // ===== عناوين عامة =====
-    'delivery_product' => 'تسليم منتج',
-    'delivery_product_subtitle' => 'إنشاء سند تسليم منتج جديد للعميل',
+    'delivery_product' => 'تسليم منتج (قديم)',
+    'delivery_product_subtitle' => 'إنشاء سند تسليم منتج (قديم) جديد للعميل',
     'delivery_invoice' => 'سند تسليم',
-    'delivery_history' => 'التسليمات السابقة',
+    'delivery_history' => 'التسليمات السابقة (قديم)',
     'delivery_return' => 'مرتجع تسليمات',
 
     // ===== فورم تسليم منتج =====
     'new_product' => 'منتج جديد',
     'product_number' => 'رقم المنتج',
     'product_name' => 'اسم المنتج',
+    'product_name_en' => 'اسم المنتج بالإنجليزية',
     'product_price' => 'سعر المنتج',
     'quantity' => 'الكمية',
     'price' => 'السعر',
@@ -115,5 +116,5 @@ return [
     'unit' => 'الوحدة',
     'low_stock_alert_quantity' => 'حد تنبيه انخفاض المخزون',
     'sale_price' => 'سعر البيع',
-    'title'=>"التسليمات",
+    'title'=>"التسليمات (قديم)",
 ];

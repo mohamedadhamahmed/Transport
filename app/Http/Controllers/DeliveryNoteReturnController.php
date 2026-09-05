@@ -20,6 +20,8 @@ class DeliveryNoteReturnController extends Controller
      */
     public function create($id)
     {
+        $this->authorize('delivery_note.view');
+
         $invoice = DeliveryNote::with('customer')->findOrFail($id);
         $items = DeliveryNoteItem::where('invoice_id', $id)
             ->where('save', 1)
@@ -34,6 +36,8 @@ class DeliveryNoteReturnController extends Controller
      */
     public function store(Request $request, $id)
     {
+        $this->authorize('delivery_note.view');
+
         $items = json_decode((string) $request->input('items_json'), true) ?: [];
         $request->merge(['items' => $items]);
 

@@ -22,6 +22,7 @@ return [
     'new_product' => 'New Product',
     'product_number' => 'Product Number',
     'product_name' => 'Product Name',
+    'product_name_en' => 'Product Name (English)',
     'product_price' => 'Product Price',
     'quantity' => 'Quantity',
     'price' => 'Price',
@@ -133,6 +134,7 @@ return [
     'no_pending_items' => 'No pending items for this customer',
     'invoice_now_qty' => 'Quantity to Invoice',
     'tax' => 'Tax',
+    'tax_estimate_note' => 'Estimate only for preview - the actual rate is set when the note is approved and converted to an invoice',
     'subtotal' => 'Subtotal (excl. tax)',
     'tax_total' => 'Total Tax',
     'grand_total' => 'Grand Total (incl. tax)',
@@ -143,5 +145,15 @@ return [
     'confirm_convert_text' => 'A real tax invoice will be created for the selected quantities. This action cannot be undone. Are you sure?',
     'convert_success' => 'Selected quantities converted to a tax invoice successfully',
     'converted_from_delivery_note' => 'Converted from delivery note',
+
+    // ===== Profit columns (create & edit screens) =====
+    'profit_per_unit' => 'Profit / Unit',
+    'total_profit' => 'Total Profit',
+
+    // ===== Editing a pending delivery note =====
+    'edit_delivery_note' => 'Edit Delivery Note',
+    'update_delivery_note' => 'Save Changes',
+    'updated_successfully' => 'Delivery note updated successfully',
+    'not_editable' => 'This delivery note can no longer be edited because part of it has already been converted to an invoice or returned - check its details for the available quantities',
 
 ];

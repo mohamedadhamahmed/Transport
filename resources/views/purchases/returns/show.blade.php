@@ -8,7 +8,7 @@
                 <div class="flex items-center gap-3">
                     <span class="w-11 h-11 shrink-0 rounded-xl bg-white/10 flex items-center justify-center">
                         <svg class="w-5 h-5 text-white/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M9 21a9 9 0 1 1 9-9"/><path d="M9 8v5h5"/>
+                            <path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>
                         </svg>
                     </span>
                     <div>
@@ -16,10 +16,19 @@
                         <p class="text-white/45 text-xs mt-0.5">{{ optional($purchaseReturn->return_date)->format('Y-m-d') ?? $purchaseReturn->created_at->format('Y-m-d') }}</p>
                     </div>
                 </div>
-                <a href="{{ route('purchases.returns.index') }}"
-                   class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
-                    {{ __('purchase_returns.back_to_list') }}
-                </a>
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('purchases.returns.pdf', $purchaseReturn) }}"
+                       class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/>
+                        </svg>
+                        {{ __('purchase_returns.download_pdf') }}
+                    </a>
+                    <a href="{{ route('purchases.returns.index') }}"
+                       class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
+                        {{ __('purchase_returns.back_to_list') }}
+                    </a>
+                </div>
             </div>
 
             @include('partials.sweet-alert-flash')
@@ -53,7 +62,7 @@
                             @if ($purchaseReturn->isCredit())
                                 <span class="px-2 py-1 rounded-full text-xs bg-amber-50 text-amber-700">{{ __('purchase_returns.credit') }}</span>
                             @else
-                                <span class="px-2 py-1 rounded-full text-xs bg-emerald-50 text-emerald-700">{{ $purchaseReturn->refundAccount?->name ?? __('purchase_returns.payment_immediate') }}</span>
+                                <span class="px-2 py-1 rounded-full text-xs bg-emerald-50 text-emerald-700">{{ $purchaseReturn->refundAccount?->name ?? '-' }}</span>
                             @endif
                         </div>
                     </div>
@@ -74,7 +83,7 @@
                 </div>
             </div>
 
-            {{-- الأصناف --}}
+            {{-- الأصناف المرتجعة --}}
             <div class="bg-white shadow-sm border border-gray-100 sm:rounded-xl p-6">
                 <div class="overflow-x-auto rounded-xl border border-[#0F1B4C]/10">
                     <table class="min-w-full text-sm">
@@ -114,7 +123,7 @@
                     </div>
                     <div class="bg-[#0F1B4C]/5 border border-[#0F1B4C]/10 rounded-lg p-4 text-center">
                         <div class="text-xs text-gray-500 mb-1">{{ __('purchase_returns.discount_total') }}</div>
-                        <div class="font-semibold text-[#0F1B4C]">{{ number_format($purchaseReturn->discount_amount + $purchaseReturn->invoice_level_discount, 2) }}</div>
+                        <div class="font-semibold text-[#0F1B4C]">{{ number_format(($purchaseReturn->discount_amount ?? 0) + ($purchaseReturn->invoice_level_discount ?? 0), 2) }}</div>
                     </div>
                     <div class="bg-[#0F1B4C]/5 border border-[#0F1B4C]/10 rounded-lg p-4 text-center">
                         <div class="text-xs text-gray-500 mb-1">{{ __('purchase_returns.tax_total') }}</div>

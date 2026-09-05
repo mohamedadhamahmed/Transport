@@ -17,15 +17,17 @@
                     </div>
                 </div>
 
-                @if (!$sent && $invoices->count() > 0)
-                    <button type="button" @click="confirmSendAll()"
-                            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F5811E] hover:brightness-95 transition shadow-sm shadow-black/10">
-                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7Z" />
-                        </svg>
-                        {{ __('zatca.send_all') }}
-                    </button>
-                @endif
+                @can('zatca.send')
+                    @if (!$sent && $invoices->count() > 0)
+                        <button type="button" @click="confirmSendAll()"
+                                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F5811E] hover:brightness-95 transition shadow-sm shadow-black/10">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7Z" />
+                            </svg>
+                            {{ __('zatca.send_all') }}
+                        </button>
+                    @endif
+                @endcan
             </div>
 
             {{-- إحصائية سريعة: كام فاتورة اترسلت وكام لسه --}}
@@ -140,10 +142,12 @@
                                             </a>
 
                                             @if (!$invoice->is_sent_to_zatca)
-                                                <button type="button" @click="sendToZatca({{ $invoice->id }})"
-                                                        class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#F5811E] hover:brightness-95 transition whitespace-nowrap">
-                                                    {{ __('zatca.send') }}
-                                                </button>
+                                                @can('zatca.send')
+                                                    <button type="button" @click="sendToZatca({{ $invoice->id }})"
+                                                            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#F5811E] hover:brightness-95 transition whitespace-nowrap">
+                                                        {{ __('zatca.send') }}
+                                                    </button>
+                                                @endcan
                                             @elseif ($invoice->zatca_status === 'PASS')
                                                 <a href="{{ route('zatca.download-xml', $invoice) }}"
                                                    class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition whitespace-nowrap">
@@ -153,10 +157,12 @@
                                                 <span class="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium text-red-600 bg-red-50 border border-red-100">
                                                     {{ __('zatca.failed') }}
                                                 </span>
-                                                <button type="button" @click="sendToZatca({{ $invoice->id }})"
-                                                        class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#F5811E] hover:brightness-95 transition whitespace-nowrap">
-                                                    {{ __('zatca.retry') }}
-                                                </button>
+                                                @can('zatca.send')
+                                                    <button type="button" @click="sendToZatca({{ $invoice->id }})"
+                                                            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#F5811E] hover:brightness-95 transition whitespace-nowrap">
+                                                        {{ __('zatca.retry') }}
+                                                    </button>
+                                                @endcan
                                             @endif
                                         </div>
                                     </td>

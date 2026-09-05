@@ -593,8 +593,19 @@ class InvoiceGenerator
             }
             return ['success' => true,'response' => $response , 'hash' => $this->getInvoiceHashBaseEncoded() , 'xml' => $xml];
         } catch (ClientException $exception) {
-            $response = json_decode($exception->getResponse()->getBody()->getContents());
-            return ['success' => false,'response' => $response];
+            // بنسجل كود الحالة (401/400/...) والرد الخام كنص برضه، مش بس
+            // النسخة الـ json_decode - عشان لو رد الزكاة مكنش JSON صحيح
+            // (مثلاً رسالة نصية/HTML من بروكسي أو خطأ مصادقة) يبقى معانا
+            // تفاصيل نقدر نوريها للمستخدم ونشخص بيها المشكلة، مش null فاضية.
+            $rawBody = $exception->getResponse()->getBody()->getContents();
+            $response = json_decode($rawBody);
+
+            return [
+                'success' => false,
+                'response' => $response,
+                'status_code' => $exception->getResponse()->getStatusCode(),
+                'raw_body' => $rawBody,
+            ];
         }
     }
 

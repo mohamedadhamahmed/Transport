@@ -29,3 +29,129 @@ main {
 */
 
 /* ضيفي أي استايل خاص بيكي تحت السطر ده */
+
+/*
+    طباعة أي صفحة في النظام: مفيش استايل طباعة كان موجود قبل كده خالص،
+    فأي Ctrl+P كان بيطبع الصفحة كلها زي ما هي - بما فيها القائمة الجانبية
+    (aside) والهيدر العلوي (header) واللينكات السريعة والفوتر - وده اللي
+    ظهر واضح في تقارير قسم الحسابات (مثال: قائمة الدخل) لما اتطبعت.
+    القاعدة دي بتخفي الثلاثة عناصر دول بس وقت الطباعة الفعلية (مش وقت
+    العرض العادي في المتصفح) في أي صفحة من صفحات النظام - مش خاصة
+    بالتقارير بس - وبتخلي المحتوى الرئيسي ياخد عرض الصفحة كله.
+    aside/header/footer هنا عناصر HTML وحيدة في التخطيط العام (راجعي
+    main-sidebar.blade.php و main-header.blade.php و footer.blade.php)
+    فمفيش تعارض مع أي حاجة تانية في الصفحة.
+*/
+@media print {
+    aside,
+    header,
+    footer {
+        display: none !important;
+    }
+
+    main {
+        padding: 0 !important;
+    }
+
+    body {
+        background: #fff !important;
+    }
+}
+
+/*
+    كلاسات احتياطية لصفحات "التقارير" (resources/views/reports/**):
+    آخر build مضغوط لتيلويند (public/build/assets/app-*.css) قديم أقدم من
+    ملفات البلايد الجديدة دي، فأي كلاس تيلويند بلون مخصص (زي
+    bg-[#1456E8] أو focus:border-[#1456E8]) مش موجود فعليًا في الملف
+    المضغوط ده - بيتجاهله المتصفح تمامًا (مش بس بيبوّظ اللون، ده بيسيب
+    الزرار من غير خلفية خالص فيبان نص أبيض على خلفية فاضية - ده اللي
+    كان شكله "الزرار كله خلفية والكلام مش واضح").
+    الحل الدائم الصحيح هو تشغيل "npm run build" تاني عشان يلحق كل
+    الكلاسات الجديدة دي (وكذا أي كلاس تاني اتضاف في صفحات تانية بعد آخر
+    build) - لحد ما ده يتعمل، الكلاسات دي هنا (CSS عادي، شغالة فورًا من
+    غير build) بتغطي بس اللي فعليًا ناقص في صفحات التقارير.
+*/
+.dc-btn-primary {
+    background-color: var(--dc-blue);
+    color: #fff;
+}
+.dc-btn-primary:hover {
+    background-color: #1042b8;
+}
+.dc-focus-blue:focus {
+    border-color: var(--dc-blue) !important;
+    box-shadow: 0 0 0 1px var(--dc-blue);
+    outline: none;
+}
+.dc-border-blue-soft {
+    border-color: rgba(20, 86, 232, .2);
+}
+.dc-card-link:hover {
+    border-color: rgba(20, 86, 232, .3);
+}
+.dc-card-link:hover .dc-card-link-title {
+    color: var(--dc-blue);
+}
+.dc-underline-emerald {
+    border-color: rgba(16, 185, 129, .3);
+}
+.dc-underline-amber {
+    border-color: rgba(245, 158, 11, .3);
+}
+.dc-underline-purple {
+    border-color: rgba(139, 92, 246, .3);
+}
+.dc-note-blue {
+    background-color: #eff6ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+}
+.dc-bg-red-soft {
+    background-color: #fef2f2;
+}
+.dc-text-red-strong {
+    color: #b91c1c;
+}
+.dc-border-amber-soft {
+    border-color: rgba(245, 158, 11, .15);
+}
+
+/*
+    نفس فكرة كلاسات الطباعة العامة فوق، بس دي مخصوصة لصفحات التقارير
+    نفسها: بتخفي هيدر الصفحة الملوّن وفورم الفلاتر وقت الطباعة الفعلية
+    (dc-print-hide)، بتظهر عنوان بديل بسيط بس وقت الطباعة (dc-print-only)،
+    وبتشيل الظل والحدود من كارت الجدول عشان يبقى شكله ورقة نضيفة وقت
+    الطباعة (dc-print-plain) - مكافئة تمامًا لـ print:hidden/print:block/
+    print:shadow-none/print:border-0 اللي مش موجودين في الـ build الحالي.
+*/
+.dc-print-only {
+    display: none;
+}
+
+/*
+    طلب: في مساحة فاضية مش مستغلة على اليمين واليسار في شاشات
+    القوائم الرئيسية (لوحة التحكم، فواتير المبيعات/المشتريات،
+    التسعيرات، القيود اليومية، السندات، الحسابات...) على الشاشات
+    العريضة، لأن الحاوية الرئيسية كانت محدودة بـ max-w-7xl (٨٠rem
+    = 1280px تقريبًا). استبدلنا الكلاس في البلايد بـ dc-max-w-page
+    (بدل ما نعتمد على كلاس تيلويند جديد بقيمة مخصصة زي
+    max-w-[1600px]، لأن آخر build مضغوط لتيلويند قديم ومش هيلحق
+    الكلاس الجديد ده لحد ما حد يعمل "npm run build" تاني - راجعي
+    تعليق كلاسات صفحات التقارير فوق لنفس المشكلة بالظبط).
+*/
+.dc-max-w-page {
+    max-width: 1600px;
+}
+
+@media print {
+    .dc-print-hide {
+        display: none !important;
+    }
+    .dc-print-only {
+        display: block !important;
+    }
+    .dc-print-plain {
+        box-shadow: none !important;
+        border: 0 !important;
+    }
+}

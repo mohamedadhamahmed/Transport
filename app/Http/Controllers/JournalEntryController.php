@@ -21,20 +21,22 @@ use Illuminate\Support\Facades\DB;
  * بتسمح بعمل قيد بعدد أسطر حر (2 على الأقل) - كل سطر حساب + مبلغ
  * مدين أو دائن - وبيتم التأكد إن إجمالي المدين = إجمالي الدائن قبل
  * الحفظ. لكل نوع سلسلة ترقيم منفصلة (JE-... للقيد اليومي، OE-... للقيد
- * الافتتاحي) وoperation_type مختلف في credittransaction (راجعي
+ * الافتتاحي) وoperation_type مختلف في credittransaction (راجع
  * App\Support\OperationType).
  *
  * *** اتجاه current_balance حسب طبيعة الحساب ***
  * current_balance بيتحسب حسب FinancialAccount::balanceAfter() -
  * دائن (creditor_current - debtor_current) لو الحساب مورد
  * (orginal_type=2)، ومدين (debtor_current - creditor_current) لأي
- * حساب تاني (عميل أو حساب عام زي خزينة/بنك/مخزون). راجعي تعليق
+ * حساب تاني (عميل أو حساب عام زي خزينة/بنك/مخزون). راجع تعليق
  * isCreditNormal() في موديل FinancialAccount لتفاصيل السبب.
  */
 class JournalEntryController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('journal_entries.view');
+
         $type = $request->input('type', JournalEntry::TYPE_DAILY);
         if (! in_array($type, [JournalEntry::TYPE_DAILY, JournalEntry::TYPE_OPENING], true)) {
             $type = JournalEntry::TYPE_DAILY;
@@ -56,6 +58,8 @@ class JournalEntryController extends Controller
 
     public function create(Request $request)
     {
+        $this->authorize('journal_entries.create');
+
         $type = $request->input('type', JournalEntry::TYPE_DAILY);
         if (! in_array($type, [JournalEntry::TYPE_DAILY, JournalEntry::TYPE_OPENING], true)) {
             $type = JournalEntry::TYPE_DAILY;
@@ -69,6 +73,8 @@ class JournalEntryController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('journal_entries.create');
+
         $validated = $request->validate([
             'entry_type' => ['required', 'in:daily,opening'],
             'entry_date' => ['required', 'date'],
@@ -165,6 +171,8 @@ class JournalEntryController extends Controller
 
     public function show(JournalEntry $journalEntry)
     {
+        $this->authorize('journal_entries.view');
+
         $journalEntry->load(['lines.account', 'creator', 'branch', 'costCenter']);
 
         return view('journal-entries.show', ['entry' => $journalEntry]);
@@ -172,6 +180,8 @@ class JournalEntryController extends Controller
 
     public function edit(JournalEntry $journalEntry)
     {
+        $this->authorize('journal_entries.edit');
+
         $journalEntry->load(['lines.account']);
 
         $branches = Branch::orderBy('name')->get(['id', 'name']);
@@ -193,6 +203,8 @@ class JournalEntryController extends Controller
      */
     public function update(Request $request, JournalEntry $journalEntry)
     {
+        $this->authorize('journal_entries.edit');
+
         $validated = $request->validate([
             'entry_date' => ['required', 'date'],
             'description' => ['nullable', 'string'],

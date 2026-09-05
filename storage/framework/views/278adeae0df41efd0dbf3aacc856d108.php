@@ -10,7 +10,7 @@
 <?php $component->withAttributes([]); ?>
 
     <div class="py-6">
-        <div class="max-w-3xl mx-auto sm:px-6 lg:px-8 space-y-6">
+        <div class="max-w-4xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
             <div class="rounded-2xl bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] px-5 sm:px-6 py-5 shadow-lg shadow-[#0F1B4C]/15 flex items-center justify-between flex-wrap gap-4">
                 <div class="flex items-center gap-3">
@@ -28,11 +28,13 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
+                    <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('vouchers.edit')): ?>
                     <a href="<?php echo e(route('vouchers.edit', $voucher)); ?>"
                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
                         <?php echo e(__('vouchers.edit_voucher')); ?>
 
                     </a>
+                    <?php endif; ?>
                     <a href="<?php echo e(route('vouchers.print', $voucher)); ?>" target="_blank"
                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
                         <?php echo e(__('vouchers.print')); ?>
@@ -55,23 +57,16 @@
                         <div class="font-medium text-gray-800"><?php echo e($voucher->treasuryAccount?->name ?? '-'); ?></div>
                     </div>
                     <div>
-                        <div class="text-xs text-gray-400 mb-1">
-                            <?php echo e($voucher->isReceipt() ? __('vouchers.counterpart_account_receipt') : __('vouchers.counterpart_account_payment')); ?>
-
-                        </div>
-                        <div class="font-medium text-gray-800"><?php echo e($voucher->counterpartAccount?->name ?? '-'); ?></div>
-                    </div>
-                    <div>
                         <div class="text-xs text-gray-400 mb-1"><?php echo e(__('vouchers.branch')); ?></div>
                         <div class="font-medium text-gray-800"><?php echo e($voucher->branch?->name ?? '-'); ?></div>
                     </div>
                     <div>
-                        <div class="text-xs text-gray-400 mb-1"><?php echo e(__('vouchers.cost_center')); ?></div>
-                        <div class="font-medium text-gray-800"><?php echo e($voucher->costCenter?->cost_center_ar ?? '-'); ?></div>
-                    </div>
-                    <div>
                         <div class="text-xs text-gray-400 mb-1"><?php echo e(__('vouchers.created_by')); ?></div>
                         <div class="font-medium text-gray-800"><?php echo e($voucher->creator?->name ?? '-'); ?></div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-400 mb-1"><?php echo e(__('vouchers.items_count')); ?></div>
+                        <div class="font-medium text-gray-800"><?php echo e($voucher->lines->count()); ?></div>
                     </div>
                     <?php if($voucher->description): ?>
                         <div class="md:col-span-2">
@@ -82,10 +77,42 @@
                 </div>
             </div>
 
-            <div class="rounded-lg p-6 text-center text-white bg-[#0F1B4C] relative overflow-hidden">
-                <span class="absolute inset-x-0 bottom-0 h-0.5 bg-[#F5811E]"></span>
-                <div class="text-xs text-white/50 mb-1"><?php echo e(__('vouchers.amount')); ?></div>
-                <div class="font-bold text-2xl"><?php echo e(number_format($voucher->amount, 2)); ?></div>
+            <div class="bg-white shadow-sm border border-gray-100 sm:rounded-xl p-6">
+                <div class="overflow-x-auto rounded-xl border border-[#0F1B4C]/10">
+                    <table class="min-w-full text-sm">
+                        <thead>
+                            <tr class="bg-[#0F1B4C] text-white/80">
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">
+                                    <?php echo e($voucher->isReceipt() ? __('vouchers.counterpart_account_receipt') : __('vouchers.counterpart_account_payment')); ?>
+
+                                </th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('vouchers.line_cost_center')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('vouchers.line_description')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('vouchers.net_amount')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('vouchers.tax_amount')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('vouchers.amount')); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 bg-white">
+                            <?php $__currentLoopData = $voucher->lines; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $line): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <tr class="hover:bg-[#1456E8]/5 transition">
+                                    <td class="px-3 py-2 font-medium text-gray-800"><?php echo e($line->counterpartAccount?->name ?? '#' . $line->counterpart_account_id); ?></td>
+                                    <td class="px-3 py-2 text-gray-500"><?php echo e($line->costCenter?->cost_center_ar ?? '-'); ?></td>
+                                    <td class="px-3 py-2 text-gray-500"><?php echo e($line->description ?? '-'); ?></td>
+                                    <td class="px-3 py-2 text-gray-500"><?php echo e($line->is_taxable ? number_format($line->net_amount, 2) : '-'); ?></td>
+                                    <td class="px-3 py-2 text-[#F5811E]"><?php echo e($line->is_taxable ? number_format($line->tax_amount, 2) : '-'); ?></td>
+                                    <td class="px-3 py-2 font-semibold text-[#0F1B4C]"><?php echo e(number_format($line->amount, 2)); ?></td>
+                                </tr>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-gray-50 font-semibold">
+                                <td colspan="5" class="px-3 py-2.5 text-gray-600"><?php echo e(__('vouchers.grand_total')); ?></td>
+                                <td class="px-3 py-2.5 text-[#0F1B4C]"><?php echo e(number_format($voucher->total_amount, 2)); ?></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

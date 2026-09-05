@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use App\Models\InvoiceReturn;
@@ -24,6 +25,7 @@ use App\Services\Zatca\QRCodeString;
 use App\Services\Zatca\ZatcaConfig;
 use App\Models\Setting;
 use App\Models\SystemSetting;
+use App\Models\Tax;
 // ZATCA Invoice Services
 use App\Services\Zatca\Invoice\Client;
 use App\Services\Zatca\Invoice\Supplier;
@@ -47,803 +49,6 @@ use DOMDocument;
 class InvoiceController extends Controller
 {
 
-
-    function sent_to_zatca_return_items($request)
-    {
-        // - Then Call Invoice required data from database depend on your query statment and required company id
-
-        $setting = Setting::where('branchs_id', 1)->first();
-
-        $previous_invoice = null;
-        $invoice = Invoice::find($request);
-
-
-
-        if ($invoice->document_type == 'standard') {
-            if (
-                is_null($invoice->customer->name) || is_null($invoice->customer->postcode) || is_null($invoice->customer->address) || is_null($invoice->customer->sub_city) ||
-                is_null($invoice->customer->plot_identification) || is_null($invoice->customer->building_number) || is_null($invoice->customer->street_name) || is_null($invoice->customer->tax_no) || strlen($invoice->customer->tax_no) != 15
-            ) {
-                return "  \n Please enter the full national address and tax number information. Thank you يرجل ادخال بيانات العنوان الوطني و الرقم الضريبيي كاملا وشكرا";
-
-            }
-
-        }
-        $invprevious = $setting->previous_hash_invoice;
-
-        if ($invprevious == null) {
-            $previous_invoice = 'X+zrZv/IbzjZUnhsbWlsecLbwjndTpG0ZynXOif7V+k=';
-
-        } else {
-            $previous_invoice = $invprevious;
-        }
-        $myuuid = Uuid::uuid4();
-
-        $created_at = \Carbon\Carbon::now();
-        Invoice::find($request)->update(
-            [
-                'issue_date_return' => substr($created_at, 0, 10),
-                'issue_time_return' => substr($created_at, 11),
-                'uuid' => $myuuid
-            ]
-        );
-
-        $invoice = Invoice::find($request);
-
-        $rat_tax = 0;
-
-
-        $total_withot_tax_sum = 0;
-        $tax_sum = 0;
-        $total_with_tax_sum = 0;
-        $invoiceLines = [];
-
-
-
-        foreach (InvoiceReturn::where("invoice_id", $request)->where('return_quantity', '!=', 0)->where('send_zatca', 0)->get() as $item) {
-            InvoiceReturn::find($item->id)->update(['send_zatca' => 1]);
-            $price_each_element_withoud_tax = number_format(($item->return_Unit_Price - ($item->discountvalue / $item->return_quantity)), 2, '.', '');
-            $temp = ($item->return_Unit_Price - ($item->discountvalue / $item->return_quantity)) * $item->return_quantity;
-            $total_withot_tax = number_format($temp, 2, '.', '');
-            $temp = ($item->return_Added_Value) * $item->return_quantity;
-            $tax = number_format($temp, 2, '.', '');
-            $totlal_element = $total_withot_tax + $tax;
-
-            $total_with_tax = number_format($totlal_element, 2, '.', '');
-            $total_withot_tax_sum = $total_withot_tax_sum + $total_withot_tax * 1;
-            $tax_sum = $tax_sum + $tax;
-            $total_with_tax_sum = $total_with_tax_sum + $total_with_tax;
-            $rat_tax = number_format($item->tax_rate*100, 2, '.', '');
-            $taxCategoryCode = ($item->tax_rate == 0) ? 'E' : 'S';
-            $itemTaxCategory = (new LineTaxCategory())
-                ->setTaxCategory($taxCategoryCode)
-                ->setTaxPercentage($rat_tax)
-                ->getElement();
-            $invoiceLines[] = (new InvoiceLine())
-                ->setLineID($item->product_id)
-                ->setLineName($item->productData->product_name)
-                ->setLineCurrency('SAR')
-                ->setLinePrice(number_format($price_each_element_withoud_tax, 2, '.', ''))
-                ->setLineQuantity($item->return_quantity)
-                ->setLineSubTotal($total_withot_tax)
-                ->setLineTaxTotal($tax)
-                ->setLineNetTotal($total_with_tax)
-                ->setLineTaxCategories($itemTaxCategory)
-                ->setLineDiscountReason('Discount on product')
-                ->setLineDiscountAmount(0)
-                ->getElement();
-        }
-
-
-
-        $total_withot_tax_sum = number_format($total_withot_tax_sum, 2, '.', '');
-        $tax_sum = number_format($tax_sum, 2, '.', '');
-        ;
-        $total_with_tax_sum = number_format($total_with_tax_sum, 2, '.', '');
-
-
-
-
-
-
-        // clients data
-
-
-        $client = (new Client())
-            ->setVatNumber($invoice->customer->tax_no)
-            ->setStreetName($invoice->customer->street_name)
-            ->setBuildingNumber($invoice->customer->building_number)
-            ->setPlotIdentification($invoice->customer->plot_identification)
-            ->setSubDivisionName($invoice->customer->sub_city)
-            ->setCityName($invoice->customer->address)
-            ->setPostalNumber($invoice->customer->postcode)
-            ->setCountryName('SA')
-            ->setClientName($invoice->customer->name);
-
-
-        $supplier = (new Supplier())
-            ->setCrn($setting->crn)
-            ->setStreetName($setting->street_name)
-            ->setBuildingNumber($setting->building_number)
-            ->setPlotIdentification($setting->plot_identification)
-            ->setSubDivisionName($setting->region)
-            ->setCityName($setting->city)
-            ->setPostalNumber($setting->postal_number)
-            ->setCountryName('SA')
-            ->setVatNumber($setting->trn)
-            ->setVatName($setting->name);
-
-        $delivery = (new Delivery())
-            ->setDeliveryDateTime($invoice->issue_date);
-
-        $paymentType = (new PaymentType())
-            ->setPaymentType('10');
-
-        $returnReason = (new ReturnReason())
-            ->setReturnReason('InvoiceItem returns');
-
-        $previous_hash = (new PIH())
-            ->setPIH($previous_invoice);  // note this value it from step 3 , 4
-        $billingReference = (new BillingReference())
-            ->setBillingReference($request); // note this used when type credit or debit this value of parent invoice id
-
-        $additionalDocumentReference = (new AdditionalDocumentReference())
-            ->setInvoiceID($setting->Invoice_count + 1); // note this value it from step 1
-
-        $legalMonetaryTotal = (new LegalMonetaryTotal())
-            ->setTotalCurrency('SAR')
-            ->setLineExtensionAmount($total_withot_tax_sum)
-            ->setTaxExclusiveAmount($total_withot_tax_sum)
-            ->setTaxInclusiveAmount($total_with_tax_sum)
-            ->setAllowanceTotalAmount(0)
-            ->setPrepaidAmount(0)
-            ->setPayableAmount($total_with_tax_sum);
-
-        $taxesTotal = (new TaxesTotal())
-            ->setTaxCurrencyCode('SAR')
-            ->setTaxTotal($tax_sum);
-        $current_item_tax_rate = ($tax_sum > 0) ? 15 : 0; // افترضنا 15، يمكن استبدالها بـ $item->tax_rate لو متوفر
-        $taxCategoryCode = ($current_item_tax_rate == 0) ? 'E' : 'S';
-
-        $taxSubtotal = (new TaxSubtotal())
-            ->setTaxCurrencyCode('SAR')
-            ->setTaxableAmount($total_withot_tax_sum)
-            ->setTaxAmount($tax_sum)
-            ->setTaxCategory($taxCategoryCode)
-            ->setTaxPercentage($rat_tax)
-            ->getElement();
-
-
-        $allowanceCharge = (new AllowanceCharge())
-            ->setAllowanceChargeCurrency('SAR')
-            ->setAllowanceChargeIndex('1')
-            ->setAllowanceChargeAmount(0)
-            ->setAllowanceChargeTaxCategory($taxCategoryCode)
-            ->setAllowanceChargeTaxPercentage($rat_tax)
-            ->getElement();
-
-
-
-        if (strlen($invoice->customer->tax_no) != 15) {
-
-
-
-            $response = (new InvoiceGenerator())
-                ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
-                ->setZatcaLang('en')
-                ->setInvoiceNumber($invoice->NOTICE_Number)
-                ->setInvoiceUuid($myuuid) // this value from step 6
-                ->setInvoiceIssueDate($invoice->issue_date_return)
-                ->setInvoiceIssueTime($invoice->issue_time_return)
-                ->setInvoiceType(($invoice->document_type == 'simplified') ? '0200000' : '0100000', "381")
-                ->setInvoiceCurrencyCode('SAR')
-                ->setInvoiceTaxCurrencyCode('SAR')
-                ->setInvoiceBillingReference($billingReference) // use this when document type is credit or debit
-                ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
-                ->setInvoicePIH($previous_hash)
-                ->setInvoiceupplier($supplier)
-                ->setInvoiceDelivery($delivery)
-                ->setInvoicePaymentType($paymentType)
-                ->setInvoiceReturnReason($returnReason) //use this when document type is credit or debit
-                ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
-                ->setInvoiceTaxesTotal($taxesTotal)
-                ->setInvoiceTaxSubTotal($taxSubtotal)
-                ->setInvoiceAllowanceCharges($allowanceCharge)
-                ->setInvoiceLines(...$invoiceLines)
-                ->setCertificateEncoded($setting->production_certificate)
-                ->setPrivateKeyEncoded($setting->private_key)
-                ->setCertificateSecret($setting->production_secret)
-                ->sendDocument(true); // when you use production certifiacte for (simulation , core) dont forget set sendDocument(true)
-
-
-        } else {
-            $response = (new InvoiceGenerator())
-                ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
-                ->setZatcaLang('en')
-                ->setInvoiceNumber($invoice->NOTICE_Number)
-                ->setInvoiceUuid($myuuid) // this value from step 6
-                ->setInvoiceIssueDate($invoice->issue_date_return)
-                ->setInvoiceIssueTime($invoice->issue_time_return)
-                ->setInvoiceType(($invoice->document_type == 'simplified') ? '0200000' : '0100000', "381")
-                ->setInvoiceCurrencyCode('SAR')
-                ->setInvoiceTaxCurrencyCode('SAR')
-                ->setInvoiceBillingReference($billingReference) // use this when document type is credit or debit
-                ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
-                ->setInvoicePIH($previous_hash)
-                ->setInvoiceupplier($supplier)
-                ->setInvoiceClient($client)
-                ->setInvoiceDelivery($delivery)
-                ->setInvoicePaymentType($paymentType)
-                ->setInvoiceReturnReason($returnReason) //use this when document type is credit or debit
-                ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
-                ->setInvoiceTaxesTotal($taxesTotal)
-                ->setInvoiceTaxSubTotal($taxSubtotal)
-                ->setInvoiceAllowanceCharges($allowanceCharge)
-                ->setInvoiceLines(...$invoiceLines)
-                ->setCertificateEncoded($setting->production_certificate)
-                ->setPrivateKeyEncoded($setting->private_key)
-                ->setCertificateSecret($setting->production_secret)
-                ->sendDocument(true); // when you use production certifiacte for (simulation , core) dont forget set sendDocument(true)
-        }
-
-        if ($response['success']) {
-            Setting::where('branchs_id', 1)->update([
-                'previous_hash_invoice' => $response['hash'],
-                'Invoice_count' => $setting->Invoice_count + 1
-            ]);
-            Invoice::find($request)->update(
-                [
-                    'qr_zatca_return' => \Carbon\Carbon::now(),
-                    'sent_to_zatca_status_return' => "PASS",
-                    'xmltags_return' => $response['xml'],
-                    'xml_return' => $invoice->document_type == 'simplified' ? NULL : $response['response']->clearedInvoice
-
-                ]
-            );
-            return 1;
-
-        } else {
-
-            return '|||' . $response['response']->reportingStatus . '   ||| ERROR MESSAGE    :-   ' . $response['response']->validationResults->errorMessages[0]->message;
-        }
-    }
-
-    function sent_to_zatca($request)
-    {
-        // - Then Call Invoice required data from database depend on your query statment and required company id
-
-        $setting = Setting::where('branchs_id', 1)->first();
-
-        ### Zatca Integration have two steps second : Send Invoice to zatca Step example :
-        // - Add below line to start of controller file which used
-        $previous_invoice = null;
-        $invoice = Invoice::find($request);
-        $invprevious = $setting->previous_hash_invoice;
-
-        if ($invprevious == null) {
-            $previous_invoice = 'X+zrZv/IbzjZUnhsbWlsecLbwjndTpG0ZynXOif7V+k=';
-
-        } else {
-            $previous_invoice = $invprevious;
-        }
-
-        $myuuid = Uuid::uuid4();
-
-        Invoice::find($request)->update(
-            [
-                'invoice_counter' => $setting->Invoice_count + 1,
-                'invoice_number' => $invoice->id,
-                'invoiceUUid' => $myuuid,
-                'document_type' => strlen($invoice->customer->tax_no) != 15 ? 'simplified' : 'standard',
-                'invoice_type' => "388", //  "388" NORMAL INVOICE , "383"  DEBIT_NOTE , "381" CREDIT_NOTE
-                'issue_date' => substr($invoice->created_at, 0, 10),
-                'issue_time' => substr($invoice->created_at, 11),
-            ]
-        );
-
-
-        $invoice = Invoice::find($request);
-
-        if ($invoice->document_type == 'standard') {
-            if (
-                is_null($invoice->customer->name) || is_null($invoice->customer->postcode) || is_null($invoice->customer->address) || is_null($invoice->customer->sub_city) ||
-                is_null($invoice->customer->plot_identification) || is_null($invoice->customer->building_number) || is_null($invoice->customer->street_name) || is_null($invoice->customer->tax_no) || strlen($invoice->customer->tax_no) != 15
-            ) {
-                return "  \n Please enter the full national address and tax number information. Thank you يرجل ادخال بيانات العنوان الوطني و الرقم الضريبيي كاملا وشكرا";
-
-            }
-
-        }
-
-
-
-        $total_withot_tax_sum = 0;
-        $tax_sum = 0;
-        $total_with_tax_sum = 0;
-        $invoiceLines = [];
-
-
-
-        foreach (InvoiceItem::where("invoice_id", $request)->where('quantity', '!=', 0)->get() as $item) {
-            $price_each_element_withoud_tax = number_format(($item->Unit_Price - ($item->Discount_Value / $item->quantity)), 2, '.', '');
-            $temp = ($item->Unit_Price - ($item->Discount_Value / $item->quantity)) * $item->quantity;
-            $total_withot_tax = number_format($temp, 2, '.', '');
-            $temp = (($item->Added_Value)) * $item->quantity;
-            $tax = number_format($temp, 2, '.', '');
-            $totlal_element = $total_withot_tax + $tax;
-            $current_item_tax_rate = ($item->Added_Value > 0) ? 15 : 0; // افترضنا 15، يمكن استبدالها بـ $item->tax_rate لو متوفر
-            $taxCategoryCode = ($current_item_tax_rate == 0) ? 'E' : 'S';
-
-
-            $total_with_tax = number_format($totlal_element, 2, '.', '');
-            $total_withot_tax_sum = $total_withot_tax_sum + $total_withot_tax * 1;
-            $tax_sum = $tax_sum + $tax;
-            $total_with_tax_sum = $total_with_tax_sum + $total_with_tax;
-            $rat_tax = number_format($item->tax_rate, 2, '.', '') * 100;
-
-            $itemTaxCategory = (new LineTaxCategory())
-                ->setTaxCategory($taxCategoryCode)
-                ->setTaxPercentage($rat_tax)
-                ->getElement();
-            $invoiceLines[] = (new InvoiceLine())
-                ->setLineID($item->product_id)
-                ->setLineName($item->productData->product_name)
-                ->setLineCurrency('SAR')
-                ->setLinePrice(number_format($price_each_element_withoud_tax, 2, '.', ''))
-                ->setLineQuantity($item->quantity)
-                ->setLineSubTotal($total_withot_tax)
-                ->setLineTaxTotal($tax)
-                ->setLineNetTotal($total_with_tax)
-                ->setLineTaxCategories($itemTaxCategory)
-                ->setLineDiscountReason('Discount on product')
-                ->setLineDiscountAmount(0)
-                ->getElement();
-        }
-        //  return $invoiceLines;
-        $total_withot_tax_sum = number_format($total_withot_tax_sum, 2, '.', '');
-        $tax_sum = number_format($tax_sum, 2, '.', '');
-        ;
-        $total_with_tax_sum = number_format($total_with_tax_sum, 2, '.', '');
-
-
-
-        // - If Invoice type is standard invoice (B2B) you must provide full buyer information as below :
-
-
-
-        // clients data
-        $client = (new Client())
-            ->setVatNumber($invoice->customer->tax_no)
-            ->setStreetName($invoice->customer->street_name)
-            ->setBuildingNumber($invoice->customer->building_number)
-            ->setPlotIdentification($invoice->customer->plot_identification)
-            ->setSubDivisionName($invoice->customer->sub_city)
-            ->setCityName($invoice->customer->address)
-            ->setPostalNumber($invoice->customer->postcode)
-            ->setCountryName('SA')
-            ->setClientName($invoice->customer->name);
-
-
-        //  return $client->getElement();
-        $supplier = (new Supplier())
-            ->setCrn($setting->crn)
-            ->setStreetName($setting->street_name)
-            ->setBuildingNumber($setting->building_number)
-            ->setPlotIdentification($setting->plot_identification)
-            ->setSubDivisionName($setting->region)
-            ->setCityName($setting->city)
-            ->setPostalNumber($setting->postal_number)
-            ->setCountryName('SA')
-            ->setVatNumber($setting->trn)
-            ->setVatName($setting->name);
-        // return $supplier->getElement();
-
-        $delivery = (new Delivery())
-            ->setDeliveryDateTime($invoice->issue_date);
-
-        $paymentType = (new PaymentType())
-            ->setPaymentType('10');
-
-        $returnReason = (new ReturnReason())
-            ->setReturnReason('SET_RETURN_REASON');
-
-        $previous_hash = (new PIH())
-            ->setPIH($previous_invoice);  // note this value it from step 3 , 4
-        // $billingReference = (new BillingReference())
-        // ->setBillingReference('23'); // note this used when type credit or debit this value of parent invoice id
-
-        $additionalDocumentReference = (new AdditionalDocumentReference())
-            ->setInvoiceID($setting->Invoice_count + 1); // note this value it from step 1
-
-        $legalMonetaryTotal = (new LegalMonetaryTotal())
-            ->setTotalCurrency('SAR')
-            ->setLineExtensionAmount($total_withot_tax_sum)
-            ->setTaxExclusiveAmount($total_withot_tax_sum)
-            ->setTaxInclusiveAmount($total_with_tax_sum)
-            ->setAllowanceTotalAmount(0)
-            ->setPrepaidAmount(0)
-            ->setPayableAmount($total_with_tax_sum);
-
-        $taxesTotal = (new TaxesTotal())
-            ->setTaxCurrencyCode('SAR')
-            ->setTaxTotal($tax_sum);
-        $current_item_tax_rate = ($tax_sum > 0) ? 15 : 0; // افترضنا 15، يمكن استبدالها بـ $item->tax_rate لو متوفر
-        $taxCategoryCode = ($current_item_tax_rate == 0) ? 'E' : 'S';
-
-        $taxSubtotal = (new TaxSubtotal())
-            ->setTaxCurrencyCode('SAR')
-            ->setTaxableAmount($total_withot_tax_sum)
-            ->setTaxAmount($tax_sum)
-            ->setTaxCategory($taxCategoryCode)
-            ->setTaxPercentage($rat_tax)
-            ->getElement();
-
-
-        $allowanceCharge = (new AllowanceCharge())
-            ->setAllowanceChargeCurrency('SAR')
-            ->setAllowanceChargeIndex('1')
-            ->setAllowanceChargeAmount(0)
-            ->setAllowanceChargeTaxCategory($taxCategoryCode)
-            ->setAllowanceChargeTaxPercentage($rat_tax)
-            ->getElement();
-        if (strlen($invoice->customer->tax_no) != 15) {
-
-            $response = (new InvoiceGenerator())
-                ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
-                ->setZatcaLang('en')
-                ->setInvoiceNumber($request)
-                ->setInvoiceUuid($invoice->invoiceUUid) // this value from step 6
-                ->setInvoiceIssueDate($invoice->issue_date)
-                ->setInvoiceIssueTime($invoice->issue_time)
-                ->setInvoiceType(($invoice->document_type == 'simplified') ? '0200000' : '0100000', $invoice->invoice_type)
-                ->setInvoiceCurrencyCode('SAR')
-                ->setInvoiceTaxCurrencyCode('SAR')
-                //->setInvoiceBillingReference($billingReference)  use this when document type is credit or debit
-                ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
-                ->setInvoicePIH($previous_hash)
-                ->setInvoiceupplier($supplier)
-                ->setInvoiceDelivery($delivery)
-                ->setInvoicePaymentType($paymentType)
-                //->setInvoiceReturnReason($returnReason) use this when document type is credit or debit
-                ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
-                ->setInvoiceTaxesTotal($taxesTotal)
-                ->setInvoiceTaxSubTotal($taxSubtotal)
-                ->setInvoiceAllowanceCharges($allowanceCharge)
-                ->setInvoiceLines(...$invoiceLines)
-                ->setCertificateEncoded($setting->production_certificate)
-                ->setPrivateKeyEncoded($setting->private_key)
-                ->setCertificateSecret($setting->production_secret)
-                ->sendDocument(true); // when you use production certifiacte for (simulation , core) dont forget set sendDocument(true)
-            //   return $response;
-
-
-        } else {
-            $response = (new InvoiceGenerator())
-                ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
-                ->setZatcaLang('en')
-                ->setInvoiceNumber($request)
-                ->setInvoiceUuid($invoice->invoiceUUid) // this value from step 6
-                ->setInvoiceIssueDate($invoice->issue_date)
-                ->setInvoiceIssueTime($invoice->issue_time)
-                ->setInvoiceType(($invoice->document_type == 'simplified') ? '0200000' : '0100000', $invoice->invoice_type)
-                ->setInvoiceCurrencyCode('SAR')
-                ->setInvoiceTaxCurrencyCode('SAR')
-                //->setInvoiceBillingReference($billingReference)  use this when document type is credit or debit
-                ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
-                ->setInvoicePIH($previous_hash)
-                ->setInvoiceupplier($supplier)
-                ->setInvoiceClient($client)
-                ->setInvoiceDelivery($delivery)
-                ->setInvoicePaymentType($paymentType)
-                //->setInvoiceReturnReason($returnReason) use this when document type is credit or debit
-                ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
-                ->setInvoiceTaxesTotal($taxesTotal)
-                ->setInvoiceTaxSubTotal($taxSubtotal)
-                ->setInvoiceAllowanceCharges($allowanceCharge)
-                ->setInvoiceLines(...$invoiceLines)
-                ->setCertificateEncoded($setting->production_certificate)
-                ->setPrivateKeyEncoded($setting->private_key)
-                ->setCertificateSecret($setting->production_secret)
-                ->sendDocument(true); // when you use production certifiacte for (simulation , core) dont forget set sendDocument(true)
-        }
-
-        if ($response['success']) {
-            Setting::where('branchs_id', 1)->update([
-                'previous_hash_invoice' => $response['hash'],
-                'Invoice_count' => $setting->Invoice_count + 1
-            ]);
-            Invoice::find($request)->update(
-                [
-                    'signing_time' => \Carbon\Carbon::now(),
-                    'hash' => $response['hash'],
-                    'xml' => $response['xml'],
-                    'sent_to_zatca_status' => "PASS",
-                    'sent_to_zatca' => 1,
-                    'clearedInvoice' => $invoice->document_type == 'simplified' ? NULL : $response['response']->clearedInvoice
-
-                ]
-            );
-
-            return 1;
-        } else {
-            return $response;
-
-            return '|||' . $response['response']->reportingStatus . '   ||| ERROR MESSAGE    :-   ' . $response['response']->validationResults->errorMessages[0]->message;
-        }
-    }
-
-
-
-
-
-
-
-
-
-
-
-    function sendzatca_fromsale($request)
-    {
-        // - Then Call Invoice required data from database depend on your query statment and required company id
-
-        $setting = Setting::where('branchs_id', 1)->first();
-
-        ### Zatca Integration have two steps second : Send Invoice to zatca Step example :
-        // - Add below line to start of controller file which used
-        $previous_invoice = null;
-        $invoice = Invoice::find($request);
-        $invprevious = $setting->previous_hash_invoice;
-
-        if ($invprevious == null) {
-            $previous_invoice = 'X+zrZv/IbzjZUnhsbWlsecLbwjndTpG0ZynXOif7V+k=';
-
-        } else {
-            $previous_invoice = $invprevious;
-        }
-
-        $myuuid = Uuid::uuid4();
-
-        Invoice::find($request)->update(
-            [
-                'invoice_counter' => $setting->Invoice_count + 1,
-                'invoice_number' => $invoice->id,
-                'invoiceUUid' => $myuuid,
-                'document_type' => strlen($invoice->customer->tax_no) != 15 ? 'simplified' : 'standard',
-                'invoice_type' => "388", //  "388" NORMAL INVOICE , "383"  DEBIT_NOTE , "381" CREDIT_NOTE
-                'issue_date' => substr($invoice->created_at, 0, 10),
-                'issue_time' => substr($invoice->created_at, 11),
-            ]
-        );
-
-
-        $invoice = Invoice::find($request);
-
-        if ($invoice->document_type == 'standard') {
-            if (
-                is_null($invoice->customer->name) || is_null($invoice->customer->postcode) || is_null($invoice->customer->address) || is_null($invoice->customer->sub_city) ||
-                is_null($invoice->customer->plot_identification) || is_null($invoice->customer->building_number) || is_null($invoice->customer->street_name) || is_null($invoice->customer->tax_no) || strlen($invoice->customer->tax_no) != 15
-            ) {
-                return "  \n Please enter the full national address and tax number information. Thank you يرجل ادخال بيانات العنوان الوطني و الرقم الضريبيي كاملا وشكرا";
-
-            }
-
-        }
-
-
-
-        $total_withot_tax_sum = 0;
-        $tax_sum = 0;
-        $total_with_tax_sum = 0;
-        $invoiceLines = [];
-
-
-
-        foreach (InvoiceItem::where("invoice_id", $request)->where('quantity', '!=', 0)->get() as $item) {
-            $price_each_element_withoud_tax = number_format(($item->Unit_Price - ($item->Discount_Value / $item->quantity)), 2, '.', '');
-            $temp = ($item->Unit_Price - ($item->Discount_Value / $item->quantity)) * $item->quantity;
-            $total_withot_tax = number_format($temp, 2, '.', '');
-            $temp = (($item->Added_Value)) * $item->quantity;
-            $tax = number_format($temp, 2, '.', '');
-            $totlal_element = $total_withot_tax + $tax;
-            $current_item_tax_rate = ($item->Added_Value > 0) ? 15 : 0; // افترضنا 15، يمكن استبدالها بـ $item->tax_rate لو متوفر
-            $taxCategoryCode = ($current_item_tax_rate == 0) ? 'E' : 'S';
-
-
-            $total_with_tax = number_format($totlal_element, 2, '.', '');
-            $total_withot_tax_sum = $total_withot_tax_sum + $total_withot_tax * 1;
-            $tax_sum = $tax_sum + $tax;
-            $total_with_tax_sum = $total_with_tax_sum + $total_with_tax;
-            $rat_tax = number_format($item->tax_rate, 2, '.', '') * 100;
-
-            $itemTaxCategory = (new LineTaxCategory())
-                ->setTaxCategory($taxCategoryCode)
-                ->setTaxPercentage($rat_tax)
-                ->getElement();
-            $invoiceLines[] = (new InvoiceLine())
-                ->setLineID($item->product_id)
-                ->setLineName($item->productData->product_name)
-                ->setLineCurrency('SAR')
-                ->setLinePrice(number_format($price_each_element_withoud_tax, 2, '.', ''))
-                ->setLineQuantity($item->quantity)
-                ->setLineSubTotal($total_withot_tax)
-                ->setLineTaxTotal($tax)
-                ->setLineNetTotal($total_with_tax)
-                ->setLineTaxCategories($itemTaxCategory)
-                ->setLineDiscountReason('Discount on product')
-                ->setLineDiscountAmount(0)
-                ->getElement();
-        }
-        //  return $invoiceLines;
-        $total_withot_tax_sum = number_format($total_withot_tax_sum, 2, '.', '');
-        $tax_sum = number_format($tax_sum, 2, '.', '');
-        ;
-        $total_with_tax_sum = number_format($total_with_tax_sum, 2, '.', '');
-
-
-
-        // - If Invoice type is standard invoice (B2B) you must provide full buyer information as below :
-
-
-
-        // clients data
-        $client = (new Client())
-            ->setVatNumber($invoice->customer->tax_no)
-            ->setStreetName($invoice->customer->street_name)
-            ->setBuildingNumber($invoice->customer->building_number)
-            ->setPlotIdentification($invoice->customer->plot_identification)
-            ->setSubDivisionName($invoice->customer->sub_city)
-            ->setCityName($invoice->customer->address)
-            ->setPostalNumber($invoice->customer->postcode)
-            ->setCountryName('SA')
-            ->setClientName($invoice->customer->name);
-
-
-        //  return $client->getElement();
-        $supplier = (new Supplier())
-            ->setCrn($setting->crn)
-            ->setStreetName($setting->street_name)
-            ->setBuildingNumber($setting->building_number)
-            ->setPlotIdentification($setting->plot_identification)
-            ->setSubDivisionName($setting->region)
-            ->setCityName($setting->city)
-            ->setPostalNumber($setting->postal_number)
-            ->setCountryName('SA')
-            ->setVatNumber($setting->trn)
-            ->setVatName($setting->name);
-        // return $supplier->getElement();
-
-        $delivery = (new Delivery())
-            ->setDeliveryDateTime($invoice->issue_date);
-
-        $paymentType = (new PaymentType())
-            ->setPaymentType('10');
-
-        $returnReason = (new ReturnReason())
-            ->setReturnReason('SET_RETURN_REASON');
-
-        $previous_hash = (new PIH())
-            ->setPIH($previous_invoice);  // note this value it from step 3 , 4
-        // $billingReference = (new BillingReference())
-        // ->setBillingReference('23'); // note this used when type credit or debit this value of parent invoice id
-
-        $additionalDocumentReference = (new AdditionalDocumentReference())
-            ->setInvoiceID($setting->Invoice_count + 1); // note this value it from step 1
-
-        $legalMonetaryTotal = (new LegalMonetaryTotal())
-            ->setTotalCurrency('SAR')
-            ->setLineExtensionAmount($total_withot_tax_sum)
-            ->setTaxExclusiveAmount($total_withot_tax_sum)
-            ->setTaxInclusiveAmount($total_with_tax_sum)
-            ->setAllowanceTotalAmount(0)
-            ->setPrepaidAmount(0)
-            ->setPayableAmount($total_with_tax_sum);
-
-        $taxesTotal = (new TaxesTotal())
-            ->setTaxCurrencyCode('SAR')
-            ->setTaxTotal($tax_sum);
-        $current_item_tax_rate = ($tax_sum > 0) ? 15 : 0; // افترضنا 15، يمكن استبدالها بـ $item->tax_rate لو متوفر
-        $taxCategoryCode = ($current_item_tax_rate == 0) ? 'E' : 'S';
-
-        $taxSubtotal = (new TaxSubtotal())
-            ->setTaxCurrencyCode('SAR')
-            ->setTaxableAmount($total_withot_tax_sum)
-            ->setTaxAmount($tax_sum)
-            ->setTaxCategory($taxCategoryCode)
-            ->setTaxPercentage($rat_tax)
-            ->getElement();
-
-
-        $allowanceCharge = (new AllowanceCharge())
-            ->setAllowanceChargeCurrency('SAR')
-            ->setAllowanceChargeIndex('1')
-            ->setAllowanceChargeAmount(0)
-            ->setAllowanceChargeTaxCategory($taxCategoryCode)
-            ->setAllowanceChargeTaxPercentage($rat_tax)
-            ->getElement();
-        if (strlen($invoice->customer->tax_no) != 15) {
-
-            $response = (new InvoiceGenerator())
-                ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
-                ->setZatcaLang('en')
-                ->setInvoiceNumber($request)
-                ->setInvoiceUuid($invoice->invoiceUUid) // this value from step 6
-                ->setInvoiceIssueDate($invoice->issue_date)
-                ->setInvoiceIssueTime($invoice->issue_time)
-                ->setInvoiceType(($invoice->document_type == 'simplified') ? '0200000' : '0100000', $invoice->invoice_type)
-                ->setInvoiceCurrencyCode('SAR')
-                ->setInvoiceTaxCurrencyCode('SAR')
-                //->setInvoiceBillingReference($billingReference)  use this when document type is credit or debit
-                ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
-                ->setInvoicePIH($previous_hash)
-                ->setInvoiceupplier($supplier)
-                ->setInvoiceDelivery($delivery)
-                ->setInvoicePaymentType($paymentType)
-                //->setInvoiceReturnReason($returnReason) use this when document type is credit or debit
-                ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
-                ->setInvoiceTaxesTotal($taxesTotal)
-                ->setInvoiceTaxSubTotal($taxSubtotal)
-                ->setInvoiceAllowanceCharges($allowanceCharge)
-                ->setInvoiceLines(...$invoiceLines)
-                ->setCertificateEncoded($setting->production_certificate)
-                ->setPrivateKeyEncoded($setting->private_key)
-                ->setCertificateSecret($setting->production_secret)
-                ->sendDocument(true); // when you use production certifiacte for (simulation , core) dont forget set sendDocument(true)
-            //   return $response;
-
-
-        } else {
-            $response = (new InvoiceGenerator())
-                ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
-                ->setZatcaLang('en')
-                ->setInvoiceNumber($request)
-                ->setInvoiceUuid($invoice->invoiceUUid) // this value from step 6
-                ->setInvoiceIssueDate($invoice->issue_date)
-                ->setInvoiceIssueTime($invoice->issue_time)
-                ->setInvoiceType(($invoice->document_type == 'simplified') ? '0200000' : '0100000', $invoice->invoice_type)
-                ->setInvoiceCurrencyCode('SAR')
-                ->setInvoiceTaxCurrencyCode('SAR')
-                //->setInvoiceBillingReference($billingReference)  use this when document type is credit or debit
-                ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
-                ->setInvoicePIH($previous_hash)->setInvoiceupplier($supplier)
-                ->setInvoiceClient($client)
-                ->setInvoiceDelivery($delivery)
-                ->setInvoicePaymentType($paymentType)
-                //->setInvoiceReturnReason($returnReason) use this when document type is credit or debit
-                ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
-                ->setInvoiceTaxesTotal($taxesTotal)
-                ->setInvoiceTaxSubTotal($taxSubtotal)
-                ->setInvoiceAllowanceCharges($allowanceCharge)
-                ->setInvoiceLines(...$invoiceLines)
-                ->setCertificateEncoded($setting->production_certificate)
-                ->setPrivateKeyEncoded($setting->private_key)
-                ->setCertificateSecret($setting->production_secret)
-                ->sendDocument(true); // when you use production certifiacte for (simulation , core) dont forget set sendDocument(true)
-        }
-
-        if ($response['success']) {
-            Setting::where('branchs_id', 1)->update([
-                'previous_hash_invoice' => $response['hash'],
-                'Invoice_count' => $setting->Invoice_count + 1
-            ]);
-            Invoice::find($request)->update(
-                [
-                    'signing_time' => \Carbon\Carbon::now(),
-                    'hash' => $response['hash'],
-                    'xml' => $response['xml'],
-                    'sent_to_zatca_status' => "PASS",
-                    'sent_to_zatca' => 1,
-                    'clearedInvoice' => $invoice->document_type == 'simplified' ? NULL : $response['response']->clearedInvoice
-
-                ]
-            );
-
-            return 1;
-        } else {
-            return $response;
-
-            return '|||' . $response['response']->reportingStatus . '   ||| ERROR MESSAGE    :-   ' . $response['response']->validationResults->errorMessages[0]->message;
-        }
-    }
 
     function dwonloadxml($id)
     {
@@ -878,6 +83,8 @@ class InvoiceController extends Controller
 
     public function index(Request $request)
     {
+        $this->authorize('invoices.view');
+
         $query = Invoice::with(['customer', 'branch', 'creator'])->latest();
 
         if ($request->filled('invoice_number')) {
@@ -894,14 +101,21 @@ class InvoiceController extends Controller
         }
 
         $Invoice = $query->paginate(15)->withQueryString();
-        $customers = Customer::orderBy('name')->get();
+
+        // فلتر العميل بقى بحث Ajax حي (منحملش كل جدول العملاء) - كل
+        // اللي محتاجينه هنا هو اسم العميل المختار حاليًا في الفلتر لو فيه.
+        $selectedCustomerId = $request->filled('customer_id') ? (int) $request->input('customer_id') : null;
+        $customers = $selectedCustomerId
+            ? [$selectedCustomerId => optional(Customer::find($selectedCustomerId))->name]
+            : [];
 
         return view('invoices.index', compact('Invoice', 'customers'));
     }
 
 public function create(Request $request)
 {
-    $customers = Customer::orderBy('name')->get();
+    $this->authorize('invoices.create');
+
     $branches = Branch::orderBy('name')->get();
 
     $maxDiscountPercent = DB::table('employee_discount_settings')
@@ -940,11 +154,27 @@ public function create(Request $request)
         }
     }
 
-    return view('invoices.create', compact('customers', 'branches', 'maxDiscountPercent', 'draft'));
+    // منحملش كل جدول العملاء هنا (ممكن يبقى فيه عشرات الآلاف من الصفوف) -
+    // قايمة اختيار العميل بقت بحث Ajax حي (شوف customer_select في
+    // invoices/create.blade.php)، وكل اللي محتاجينه هنا هو اسم العميل
+    // المختار مسبقًا لو الفورم جاي من مسودة محفوظة.
+    $selectedCustomer = $draft && $draft->customer_id
+        ? Customer::where('id', $draft->customer_id)->first(['id', 'name'])
+        : null;
+    $customers = $selectedCustomer ? [$selectedCustomer->id => $selectedCustomer->name] : [];
+
+    // نسبة الضريبة الافتراضية اللي المفروض تتحدد تلقائيًا في شاشة الإنشاء
+    // بتتحدد حسب أولوية الضريبة في جدول الضرائب (Tax::defaultRateFraction())
+    // مش رقم ثابت 15% زي ما كان بيحصل قبل كده.
+    $defaultTaxRate = Tax::defaultRateFraction();
+
+    return view('invoices.create', compact('customers', 'branches', 'maxDiscountPercent', 'draft', 'defaultTaxRate'));
 }
 
     public function show(Invoice $invoice)
     {
+        $this->authorize('invoices.view');
+
         $invoice->load(['customer', 'branch', 'items.product', 'creator', 'returns']);
 
         // Map your new model attributes to the keys your Blade template uses
@@ -964,6 +194,8 @@ public function create(Request $request)
      */
     public function downloadPdf(Invoice $invoice)
     {
+        $this->authorize('invoices.view');
+
         $pdf = $this->buildInvoicePdf($invoice);
 
         return $pdf->download('invoice-' . ($invoice->invoice_number ?? $invoice->id) . '.pdf');
@@ -975,7 +207,7 @@ public function createInvoiceFromData(array $validated): Invoice
     /**
      * اسم بديل (alias) - لو الراوت عندك بيستخدم ->pdf() بدل ->downloadPdf()
      * (زي الخطأ اللي ظهرلك: "Call to undefined method ...::pdf()")، الدالة
-     * دي بتخليه يشتغل برضه من غير ما تغيّري اسم الراوت.
+     * دي بتخليه يشتغل برضه من غير ما تغيّر اسم الراوت.
      */
     public function pdf(Invoice $invoice)
     {
@@ -1015,25 +247,155 @@ public function createInvoiceFromData(array $validated): Invoice
 
     public function edit(Invoice $invoice)
     {
-        // يمكنك جلب البيانات التي تحتاجها في صفحة التعديل مثل العملاء والمنتجات
-        $customers = \App\Models\Customer::all();
+        $this->authorize('invoices.edit');
 
-        return view('invoices.edit', compact('invoice', 'customers'));
+        if (!$invoice->isEditable()) {
+            abort(403, __('invoices.not_editable'));
+        }
+
+        $invoice->load(['items.product', 'customer']);
+
+        // قايمة اختيار العميل بقت بحث Ajax حي (منحملش كل جدول العملاء) -
+        // كل اللي محتاجينه هنا هو اسم العميل الحالي للفاتورة عشان يظهر
+        // كخيار مبدئي في القايمة.
+        $customers = [$invoice->customer_id => optional($invoice->customer)->name];
+
+        $maxDiscountPercent = DB::table('employee_discount_settings')
+            ->where('user_id', auth()->user()->id)
+            ->where('branchs_id', auth()->user()->branch_id)
+            ->value('max_discount') ?? 0;
+
+        $defaultTaxRate = Tax::defaultRateFraction();
+
+        // بيانات الفاتورة الحالية بشكل مبسّط عشان نعبي بيه فورم Alpine.js
+        // (نفس شكل $draftForJs في create.blade.php بالظبط).
+        $existingInvoiceData = [
+            'customer_id' => $invoice->customer_id,
+            'payment_method' => $invoice->payment_method,
+            'cash_amount' => (float) $invoice->cash_amount,
+            'bank_amount' => (float) $invoice->bank_amount,
+            'extra_discount' => (float) $invoice->invoice_level_discount,
+            'items' => $invoice->items->map(function (InvoiceItem $item) {
+                return [
+                    'product_id' => $item->product_id,
+                    'name' => $item->product_name_snapshot ?? $item->product?->name,
+                    'code' => $item->product?->code,
+                    'quantity' => (float) $item->quantity,
+                    'unit_price' => (float) $item->unit_price,
+                    'purchase_price' => (float) ($item->product?->purchase_price ?? 0),
+                    'discount_amount' => (float) $item->discount_amount,
+                    'tax_rate' => (float) $item->tax_rate,
+                ];
+            })->values(),
+        ];
+
+        return view('invoices.edit', compact('invoice', 'customers', 'maxDiscountPercent', 'defaultTaxRate', 'existingInvoiceData'));
     }
 
     public function update(Request $request, Invoice $invoice)
     {
-        // منطق تحديث الفاتورة هنا
+        $this->authorize('invoices.edit');
 
-        return redirect()->route('invoices.index')->with('success', 'تم تحديث الفاتورة بنجاح');
+        if (!$invoice->isEditable()) {
+            abort(403, __('invoices.not_editable'));
+        }
+
+        $items = json_decode((string) $request->input('items_json'), true) ?: [];
+        $request->merge(['items' => $items]);
+
+        $validated = Validator::make($request->all(), [
+            'customer_id' => ['required', 'exists:customers,id'],
+            'payment_method' => ['required', 'in:cash,bank_transfer,card,credit,split'],
+            'cash_amount' => ['nullable', 'numeric', 'min:0'],
+            'bank_amount' => ['nullable', 'numeric', 'min:0'],
+            'note' => ['nullable', 'string'],
+            'purchase_order_number' => ['nullable', 'string', 'max:255'],
+            'invoice_level_discount' => ['nullable', 'numeric', 'min:0'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'items.*.tax_rate' => ['required', 'numeric', 'min:0'],
+            'items.*.name' => ['nullable', 'string'],
+            'items.*.code' => ['nullable', 'string'],
+            'items.*.purchase_price' => ['nullable', 'numeric', 'min:0'],
+        ])->validate();
+
+        DB::transaction(function () use ($invoice, $validated) {
+            // نتأكد تاني من قابلية التعديل جوه الـ transaction - لو حصل
+            // مرتجع على الفاتورة في نفس اللحظة (سباق نادر)، نوقف فورًا
+            // قبل ما نلمس أي بيانات.
+            $invoice->refresh();
+            if (!$invoice->isEditable()) {
+                throw ValidationException::withMessages([
+                    'items' => __('invoices.not_editable'),
+                ]);
+            }
+
+            // الفرع بيفضل زي ما هو (فرع الفاتورة الأصلي) - التعديل مبيغيرش
+            // فرع الفاتورة عشان القيود المحاسبية القديمة (والحسابات
+            // المرتبطة بيها) كلها مسجلة على الفرع ده بالظبط.
+            $branchId = $invoice->branch_id;
+
+            $this->reverseInvoiceEffects($invoice);
+
+            $totals = $this->computeInvoiceTotals($validated['items'], (float) ($validated['invoice_level_discount'] ?? 0));
+            $split = $this->computePaymentSplit(
+                $validated['payment_method'],
+                $totals['grandTotal'],
+                (float) ($validated['cash_amount'] ?? 0),
+                (float) ($validated['bank_amount'] ?? 0)
+            );
+
+            $invoice->update([
+                'customer_id' => $validated['customer_id'],
+                'subtotal' => $totals['subtotal'],
+                'tax_amount' => $totals['taxTotal'],
+                'discount_amount' => $totals['discountTotal'],
+                'total_quantity' => $totals['totalQuantity'],
+                'payment_method' => $validated['payment_method'],
+                'has_multiple_payment_methods' => $validated['payment_method'] === 'split',
+                'cash_amount' => $split['cashAmount'],
+                'bank_amount' => $split['bankAmount'],
+                'credit_amount' => $split['creditAmount'],
+                'note' => $validated['note'] ?? null,
+                'purchase_order_number' => $validated['purchase_order_number'] ?? null,
+                'invoice_level_discount' => $totals['invoiceLevelDiscount'],
+            ]);
+
+            $this->applyInvoiceItemsToProducts($invoice, $validated['items'], true);
+
+            if ($totals['grandTotal'] > 0) {
+                $this->recordInvoiceAccounting(
+                    $invoice,
+                    $split['cashAmount'],
+                    $split['bankAmount'],
+                    $split['creditAmount'],
+                    $totals['totalCost'],
+                    $validated['payment_method'],
+                    $validated['customer_id'],
+                    $branchId
+                );
+            }
+        });
+
+        return redirect()->route('invoices.show', $invoice)->with('success', __('invoices.updated_successfully'));
     }
+    /**
+     * ملحوظة: مبنفلترش هنا على عمود status عمدًا - قيم status في بيانات
+     * المنتجات الحالية مش كلها 'active' حرفيًا، وكانت الفلترة عليه بتخفي
+     * منتجات موجودة فعلاً وفيها مخزون من صندوق البحث السريع (نفس السبب
+     * اللي ظهر في شاشة تحويلات المخزون بين الفروع). الراوت ده كمان بيستخدمه
+     * البحث السريع في شاشتي المشتريات والتسعيرات (بيعملوا fetch على
+     * invoices.products.search مباشرة).
+     */
     public function searchProducts(Request $request)
     {
         $search = (string) $request->query('q', '');
         $branchId = $request->query('branch_id', Auth::user()?->branch_id);
 
         $products = Product::query()
-            ->where('status', 'active')
             ->when($branchId, function ($q) use ($branchId) {
                 $q->where('branch_id', $branchId);
             })
@@ -1142,14 +504,22 @@ $customer = DB::transaction(function () use ($request) {
         'commercial_registration_number'  => $request->commercial_registration_number ?? null,
     ]);
 
-    // توليد رقم الحساب التالي في شجرة الحسابات للعملاء
-    $nextAccountNumber = FinancialAccount::where('account_type', 1)
+    // توليد رقم الحساب التالي في شجرة الحسابات للعملاء - بنستخدم
+    // parent_account_number + orginal_type بدل account_type القديم، لإن
+    // account_type بقى بيحمل تصنيف محاسبي (أصول/خصوم/...) مش نوع الكيان
+    // (عميل/مورد) بعد ميجريشن 2026_09_02_000028.
+    $nextAccountNumber = FinancialAccount::where('parent_account_number', 2)
         ->where('orginal_type', 1)
         ->max('account_number') + 1;
 
+    // account_type و account_category_id بيتورثوا مع بعض من نفس تصنيف
+    // الحساب الأب (2 = حساب "العملاء") بدل قيمة ثابتة قديمة.
+    $inheritedCategoryId = FinancialAccount::inheritedCategoryId(2);
+
     FinancialAccount::create([
         'name'                  => $request->name,
-        'account_type'          => 1,
+        'account_type'          => $inheritedCategoryId,
+        'account_category_id'   => $inheritedCategoryId,
         'parent_account_number' => 2,
         'account_number'        => $nextAccountNumber,
         'start_balance'         => 0,
@@ -1230,141 +600,213 @@ return redirect()->back();
      * تحويل بيانات فاتورة (سواء جايه من فورم إنشاء فاتورة عادي، أو من
      * اعتماد مسودة مباشرة) لفاتورة رسمية فعلية: بتاخد رقم، بتتسجل في
      * جدول invoices، بتتخصم من المخزون، وبتتسجل كل القيود المحاسبية
-     * المرتبطة بيها. مستخدمة من store() (لما تدوسي "حفظ الفاتورة") ومن
-     * approveDraft() (لما تدوسي "اعتماد" على مسودة من غير ما تفتحيها).
+     * المرتبطة بيها. مستخدمة من store() (لما تدوس "حفظ الفاتورة") ومن
+     * approveDraft() (لما تدوس "اعتماد" على مسودة من غير ما تفتحها).
      */
     public  function finalizeInvoice(array $validated): Invoice
     {
         return DB::transaction(function () use ($validated) {
-    // إعادة حساب الإجماليات من السيرفر لضمان الدقة
-    $subtotal = 0;
-    $taxTotal = 0;
-    $discountTotal = 0;
-    $totalCost = 0; // لحساب تكلفة البضاعة المباعة
+            $totals = $this->computeInvoiceTotals($validated['items'], (float) ($validated['invoice_level_discount'] ?? 0));
+            $split = $this->computePaymentSplit(
+                $validated['payment_method'],
+                $totals['grandTotal'],
+                (float) ($validated['cash_amount'] ?? 0),
+                (float) ($validated['bank_amount'] ?? 0)
+            );
 
-    foreach ($validated['items'] as $item) {
-        $product = Product::find($item['product_id']);
-        $lineSubtotal = ($item['unit_price'] * $item['quantity']) - ($item['discount_amount'] ?? 0);
-        $subtotal += $lineSubtotal;
-        $taxTotal += $lineSubtotal * $item['tax_rate'];
-        $discountTotal += $item['discount_amount'] ?? 0;
+            // 1. إنشاء الفاتورة
+            $invoice = Invoice::create([
+                'customer_id' => $validated['customer_id'],
+                'branch_id' => $validated['branch_id'],
+                'created_by' => Auth::id(),
+                'subtotal' => $totals['subtotal'],
+                'tax_amount' => $totals['taxTotal'],
+                'discount_amount' => $totals['discountTotal'],
+                'total_quantity' => $totals['totalQuantity'],
+                'payment_method' => $validated['payment_method'],
+                'has_multiple_payment_methods' => $validated['payment_method'] === 'split',
+                'cash_amount' => $split['cashAmount'],
+                'bank_amount' => $split['bankAmount'],
+                'credit_amount' => $split['creditAmount'],
+                'is_finalized' => $validated['is_finalized'],
+                'note' => $validated['note'] ?? null,
+                'purchase_order_number' => $validated['purchase_order_number'] ?? null,
+                'invoice_level_discount' => $totals['invoiceLevelDiscount'],
+                'issue_date' => now()->toDateString(),
+                'issue_time' => now()->toTimeString(),
+            ]);
 
-        // حساب التكلفة الإجمالية بناءً على سعر الشراء للمنتج
-        if ($product) {
-            $totalCost += ($product->purchase_price ?? 0) * $item['quantity'];
+            $invoice->update(['invoice_number' => (string) $invoice->id]);
+
+            // 2. إنشاء تفاصيل الفاتورة وتحديث المخزون
+            $this->applyInvoiceItemsToProducts($invoice, $validated['items'], (bool) $validated['is_finalized']);
+
+            // 3. القيود المحاسبية والحركات المالية (في حال كانت الفاتورة معتمدة)
+            if ($validated['is_finalized'] && $totals['grandTotal'] > 0) {
+                $this->recordInvoiceAccounting(
+                    $invoice,
+                    $split['cashAmount'],
+                    $split['bankAmount'],
+                    $split['creditAmount'],
+                    $totals['totalCost'],
+                    $validated['payment_method'],
+                    $validated['customer_id'],
+                    $validated['branch_id']
+                );
+            }
+
+            return $invoice;
+        });
+    }
+
+    /**
+     * حساب إجماليات الفاتورة (الإجمالي قبل الضريبة، الضريبة، الخصم،
+     * الإجمالي النهائي، تكلفة البضاعة المباعة...) من مصفوفة الأصناف -
+     * نفس الحسابات المستخدمة في finalizeInvoice() بالظبط، بس منقولة هنا
+     * عشان update() يقدر يستخدمها هي كمان من غير تكرار.
+     */
+    protected function computeInvoiceTotals(array $items, float $invoiceLevelDiscountInput): array
+    {
+        $subtotal = 0;
+        $taxTotal = 0;
+        $discountTotal = 0;
+        $totalCost = 0;
+
+        foreach ($items as $item) {
+            $product = Product::find($item['product_id']);
+            $lineSubtotal = ($item['unit_price'] * $item['quantity']) - ($item['discount_amount'] ?? 0);
+            $subtotal += $lineSubtotal;
+            $taxTotal += $lineSubtotal * $item['tax_rate'];
+            $discountTotal += $item['discount_amount'] ?? 0;
+
+            if ($product) {
+                $totalCost += ($product->purchase_price ?? 0) * $item['quantity'];
+            }
+        }
+
+        $invoiceLevelDiscount = min($invoiceLevelDiscountInput, $subtotal + $taxTotal);
+        $grandTotal = $subtotal + $taxTotal - $invoiceLevelDiscount;
+        $totalQuantity = array_sum(array_column($items, 'quantity'));
+
+        return compact('subtotal', 'taxTotal', 'discountTotal', 'invoiceLevelDiscount', 'grandTotal', 'totalQuantity', 'totalCost');
+    }
+
+    /**
+     * توزيع الإجمالي النهائي على طرق الدفع (كاش/بنك/آجل) حسب طريقة
+     * الدفع المختارة - نفس منطق finalizeInvoice() بالظبط.
+     */
+    protected function computePaymentSplit(string $paymentMethod, float $grandTotal, float $cashAmountInput, float $bankAmountInput): array
+    {
+        $cashAmount = 0;
+        $bankAmount = 0;
+        $creditAmount = 0;
+
+        switch ($paymentMethod) {
+            case 'cash':
+                $cashAmount = $grandTotal;
+                break;
+            case 'bank_transfer':
+            case 'card':
+                $bankAmount = $grandTotal;
+                break;
+            case 'credit':
+                $creditAmount = $grandTotal;
+                break;
+            case 'split':
+                $cashAmount = $cashAmountInput;
+                $bankAmount = $bankAmountInput;
+                $creditAmount = max(0, $grandTotal - ($cashAmount + $bankAmount));
+                break;
+        }
+
+        return compact('cashAmount', 'bankAmount', 'creditAmount');
+    }
+
+    /**
+     * بتنشئ بنود الفاتورة (InvoiceItem) وتحدّث مخزون كل منتج - مستخدمة
+     * في الإنشاء وفي إعادة التطبيق بعد التعديل (update()) بنفس المنطق
+     * بالظبط. على عكس المشتريات، البيع مبيغيرش تكلفة/متوسط تكلفة المنتج
+     * (purchase_price/average_cost) خالص - بس بيخصم من المخزون، فمفيش
+     * داعي لأي "snapshot" هنا؛ الإرجاع (reverseInvoiceEffects) بيكتفي
+     * بإضافة نفس الكمية تاني (delta)، وده آمن حتى لو حصلت فواتير/مشتريات
+     * تانية على نفس المنتج في الوسط.
+     */
+    protected function applyInvoiceItemsToProducts(Invoice $invoice, array $items, bool $isFinalized): void
+    {
+        foreach ($items as $item) {
+            $product = Product::find($item['product_id']);
+            $lineSubtotal = ($item['unit_price'] * $item['quantity']) - ($item['discount_amount'] ?? 0);
+            $lineTax = $lineSubtotal * $item['tax_rate'];
+
+            InvoiceItem::create([
+                'invoice_id' => $invoice->id,
+                'product_id' => $item['product_id'],
+                'branch_id' => $invoice->branch_id,
+                'unit_price' => $item['unit_price'],
+                'quantity' => $item['quantity'],
+                'discount_amount' => $item['discount_amount'] ?? 0,
+                'tax_amount' => $lineTax,
+                'tax_rate' => $item['tax_rate'],
+                'product_name_snapshot' => $product?->name,
+                'is_finalized' => $isFinalized,
+                'created_by' => Auth::id(),
+                'remaining_quantity' => $item['quantity'],
+            ]);
+
+            if ($product && $isFinalized) {
+                $product->decrement('stock_quantity', $item['quantity']);
+                $product->increment('total_sold', $item['quantity']);
+            }
         }
     }
 
-    $invoiceLevelDiscount = min($validated['invoice_level_discount'] ?? 0, $subtotal + $taxTotal);
-    $grandTotal = $subtotal + $taxTotal - $invoiceLevelDiscount;
-    $totalQuantity = array_sum(array_column($validated['items'], 'quantity'));
-
-    $cashAmount = 0;
-    $bankAmount = 0;
-    $creditAmount = 0;
-
-    switch ($validated['payment_method']) {
-        case 'cash':
-            $cashAmount = $grandTotal;
-            break;
-        case 'bank_transfer':
-        case 'card':
-            $bankAmount = $grandTotal;
-            break;
-        case 'credit':
-            $creditAmount = $grandTotal;
-            break;
-        case 'split':
-            $cashAmount = $validated['cash_amount'] ?? 0;
-            $bankAmount = $validated['bank_amount'] ?? 0;
-            $creditAmount = max(0, $grandTotal - ($cashAmount + $bankAmount));
-            break;
-    }
-
-    // 1. إنشاء الفاتورة
-    $invoice = Invoice::create([
-        'customer_id' => $validated['customer_id'],
-        'branch_id' => $validated['branch_id'],
-        'created_by' => Auth::id(),
-        'subtotal' => $subtotal,
-        'tax_amount' => $taxTotal,
-        'discount_amount' => $discountTotal,
-        'total_quantity' => $totalQuantity,
-        'payment_method' => $validated['payment_method'],
-        'has_multiple_payment_methods' => $validated['payment_method'] === 'split',
-        'cash_amount' => $cashAmount,
-        'bank_amount' => $bankAmount,
-        'credit_amount' => $creditAmount,
-        'is_finalized' => $validated['is_finalized'],
-        'note' => $validated['note'] ?? null,
-        'purchase_order_number' => $validated['purchase_order_number'] ?? null,
-        'invoice_level_discount' => $invoiceLevelDiscount,
-        'issue_date' => now()->toDateString(),
-        'issue_time' => now()->toTimeString(),
-    ]);
-
-    $invoice->update(['invoice_number' => (string) $invoice->id]);
-
-    // 2. إنشاء تفاصيل الفاتورة وتحديث المخزون
-    foreach ($validated['items'] as $item) {
-        $product = Product::find($item['product_id']);
-        $lineSubtotal = ($item['unit_price'] * $item['quantity']) - ($item['discount_amount'] ?? 0);
-        $lineTax = $lineSubtotal * $item['tax_rate'];
-
-        InvoiceItem::create([
-            'invoice_id' => $invoice->id,
-            'product_id' => $item['product_id'],
-            'branch_id' => $validated['branch_id'],
-            'unit_price' => $item['unit_price'],
-            'quantity' => $item['quantity'],
-            'discount_amount' => $item['discount_amount'] ?? 0,
-            'tax_amount' => $lineTax,
-            'tax_rate' => $item['tax_rate'],
-            'product_name_snapshot' => $product?->name,
-            'is_finalized' => $validated['is_finalized'],
-            'created_by' => Auth::id(),
-            'remaining_quantity' => $item['quantity'],
-        ]);
-
-        if ($product && $validated['is_finalized']) {
-            $product->decrement('stock_quantity', $item['quantity']);
-            $product->increment('total_sold', $item['quantity']);
-        }
-    }
-
-    // 3. القيود المحاسبية والحركات المالية (في حال كانت الفاتورة معتمدة)
-    if ($validated['is_finalized'] && $grandTotal > 0) {
-        $confirmInvoice = $invoice;
-        $customerId = $validated['customer_id'];
+    /**
+     * كل القيود المحاسبية والحركات المالية المرتبطة بفاتورة مبيعات
+     * معتمدة (كاش/بنك/ضريبة/إيرادات/تكلفة البضاعة المباعة/رصيد العميل
+     * الآجل) - نفس منطق finalizeInvoice() الأصلي بالظبط (بما في ذلك إن
+     * حسابات الكاش/البنك/الإيرادات/التكلفة/المخزون هنا بتتسجل كسطر
+     * تسجيل (CreditTransaction) بس من غير تحديث فعلي لرصيدها - ده سلوك
+     * الكود الأصلي، مش غلط جديد مني)، منقولة هنا عشان update() يقدر
+     * يعيد تسجيلها بعد التعديل من غير تكرار.
+     */
+    protected function recordInvoiceAccounting(
+        Invoice $invoice,
+        float $cashAmount,
+        float $bankAmount,
+        float $creditAmount,
+        float $totalCost,
+        string $paymentMethod,
+        int $customerId,
+        int $branchId
+    ): void {
         $customerData = Customer::find($customerId);
 
-        // تجهيز بيانات المبالغ لتتوافق مع القيود المضافة
         $pData = [
             'cashamount' => $cashAmount,
-            'Bank_transfer' => ($validated['payment_method'] === 'bank_transfer' || $validated['payment_method'] === 'card') ? $bankAmount : 0,
-            'bankamount' => ($validated['payment_method'] === 'split') ? $bankAmount : 0,
+            'Bank_transfer' => ($paymentMethod === 'bank_transfer' || $paymentMethod === 'card') ? $bankAmount : 0,
+            'bankamount' => ($paymentMethod === 'split') ? $bankAmount : 0,
             'creaditamount' => $creditAmount,
             'created_at' => Carbon::now('Asia/Riyadh'),
         ];
 
         // أ. القيود المحاسبية لـ Cash
         if ($pData['cashamount']) {
-            $financialAccount = FinancialAccount::where('parent_account_number', 5)->where('branchs_id', Auth::user()->branchs_id ?? $validated['branch_id'])->first();
+            $financialAccount = FinancialAccount::where('parent_account_number', 5)->where('branchs_id', Auth::user()->branchs_id ?? $branchId)->first();
             if ($financialAccount) {
                 CreditTransaction::create([
                     'user_id' => Auth::id(),
                     'customer_id' => $financialAccount->id,
                     'recive_amount' => $pData['cashamount'],
-                    'branchs_id' => Auth::user()->branchs_id ?? $validated['branch_id'],
-                    'pay_method' => $validated['payment_method'],
-                    'note' => 'فاتورة مبيعات رقم :' . $confirmInvoice->id,
+                    'branchs_id' => Auth::user()->branchs_id ?? $branchId,
+                    'pay_method' => $paymentMethod,
+                    'note' => 'فاتورة مبيعات رقم :' . $invoice->id,
                     'currentblance' => $financialAccount->current_balance + $pData['cashamount'],
-                    'Pay_Method_Name' => ucfirst($validated['payment_method']),
+                    'Pay_Method_Name' => ucfirst($paymentMethod),
                     'created_at' => $pData['created_at'],
                     'updated_at' => Carbon::now('Asia/Riyadh'),
                     'debtor' => $pData['cashamount'],
                     'operation_type' => 1,
-                    'invoice_number' => $confirmInvoice->invoice_number,
+                    'invoice_number' => $invoice->invoice_number,
                 ]);
             }
 
@@ -1374,15 +816,15 @@ return redirect()->back();
                     'user_id' => Auth::id(),
                     'customer_id' => $customerAccount->id,
                     'recive_amount' => 0,
-                    'branchs_id' => Auth::user()->branchs_id ?? $validated['branch_id'],
-                    'pay_method' => $validated['payment_method'],
-                    'note' => 'فاتورة مبيعات رقم :' . $confirmInvoice->id,
+                    'branchs_id' => Auth::user()->branchs_id ?? $branchId,
+                    'pay_method' => $paymentMethod,
+                    'note' => 'فاتورة مبيعات رقم :' . $invoice->id,
                     'currentblance' => $customerAccount->current_balance + $pData['creaditamount'],
-                    'Pay_Method_Name' => ucfirst($validated['payment_method']),
+                    'Pay_Method_Name' => ucfirst($paymentMethod),
                     'created_at' => $pData['created_at'],
                     'updated_at' => Carbon::now('Asia/Riyadh'),
                     'operation_type' => 1,
-                    'invoice_number' => $confirmInvoice->invoice_number,
+                    'invoice_number' => $invoice->invoice_number,
                 ]);
             }
         }
@@ -1390,22 +832,22 @@ return redirect()->back();
         // ب. القيود المحاسبية للشبكة والتحويل البنكي
         $totalBank = $pData['Bank_transfer'] + $pData['bankamount'];
         if ($totalBank) {
-            $financialAccount = FinancialAccount::where('parent_account_number', 4)->where('branchs_id', Auth::user()->branchs_id ?? $validated['branch_id'])->first();
+            $financialAccount = FinancialAccount::where('parent_account_number', 4)->where('branchs_id', Auth::user()->branchs_id ?? $branchId)->first();
             if ($financialAccount) {
                 CreditTransaction::create([
                     'user_id' => Auth::id(),
                     'customer_id' => $financialAccount->id,
                     'recive_amount' => $totalBank,
-                    'branchs_id' => Auth::user()->branchs_id ?? $validated['branch_id'],
-                    'pay_method' => $validated['payment_method'],
-                    'note' => 'فاتورة مبيعات رقم :' . $confirmInvoice->id,
+                    'branchs_id' => Auth::user()->branchs_id ?? $branchId,
+                    'pay_method' => $paymentMethod,
+                    'note' => 'فاتورة مبيعات رقم :' . $invoice->id,
                     'currentblance' => $financialAccount->current_balance + $totalBank,
-                    'Pay_Method_Name' => ucfirst($validated['payment_method']),
+                    'Pay_Method_Name' => ucfirst($paymentMethod),
                     'created_at' => $pData['created_at'],
                     'updated_at' => Carbon::now('Asia/Riyadh'),
                     'debtor' => $totalBank,
                     'operation_type' => 1,
-                    'invoice_number' => $confirmInvoice->invoice_number,
+                    'invoice_number' => $invoice->invoice_number,
                 ]);
             }
 
@@ -1415,15 +857,15 @@ return redirect()->back();
                     'user_id' => Auth::id(),
                     'customer_id' => $customerAccount->id,
                     'recive_amount' => 0,
-                    'branchs_id' => Auth::user()->branchs_id ?? $validated['branch_id'],
-                    'pay_method' => $validated['payment_method'],
-                    'note' => 'فاتورة مبيعات رقم :' . $confirmInvoice->id,
+                    'branchs_id' => Auth::user()->branchs_id ?? $branchId,
+                    'pay_method' => $paymentMethod,
+                    'note' => 'فاتورة مبيعات رقم :' . $invoice->id,
                     'currentblance' => $customerAccount->current_balance + $pData['creaditamount'],
-                    'Pay_Method_Name' => ucfirst($validated['payment_method']),
+                    'Pay_Method_Name' => ucfirst($paymentMethod),
                     'created_at' => $pData['created_at'],
                     'updated_at' => Carbon::now('Asia/Riyadh'),
                     'operation_type' => 1,
-                    'invoice_number' => $confirmInvoice->invoice_number,
+                    'invoice_number' => $invoice->invoice_number,
                 ]);
             }
         }
@@ -1434,7 +876,7 @@ return redirect()->back();
         $netRevenue = $totalValue * 100 / 115;
 
         // حساب الضريبة (102)
-        $vatAccount = FinancialAccount::where('parent_account_number', 102)->where('branchs_id', Auth::user()->branchs_id ?? $validated['branch_id'])->first();
+        $vatAccount = FinancialAccount::where('parent_account_number', 102)->where('branchs_id', Auth::user()->branchs_id ?? $branchId)->first();
         if ($vatAccount) {
             $vatAccount->update([
                 'current_balance' => $vatAccount->current_balance + $vatValue,
@@ -1445,11 +887,11 @@ return redirect()->back();
                 'user_id' => Auth::id(),
                 'customer_id' => $vatAccount->id,
                 'recive_amount' => $vatValue,
-                'branchs_id' => Auth::user()->branchs_id ?? $validated['branch_id'],
-                'pay_method' => $validated['payment_method'],
-                'note' => 'فاتورة مبيعات رقم :' . $confirmInvoice->id,
+                'branchs_id' => Auth::user()->branchs_id ?? $branchId,
+                'pay_method' => $paymentMethod,
+                'note' => 'فاتورة مبيعات رقم :' . $invoice->id,
                 'currentblance' => $vatAccount->current_balance,
-                'Pay_Method_Name' => ucfirst($validated['payment_method']),
+                'Pay_Method_Name' => ucfirst($paymentMethod),
                 'created_at' => $pData['created_at'],
                 'updated_at' => Carbon::now('Asia/Riyadh'),
                 'creditor' => $vatValue,
@@ -1457,74 +899,74 @@ return redirect()->back();
                 'name' => $customerData->name ?? '',
                 'tax' => $customerData->tax_no ?? '',
                 'operation_type' => 1,
-                'invoice_number' => $confirmInvoice->invoice_number,
+                'invoice_number' => $invoice->invoice_number,
             ]);
         }
 
         // حساب المبيعات والإيرادات (112)
-        $revenueAccount = FinancialAccount::where('parent_account_number', 112)->where('branchs_id', Auth::user()->branchs_id ?? $validated['branch_id'])->first();
+        $revenueAccount = FinancialAccount::where('parent_account_number', 112)->where('branchs_id', Auth::user()->branchs_id ?? $branchId)->first();
         if ($revenueAccount) {
             CreditTransaction::create([
                 'user_id' => Auth::id(),
                 'customer_id' => $revenueAccount->id,
                 'recive_amount' => $netRevenue,
-                'branchs_id' => Auth::user()->branchs_id ?? $validated['branch_id'],
-                'pay_method' => $validated['payment_method'],
-                'note' => 'فاتورة مبيعات رقم :' . $confirmInvoice->id,
+                'branchs_id' => Auth::user()->branchs_id ?? $branchId,
+                'pay_method' => $paymentMethod,
+                'note' => 'فاتورة مبيعات رقم :' . $invoice->id,
                 'currentblance' => $revenueAccount->current_balance + $netRevenue,
-                'Pay_Method_Name' => ucfirst($validated['payment_method']),
+                'Pay_Method_Name' => ucfirst($paymentMethod),
                 'created_at' => $pData['created_at'],
                 'updated_at' => Carbon::now('Asia/Riyadh'),
                 'creditor' => $netRevenue,
                 'operation_type' => 1,
-                'invoice_number' => $confirmInvoice->invoice_number,
+                'invoice_number' => $invoice->invoice_number,
             ]);
         }
 
         // د. حساب تكلفة البضاعة المباعة (183) والمخزن (181)
         if ($totalCost > 0) {
-            $costAccount = FinancialAccount::where('parent_account_number', 183)->where('branchs_id', Auth::user()->branchs_id ?? $validated['branch_id'])->first();
+            $costAccount = FinancialAccount::where('parent_account_number', 183)->where('branchs_id', Auth::user()->branchs_id ?? $branchId)->first();
             if ($costAccount) {
                 CreditTransaction::create([
                     'user_id' => Auth::id(),
                     'customer_id' => $costAccount->id,
                     'recive_amount' => $totalCost,
-                    'branchs_id' => Auth::user()->branchs_id ?? $validated['branch_id'],
-                    'pay_method' => $validated['payment_method'],
-                    'note' => 'فاتورة مبيعات رقم :' . $confirmInvoice->id,
+                    'branchs_id' => Auth::user()->branchs_id ?? $branchId,
+                    'pay_method' => $paymentMethod,
+                    'note' => 'فاتورة مبيعات رقم :' . $invoice->id,
                     'currentblance' => $costAccount->current_balance + $totalCost,
-                    'Pay_Method_Name' => ucfirst($validated['payment_method']),
+                    'Pay_Method_Name' => ucfirst($paymentMethod),
                     'created_at' => $pData['created_at'],
                     'updated_at' => Carbon::now('Asia/Riyadh'),
                     'debtor' => $totalCost,
                     'operation_type' => 1,
-                    'invoice_number' => $confirmInvoice->invoice_number,
+                    'invoice_number' => $invoice->invoice_number,
                 ]);
             }
 
-            $inventoryAccount = FinancialAccount::where('parent_account_number', 181)->where('branchs_id', Auth::user()->branchs_id ?? $validated['branch_id'])->first();
+            $inventoryAccount = FinancialAccount::where('parent_account_number', 181)->where('branchs_id', Auth::user()->branchs_id ?? $branchId)->first();
             if ($inventoryAccount) {
                 CreditTransaction::create([
                     'user_id' => Auth::id(),
                     'customer_id' => $inventoryAccount->id,
                     'recive_amount' => $totalCost,
-                    'branchs_id' => Auth::user()->branchs_id ?? $validated['branch_id'],
-                    'pay_method' => $validated['payment_method'],
-                    'note' => 'فاتورة مبيعات رقم :' . $confirmInvoice->id,
+                    'branchs_id' => Auth::user()->branchs_id ?? $branchId,
+                    'pay_method' => $paymentMethod,
+                    'note' => 'فاتورة مبيعات رقم :' . $invoice->id,
                     'currentblance' => $inventoryAccount->current_balance - $totalCost,
-                    'Pay_Method_Name' => ucfirst($validated['payment_method']),
+                    'Pay_Method_Name' => ucfirst($paymentMethod),
                     'created_at' => $pData['created_at'],
                     'updated_at' => Carbon::now('Asia/Riyadh'),
                     'creditor' => $totalCost,
                     'operation_type' => 1,
-                    'invoice_number' => $confirmInvoice->invoice_number,
+                    'invoice_number' => $invoice->invoice_number,
                 ]);
             }
         }
 
         // هـ. في حال وجود مبالغ آجلة يتم تحديث رصيد العميل المحاسبي
         if ($pData['creaditamount'] != 0 && $customerData) {
-            $customerData->increment('Balance', $pData['creaditamount']);
+            $customerData->increment('balance', $pData['creaditamount']);
 
             $customerFinancialAccount = FinancialAccount::where('orginal_type', 1)->where('orginal_id', $customerId)->first();
             if ($customerFinancialAccount) {
@@ -1537,27 +979,100 @@ return redirect()->back();
                     'user_id' => Auth::id(),
                     'customer_id' => $customerFinancialAccount->id,
                     'recive_amount' => $pData['creaditamount'],
-                    'branchs_id' => Auth::user()->branchs_id ?? $validated['branch_id'],
-                    'pay_method' => $validated['payment_method'],
-                    'note' => 'فاتورة مبيعات رقم :' . $confirmInvoice->id,
+                    'branchs_id' => Auth::user()->branchs_id ?? $branchId,
+                    'pay_method' => $paymentMethod,
+                    'note' => 'فاتورة مبيعات رقم :' . $invoice->id,
                     'currentblance' => $customerFinancialAccount->current_balance,
-                    'Pay_Method_Name' => ucfirst($validated['payment_method']),
+                    'Pay_Method_Name' => ucfirst($paymentMethod),
                     'created_at' => $pData['created_at'],
                     'updated_at' => Carbon::now('Asia/Riyadh'),
                     'debtor' => $pData['creaditamount'],
                     'operation_type' => 1,
-                    'invoice_number' => $confirmInvoice->invoice_number,
+                    'invoice_number' => $invoice->invoice_number,
                 ]);
             }
         }
     }
 
-            return $invoice;
-        });
+    /**
+     * بترجع تأثير فاتورة مبيعات بالكامل (استعدادًا لتعديلها): بترجع
+     * الكمية لكل منتج (delta - بترجع نفس الكمية اللي اتباعت بس، مش
+     * snapshot، عشان تفضل صح حتى لو حصلت عمليات تانية على المنتج بعد
+     * الفاتورة دي)، وبترجع كل القيود المحاسبية المرتبطة (كاش/بنك/ضريبة/
+     * إيرادات/تكلفة/رصيد العميل الآجل) وتمسحها، وبتمسح بنود الفاتورة
+     * القديمة. مسموح نستخدمها بس على فاتورة "قابلة للتعديل"
+     * (Invoice::isEditable()).
+     */
+    protected function reverseInvoiceEffects(Invoice $invoice): void
+    {
+        $invoice->load('items.product');
+
+        foreach ($invoice->items as $item) {
+            if ($item->product) {
+                $item->product->increment('stock_quantity', $item->quantity);
+                $item->product->decrement('total_sold', $item->quantity);
+            }
+        }
+
+        $this->reverseInvoiceAccounting($invoice);
+
+        $invoice->items()->delete();
+    }
+
+    /**
+     * بترجع القيود المحاسبية المرتبطة بفاتورة مبيعات معيّنة. الحسابات
+     * الوحيدة اللي فعليًا بيتحدّث رصيدها في recordInvoiceAccounting()
+     * هي حساب الضريبة (102) وحساب العميل المحاسبي (لو فيه مبلغ آجل) -
+     * باقي الحسابات (كاش/بنك/إيرادات/تكلفة/مخزون) بس بيتسجلها سطر
+     * تسجيل (CreditTransaction) من غير تحديث فعلي لرصيدها، فمفيش داعي
+     * نرجعها (نفس سلوك الكود الأصلي بالظبط). كل صفوف CreditTransaction
+     * الخاصة بالفاتورة (invoice_number + operation_type=1) بتتمسح في
+     * الآخر بغض النظر.
+     */
+    protected function reverseInvoiceAccounting(Invoice $invoice): void
+    {
+        $branchId = $invoice->branch_id;
+
+        $totalValue = (float) $invoice->cash_amount + (float) $invoice->bank_amount + (float) $invoice->credit_amount;
+        if ($totalValue > 0) {
+            $vatValue = $totalValue - ($totalValue * 100 / 115);
+            $vatAccount = FinancialAccount::where('parent_account_number', 102)
+                ->where('branchs_id', $branchId)
+                ->first();
+            if ($vatAccount) {
+                $vatAccount->update([
+                    'current_balance' => $vatAccount->current_balance - $vatValue,
+                    'creditor_current' => $vatAccount->creditor_current - $vatValue,
+                ]);
+            }
+        }
+
+        if ((float) $invoice->credit_amount != 0) {
+            $customerFinancialAccount = FinancialAccount::where('orginal_type', 1)
+                ->where('orginal_id', $invoice->customer_id)
+                ->first();
+            if ($customerFinancialAccount) {
+                $customerFinancialAccount->update([
+                    'current_balance' => $customerFinancialAccount->current_balance - $invoice->credit_amount,
+                    'debtor_current' => $customerFinancialAccount->debtor_current - $invoice->credit_amount,
+                ]);
+            }
+
+            $customer = Customer::find($invoice->customer_id);
+            if ($customer) {
+                $customer->decrement('balance', $invoice->credit_amount);
+            }
+        }
+
+        CreditTransaction::where('invoice_number', $invoice->invoice_number)
+            ->where('operation_type', 1)
+            ->delete();
     }
 
     public function store(Request $request)
     {
+        $this->authorize('invoices.create');
+
         $items = json_decode((string) $request->input('items_json'), true) ?: [];
         $request->merge(['items' => $items]);
 
@@ -1643,19 +1158,25 @@ return redirect()->back();
             DraftInvoice::where('id', $validated['draft_id'])->delete();
         }
 
-        return redirect()->route('invoices.show', $invoice)
+        // ?saved=1 بتخلي صفحة invoices.show تعرض مودال "إرسال للزكاة /
+        // طباعة" مرة واحدة بس فور إنشاء الفاتورة، بدل ما تطبع أوتوماتيك
+        // على طول زي ما كان بيحصل قبل كده - مش بتظهر لو رجعنا لنفس
+        // الفاتورة تاني بعدين من قايمة الفواتير.
+        return redirect()->route('invoices.show', ['invoice' => $invoice, 'saved' => 1])
             ->with('success', __('invoices.created_successfully'));
     }
 
     /**
      * اعتماد مسودة كفاتورة رسمية مباشرة من قايمة "المسودات السابقة" -
-     * من غير ما تفتحيها الأول في شاشة إنشاء الفاتورة. بتاخد بيانات
-     * المسودة زي ما هي، وبتعمل بيها بالظبط نفس اللي بيحصل لما تدوسي
+     * من غير ما تفتحها الأول في شاشة إنشاء الفاتورة. بتاخد بيانات
+     * المسودة زي ما هي، وبتعمل بيها بالظبط نفس اللي بيحصل لما تدوس
      * "حفظ الفاتورة" (فاتورة رسمية + رقم + كل القيود المحاسبية)،
      * وبعدين بتمسح المسودة.
      */
     public function approveDraft(DraftInvoice $draft)
     {
+        $this->authorize('invoices.create');
+
         $data = [
             'customer_id' => $draft->customer_id,
             'branch_id' => $draft->branch_id,
@@ -1695,7 +1216,7 @@ return redirect()->back();
 
         $draft->delete();
 
-        return redirect()->route('invoices.show', $invoice)
+        return redirect()->route('invoices.show', ['invoice' => $invoice, 'saved' => 1])
             ->with('success', __('invoices.created_successfully'));
     }
 }

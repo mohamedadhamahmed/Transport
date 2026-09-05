@@ -45,6 +45,8 @@ class InvoiceReturnController extends Controller
      */
     public function create()
     {
+        $this->authorize('invoices.returns');
+
         return view('invoices.returns.create');
     }
 
@@ -55,6 +57,8 @@ class InvoiceReturnController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('invoices.returns');
+
         $q = trim((string) $request->query('q', ''));
 
         $groups = InvoiceReturn::query()
@@ -120,6 +124,8 @@ class InvoiceReturnController extends Controller
      */
     public function searchInvoice(Request $request)
     {
+        $this->authorize('invoices.returns');
+
         $q = trim((string) $request->query('q', ''));
 
         $invoices = Invoice::query()
@@ -158,6 +164,8 @@ class InvoiceReturnController extends Controller
      */
     public function invoiceItems(Invoice $invoice)
     {
+        $this->authorize('invoices.returns');
+
         $items = InvoiceItem::where('invoice_id', $invoice->id)
             ->where('remaining_quantity', '>', 0)
             ->get();
@@ -198,6 +206,8 @@ class InvoiceReturnController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('invoices.returns');
+
         // نفس الباترن المستخدم في InvoiceController@store: الأصناف بتوصل
         // كـ JSON string جوه حقل مخفي items_json (زي ما الـ blade بيبعتها)،
         // فبنفكها هنا لمصفوفة عادية قبل الـ validation.
@@ -537,6 +547,8 @@ class InvoiceReturnController extends Controller
      */
     public function print(string $referenceValue)
     {
+        $this->authorize('invoices.returns');
+
         $returns = InvoiceReturn::with('product')
             ->where('reference_value', $referenceValue)
             ->orderBy('id')

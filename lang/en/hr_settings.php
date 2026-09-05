@@ -1,0 +1,37 @@
+<?php
+return [
+    'title' => 'HR Settings',
+    'subtitle' => 'Official work hours, late grace period, overtime multiplier, holidays',
+    'branch' => 'Branch',
+    'work_start_time' => 'Official Start Time',
+    'work_end_time' => 'Official End Time',
+    'late_grace_minutes' => 'Late Grace Period (minutes)',
+    'overtime_multiplier' => 'Overtime Hour Multiplier',
+    'weekly_off_days' => 'Weekly Off Days',
+    'day_saturday' => 'Saturday',
+    'day_sunday' => 'Sunday',
+    'day_monday' => 'Monday',
+    'day_tuesday' => 'Tuesday',
+    'day_wednesday' => 'Wednesday',
+    'day_thursday' => 'Thursday',
+    'day_friday' => 'Friday',
+    'save' => 'Save Settings',
+
+    'absence_rules_title' => 'Unauthorized Absence Deduction Rule',
+    'absence_deduction_multiplier' => 'Absence Day Deduction Multiplier',
+    'absence_deduction_multiplier_hint' => '1 = deduct one full day per absence day, above 1 = extra penalty',
+    'extend_deduction_to_weekly_off' => 'Extend deduction to connected weekly off/holiday days',
+    'extend_deduction_hint' => 'If an employee is absent without permission on a workday connected to a weekly off or holiday day, that connected day will also be deducted',
+
+    'holidays_title' => 'Official Holidays',
+    'holiday_date' => 'Date',
+    'holiday_name' => 'Holiday Name',
+    'holiday_branch' => 'Branch (optional - all branches if empty)',
+    'add_holiday' => 'Add Holiday',
+    'delete' => 'Delete',
+    'no_holidays' => 'No holidays recorded',
+
+    'updated_success' => 'HR settings updated successfully',
+    'holiday_added_success' => 'Holiday added successfully',
+    'holiday_deleted_success' => 'Holiday deleted successfully',
+];

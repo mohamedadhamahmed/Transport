@@ -7,6 +7,7 @@ use App\Models\DeliveryNote;
 use App\Models\DeliveryNoteItem;
 use App\Models\Product;            // الموديل الصحيح لجدول المنتجات (اسمه Product مفرد)
 use App\Models\Customer;          // عدّل اسم الموديل حسب موديل العملاء عندك
+use App\Models\Tax;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -27,13 +28,27 @@ class DeliveryNoteController extends Controller
      */
     public function create()
     {
-        $Customer = Customer::orderBy('name')->get();
+        $this->authorize('delivery_note.create');
 
-        return view('delivery-note.create', compact('Customer'));
+        // منحملش كل جدول العملاء هنا (بحث Ajax حي في الفورم نفسه).
+        $Customer = [];
+
+        // نسبة الضريبة هنا للمعاينة/التقدير بس (القيمة التقديرية المعالة) -
+        // سند التسليم نفسه لسه من غير ضريبة فعلية في الداتابيز (مفيش عمود
+        // tax_rate على delivery_notes)، والضريبة الحقيقية بتتحدد وقت
+        // "الاعتماد وتحويل لفاتورة" زي ما هو معمول في DeliveryNoteConvertController.
+        $taxes = Tax::orderBy('priority', 'asc')->where('is_active', 1)->get();
+        $defaultTaxRate = Tax::defaultRateFraction();
+
+        return view('delivery-note.create', compact('Customer', 'taxes', 'defaultTaxRate'));
     }
 
     /**
      * البحث اللحظي عن منتجات بالاسم/الكود
+     *
+     * ملحوظة: مبنفلترش على عمود status عمدًا - قيم status في بيانات
+     * المنتجات الحالية مش كلها 'active' حرفيًا، وكانت الفلترة عليه بتخفي
+     * منتجات موجودة فعلاً وفيها مخزون من صندوق البحث السريع.
      */
     public function searchProducts(Request $request)
     {
@@ -41,7 +56,6 @@ class DeliveryNoteController extends Controller
         $branchId = $request->query('branch_id', Auth::user()?->branch_id);
 
         $products = Product::query()
-            ->where('status', 'active')
             ->when($branchId, function ($q) use ($branchId) {
                 $q->where('branch_id', $branchId);
             })
@@ -96,13 +110,21 @@ class DeliveryNoteController extends Controller
         // إنشاء الحساب المالي المرتبط بالعميل في شجرة الحسابات - مفيد
         // لاحقًا وقت التحويل لفاتورة حقيقية (نظام الفواتير محتاج الحساب
         // ده موجود مسبقًا للعميل).
-        $nextAccountNumber = \App\Models\FinancialAccount::where('account_type', 1)
+        // parent_account_number + orginal_type بدل account_type القديم -
+        // account_type بقى بيحمل تصنيف محاسبي (أصول/خصوم/...) مش نوع
+        // الكيان بعد ميجريشن 2026_09_02_000028.
+        $nextAccountNumber = \App\Models\FinancialAccount::where('parent_account_number', 2)
             ->where('orginal_type', 1)
             ->max('account_number') + 1;
 
+        // account_type و account_category_id بيتورثوا مع بعض من نفس
+        // تصنيف حساب العملاء الأب.
+        $inheritedCategoryId = \App\Models\FinancialAccount::inheritedCategoryId(2);
+
         \App\Models\FinancialAccount::create([
             'name' => $customer->name,
-            'account_type' => 1,
+            'account_type' => $inheritedCategoryId,
+            'account_category_id' => $inheritedCategoryId,
             'parent_account_number' => 2,
             'account_number' => $nextAccountNumber,
             'start_balance' => 0,
@@ -137,6 +159,7 @@ class DeliveryNoteController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'name_en' => ['nullable', 'string', 'max:255'],
             'branch_id' => ['nullable', 'exists:branches,id'],
             'code' => ['nullable', 'string', 'max:255'],
             'location' => ['nullable', 'string', 'max:255'],
@@ -208,6 +231,8 @@ class DeliveryNoteController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('delivery_note.create');
+
         $items = json_decode((string) $request->input('items_json'), true) ?: [];
         $request->merge(['items' => $items]);
 
@@ -236,7 +261,15 @@ class DeliveryNoteController extends Controller
         }
 
         DB::transaction(function () use ($validated) {
-            $branchId = Auth::user()->branchs_id ?? 1;
+            // ⚠️ إصلاح: كان هنا Auth::user()->branchs_id (بحرف "s" زيادة) وهي
+            // خاصية مش موجودة أصلاً على موديل User (اسم العمود الصحيح هناك
+            // هو branch_id من غير "s")، فكانت النتيجة دايمًا null والقيمة
+            // الافتراضية 1 هي اللي بتتسجل - يعني كل سندات التسليم اتسجلت
+            // تاريخيًا بفرع "1" بغض النظر عن الفرع الحقيقي بتاع الموظف.
+            // اسم عمود الفرع في جدول delivery_note نفسه فعلاً "branchs_id"
+            // (بالـ s - تسمية قديمة من الجدول الأصلي)، والمشكلة كانت بس في
+            // قراءة فرع المستخدم الحالي من branch_id الصحيح.
+            $branchId = Auth::user()->branch_id ?? 1;
 
             $totalQuantity = 0;
             $totalPrice = 0;
@@ -283,6 +316,8 @@ class DeliveryNoteController extends Controller
      */
     public function history(Request $request)
     {
+        $this->authorize('delivery_note.view');
+
         $start_at = $request->start_at ?? date('Y-m-01');
         $end_at   = $request->end_at ?? date('Y-m-d');
 
@@ -296,7 +331,12 @@ class DeliveryNoteController extends Controller
         }
 
         $invoices = $query->orderByDesc('created_at')->paginate(20);
-        $Customer = Customer::orderBy('name')->get();
+
+        // فلتر العميل بقى بحث Ajax حي (منحملش كل جدول العملاء).
+        $selectedCustomerId = $request->filled('customer_id') ? (int) $request->input('customer_id') : null;
+        $Customer = $selectedCustomerId
+            ? [$selectedCustomerId => optional(Customer::find($selectedCustomerId))->name]
+            : [];
 
         return view('delivery-note.history', compact('invoices', 'Customer'));
     }
@@ -306,6 +346,8 @@ class DeliveryNoteController extends Controller
      */
     public function show($id)
     {
+        $this->authorize('delivery_note.view');
+
         $invoice = DeliveryNote::with(['customer', 'user'])->findOrFail($id);
         $items = DeliveryNoteItem::where('invoice_id', $id)
             ->where('save', 1)
@@ -313,5 +355,137 @@ class DeliveryNoteController extends Controller
             ->get();
 
         return view('delivery-note.show', compact('invoice', 'items'));
+    }
+
+    /**
+     * فورم تعديل سند تسليم - متاحة بس لو السند لسه "معلّق بالكامل" (زي
+     * ما هو مُعرَّف في DeliveryNote::isEditable()): status = 0 ومفيش أي
+     * بند منه اتحول جزئيًا/كليًا لفاتورة أو اترجع. غير كده التعديل ممنوع
+     * تمامًا لتجنب تعارض مع كميات محولة/مرتجعة بالفعل مبنية على القيم
+     * الحالية.
+     */
+    public function edit($id)
+    {
+        $this->authorize('delivery_note.edit');
+
+        $invoice = DeliveryNote::with(['customer'])->findOrFail($id);
+
+        if (!$invoice->isEditable()) {
+            return redirect()->route('deliverynote.show', $invoice->id)
+                ->with('error', __('deliverynote.not_editable'));
+        }
+
+        $items = DeliveryNoteItem::where('invoice_id', $id)
+            ->where('save', 1)
+            ->with('product')
+            ->get();
+
+        // منحملش كل جدول العملاء (بحث Ajax حي زي شاشة الإنشاء)، بس
+        // بنبعت العميل الحالي بتاع السند عشان يظهر محدد مسبقًا.
+        $Customer = [$invoice->customer_id => optional($invoice->customer)->name];
+
+        $taxes = Tax::orderBy('priority', 'asc')->where('is_active', 1)->get();
+        $defaultTaxRate = Tax::defaultRateFraction();
+
+        // نجهز شكل الأصناف بنفس البنية اللي بيتوقعها addProduct() في
+        // الفرونت (product_id/name/code/quantity/unit_price/purchase_price/
+        // discount) عشان جدول الأصناف يبان مليان من أول ما الصفحة تفتح.
+        $existingItems = $items->map(function (DeliveryNoteItem $item) {
+            return [
+                'product_id' => $item->product_id,
+                'name' => optional($item->product)->name,
+                'code' => optional($item->product)->code,
+                'quantity' => (float) $item->quantity,
+                'unit_price' => (float) $item->Unit_Price,
+                'purchase_price' => (float) (optional($item->product)->purchase_price ?? 0),
+                'discount' => (float) $item->Discount_Value,
+            ];
+        })->values();
+
+        return view('delivery-note.edit', compact('invoice', 'Customer', 'taxes', 'defaultTaxRate', 'existingItems'));
+    }
+
+    /**
+     * حفظ التعديل: نفس منطق الحساب المستخدم في store() بالظبط، ومفيش
+     * أي حاجة نرجعها لأن سند التسليم المعلّق (زي عروض الأسعار) مالوش
+     * أي أثر على المخزون أو القيود المحاسبية أو رصيد العميل - فبنعلّم
+     * البنود القديمة save=0 (نفس أسلوب "الحذف الناعم" المتّبع في باقي
+     * الموديول ده) ونضيف البنود الجديدة save=1 جوه ترانزاكشن واحدة.
+     */
+    public function update(Request $request, $id)
+    {
+        $this->authorize('delivery_note.edit');
+
+        $invoice = DeliveryNote::findOrFail($id);
+
+        if (!$invoice->isEditable()) {
+            return redirect()->route('deliverynote.show', $invoice->id)
+                ->with('error', __('deliverynote.not_editable'));
+        }
+
+        $items = json_decode((string) $request->input('items_json'), true) ?: [];
+        $request->merge(['items' => $items]);
+
+        $validated = Validator::make($request->all(), [
+            'customer_id' => ['required'],
+            'note' => ['nullable', 'string'],
+            'po_number' => ['nullable', 'string', 'max:255'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.discount' => ['nullable', 'numeric', 'min:0'],
+            'items.*.name' => ['nullable', 'string'],
+            'items.*.code' => ['nullable', 'string'],
+        ])->validate();
+
+        // بنتأكد تاني جوه الترانزاكشن إن السند لسه قابل للتعديل - عشان
+        // نقفل احتمال (نادر لكن وارد) إن حد يعتمد جزء منه أو يرجّع منه
+        // في نفس اللحظة اللي المستخدم فاتح فيها فورم التعديل وضاغط حفظ.
+        $stillEditable = DB::transaction(function () use ($validated, $invoice) {
+            $invoice->refresh();
+
+            if (!$invoice->isEditable()) {
+                return false;
+            }
+
+            $totalQuantity = 0;
+            $totalPrice = 0;
+            foreach ($validated['items'] as $item) {
+                $totalQuantity += $item['quantity'];
+                $totalPrice += ($item['quantity'] * $item['unit_price']) - ($item['discount'] ?? 0);
+            }
+
+            $invoice->update([
+                'customer_id' => $validated['customer_id'],
+                'Price' => $totalPrice,
+                'Number_of_Quantity' => $totalQuantity,
+                'note' => $validated['note'] ?? '-',
+            ]);
+
+            $invoice->items()->where('save', 1)->update(['save' => 0]);
+
+            foreach ($validated['items'] as $item) {
+                DeliveryNoteItem::create([
+                    'product_id' => $item['product_id'],
+                    'invoice_id' => $invoice->id,
+                    'Discount_Value' => $item['discount'] ?? 0,
+                    'branch_id' => $invoice->branchs_id,
+                    'Unit_Price' => $item['unit_price'],
+                    'quantity' => $item['quantity'],
+                    'save' => 1,
+                ]);
+            }
+
+            return true;
+        });
+
+        if (!$stillEditable) {
+            return redirect()->route('deliverynote.show', $invoice->id)
+                ->with('error', __('deliverynote.not_editable'));
+        }
+
+        return redirect()->route('deliverynote.show', $invoice->id)
+            ->with('success', __('deliverynote.updated_successfully'));
     }
 }

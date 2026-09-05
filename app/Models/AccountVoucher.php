@@ -18,17 +18,13 @@ class AccountVoucher extends Model
         'type',
         'voucher_date',
         'treasury_account_id',
-        'counterpart_account_id',
-        'amount',
         'description',
         'branch_id',
-        'cost_center_id',
         'created_by',
     ];
 
     protected $casts = [
         'voucher_date' => 'date',
-        'amount' => 'decimal:2',
     ];
 
     public function isReceipt(): bool
@@ -41,9 +37,16 @@ class AccountVoucher extends Model
         return $this->belongsTo(FinancialAccount::class, 'treasury_account_id');
     }
 
-    public function counterpartAccount()
+    /**
+     * بنود السند (App\Models\AccountVoucherLine) - كل بند بيمثل طرف
+     * تاني (counterpart_account) ومبلغ مستقل، مع بياناته الخاصة (مركز
+     * تكلفة/بيان/ضريبة). راجع تعليق ميجريشن account_voucher_lines
+     * لشرح الفكرة بالكامل (كانت الحقول دي على مستوى السند نفسه قبل
+     * دعم "السندات المتعددة البنود").
+     */
+    public function lines()
     {
-        return $this->belongsTo(FinancialAccount::class, 'counterpart_account_id');
+        return $this->hasMany(AccountVoucherLine::class, 'account_voucher_id');
     }
 
     public function branch()
@@ -51,13 +54,18 @@ class AccountVoucher extends Model
         return $this->belongsTo(Branch::class, 'branch_id');
     }
 
-    public function costCenter()
-    {
-        return $this->belongsTo(CostCenter::class, 'cost_center_id');
-    }
-
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * إجمالي مبلغ السند = مجموع مبالغ كل بنوده (المبلغ الفعلي اللي
+     * اتحرك من/لحساب الخزينة). لو البنود متحمّلة مسبقًا (eager loaded)
+     * بيستخدمها من غير أي استعلام إضافي، وإلا بيعمل lazy load عادي.
+     */
+    public function getTotalAmountAttribute(): float
+    {
+        return round((float) $this->lines->sum('amount'), 2);
     }
 }

@@ -11,13 +11,15 @@ use Illuminate\Support\Facades\Auth;
 |--------------------------------------------------------------------------
 | شاشة "المسودات السابقة" - قايمة الفواتير اللي اتحفظت "كمسودة" (لسه ملهاش
 | رقم فاتورة رسمي)، مع زرار "فتح" بيودّي لصفحة إنشاء الفاتورة وبيملى كل
-| الحقول منها (العميل، طريقة الدفع، البنود...)، وزرار "حذف" لو عايزة
+| الحقول منها (العميل، طريقة الدفع، البنود...)، وزرار "حذف" لو عايز
 | تشيليها نهائي.
 */
 class DraftInvoiceController extends Controller
 {
     public function index()
     {
+        $this->authorize('invoices.create');
+
         $drafts = DraftInvoice::with(['customer', 'branch'])
             ->where('branch_id', Auth::user()->branch_id)
             ->latest()
@@ -28,6 +30,8 @@ class DraftInvoiceController extends Controller
 
     public function destroy(DraftInvoice $draft)
     {
+        $this->authorize('invoices.create');
+
         $draft->delete();
 
         return redirect()->route('invoices.drafts.index')

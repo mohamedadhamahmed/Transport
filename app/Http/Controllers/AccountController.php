@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountType;
 use App\Models\Branch;
 use App\Models\CreditTransaction;
 use App\Models\FinancialAccount;
+use App\Services\Reports\ReportExcelExporter;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -31,6 +33,8 @@ class AccountController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('accounts.view');
+
         $query = FinancialAccount::query();
 
         if ($request->filled('q')) {
@@ -60,52 +64,151 @@ class AccountController extends Controller
     }
 
     /**
-     * شجرة الحسابات كاملة (كل الحسابات - مش بيجينيشن) في شكل هيكل
-     * أب/أبناء متداخل، بدل القايمة المسطحة في index(). parent_account_number
-     * فعليًا بيخزّن id الحساب الأب (مش رقم الحساب نفسه - راجعي
-     * FinancialAccount::parentAccount())، فبنبني الشجرة على أساسه.
-     * بنجيب كل الأعمدة اللي شاشة الشجرة محتاجاها بمكالمة واحدة بس
-     * وبنجمعها بـ groupBy على الميموري - عدد حسابات الشركة عادةً
-     * محدود (مئات لحد آلاف قليلة) فمفيش داعي لاستعلامات N+1 متكررة.
+     * الأعمدة اللي شاشة الشجرة (وبحثها وتحميل أبنائها بـ AJAX) محتاجاها
+     * في كل مستوى - نفس القايمة في الثلاث دوال (tree/treeChildren/treeSearch)
+     * عشان الأداء يفضل ثابت في كل حتة.
+     */
+    private const TREE_COLUMNS = ['id', 'name', 'account_number', 'parent_account_number', 'account_type', 'current_balance', 'debtor_current', 'creditor_current', 'active'];
+
+    /**
+     * شجرة الحسابات - المستوى الأول (الجذور) بس بيتجاب هنا فورًا،
+     * وأي مستوى تحته بيتجاب بـ AJAX أول مرة يتفتح (راجع treeChildren)
+     * بدل ما نجيب كل الحسابات دفعة واحدة زي قبل. التغيير ده ضروري لإن
+     * شجرة الحسابات ممكن تبقى فيها عشرات أو مئات الآلاف من الحسابات
+     * (حساب شخصي لكل موظف/عميل/مورد...) - جلبها كلها وبناء شجرة متداخلة
+     * في الميموري دفعة واحدة كان هيبقى تقيل جدًا على السيرفر والمتصفح
+     * مع الحجم ده.
      */
     public function tree(Request $request)
     {
-        $accounts = FinancialAccount::query()
+        $this->authorize('accounts.view');
+
+        $roots = FinancialAccount::whereNull('parent_account_number')
             ->orderBy('account_number')
-            ->get(['id', 'name', 'account_number', 'parent_account_number', 'current_balance', 'debtor_current', 'creditor_current', 'active']);
+            ->get(self::TREE_COLUMNS);
 
-        $byParent = $accounts->groupBy(fn (FinancialAccount $account) => $account->parent_account_number ?? 'root');
+        return view('accounts.tree', ['roots' => $this->attachHasChildren($roots)]);
+    }
 
-        $buildNode = function (FinancialAccount $account) use (&$buildNode, $byParent) {
-            $children = ($byParent->get($account->id) ?? collect())
-                ->map($buildNode)
-                ->values();
+    /**
+     * أبناء حساب معيّن بس (مستوى واحد، مش الشجرة الفرعية كاملة) - بترجع
+     * كجزء HTML جاهز (نفس partial العقدة المستخدم في tree()) عشان
+     * JS شاشة الشجرة يحطه مباشرة جوه .children-wrap بتاع الحساب اللي
+     * اتفتح، من غير ما يعيد بناء الصفحة. بتتنادى مرة واحدة بس لكل فرع
+     * (JS بيحفظ إنه اتحمل بعد أول مرة) - مش في كل توسيع/طي.
+     */
+    public function treeChildren(Request $request, FinancialAccount $account)
+    {
+        $this->authorize('accounts.view');
 
-            return [
-                'account' => $account,
-                'children' => $children,
-            ];
+        $depth = max(0, (int) $request->input('depth', 1));
+
+        $children = FinancialAccount::where('parent_account_number', $account->id)
+            ->orderBy('account_number')
+            ->get(self::TREE_COLUMNS);
+
+        return view('accounts.tree-children', [
+            'nodes' => $this->attachHasChildren($children),
+            'depth' => $depth,
+        ]);
+    }
+
+    /**
+     * بحث AJAX داخل شاشة شجرة الحسابات - نتيجة مسطّحة (مش شجرة) لأول
+     * 50 حساب مطابق، وكل نتيجة معاها "مسار" آباءها (breadcrumb) عشان
+     * تبان في سياقها حتى لو أبوها لسه متفتحش في الشجرة. البحث هنا شامل
+     * الحسابات المعطّلة كمان (على عكس accounts.search المستخدم في
+     * اختيار حساب بقيد/سند، واللي بيرجع النشط بس) عشان تقدر تلاقي حساب
+     * معطّل من هنا وتفعّليه تاني. مبني على AJAX (مش فلترة على العميل)
+     * لنفس سبب lazy-loading المستويات: مفيش ضمانة إن كل الحسابات محمّلة
+     * أصلاً في المتصفح مع شجرة كبيرة.
+     */
+    public function treeSearch(Request $request)
+    {
+        $this->authorize('accounts.view');
+
+        $q = trim((string) $request->input('q', ''));
+
+        if ($q === '') {
+            return response('', 200);
+        }
+
+        $matches = FinancialAccount::where(function ($w) use ($q) {
+                $w->where('name', 'like', "%{$q}%")
+                    ->orWhere('account_number', 'like', "%{$q}%");
+            })
+            ->orderBy('account_number')
+            ->limit(50)
+            ->get(self::TREE_COLUMNS);
+
+        $ancestorNames = [];
+        $resolveBreadcrumb = function (?int $parentId) use (&$resolveBreadcrumb, &$ancestorNames) {
+            if (!$parentId) {
+                return [];
+            }
+
+            if (!array_key_exists($parentId, $ancestorNames)) {
+                $parent = FinancialAccount::find($parentId, ['id', 'name', 'parent_account_number']);
+                $ancestorNames[$parentId] = $parent
+                    ? array_merge($resolveBreadcrumb($parent->parent_account_number), [$parent->name])
+                    : [];
+            }
+
+            return $ancestorNames[$parentId];
         };
 
-        $roots = ($byParent->get('root') ?? collect())->map($buildNode)->values();
+        $results = $matches->map(fn (FinancialAccount $account) => [
+            'account' => $account,
+            'breadcrumb' => $resolveBreadcrumb($account->parent_account_number),
+        ]);
 
-        return view('accounts.tree', ['roots' => $roots]);
+        return view('accounts.tree-search-results', ['results' => $results]);
+    }
+
+    /**
+     * بيحدد لكل حساب في المجموعة هل ليه أبناء ولا لأ (استعلام واحد بس
+     * لكل المجموعة، مش استعلام لكل حساب) - عشان نعرف نرسم زرار
+     * التوسيع (toggle-btn) بس للحسابات اللي فعلاً ليها أبناء، من غير ما
+     * نجيب الأبناء نفسها قبل الأوان.
+     *
+     * @return array<int, array{account: FinancialAccount, hasChildren: bool}>
+     */
+    private function attachHasChildren($accounts): array
+    {
+        if ($accounts->isEmpty()) {
+            return [];
+        }
+
+        $parentIdsWithChildren = FinancialAccount::whereIn('parent_account_number', $accounts->pluck('id'))
+            ->distinct()
+            ->pluck('parent_account_number')
+            ->all();
+
+        return $accounts->map(fn (FinancialAccount $account) => [
+            'account' => $account,
+            'hasChildren' => in_array($account->id, $parentIdsWithChildren),
+        ])->all();
     }
 
     public function create()
     {
-        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $this->authorize('accounts.create');
 
-        return view('accounts.create', compact('branches'));
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $accountTypes = AccountType::where('active', true)->orderBy('id')->get();
+
+        return view('accounts.create', compact('branches', 'accountTypes'));
     }
 
     public function store(Request $request)
     {
+        $this->authorize('accounts.create');
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'parent_account_number' => ['nullable', 'integer', 'exists:financialaccount,id'],
             'account_number' => ['nullable', 'string', 'max:50'],
-            'account_type' => ['nullable', 'integer'],
+            'account_category_id' => ['nullable', 'integer', 'exists:account_types,id'],
             'branchs_id' => ['nullable', 'exists:branches,id'],
             'start_balance' => ['nullable', 'numeric', 'min:0'],
             'start_balance_side' => ['nullable', 'in:debtor,creditor'],
@@ -129,9 +232,18 @@ class AccountController extends Controller
         // مدين حسب FinancialAccount::isCreditNormal() - فرصيد افتتاحي
         // "دائن" هيظهر current_balance بالسالب، وده صحيح محاسبيًا لحساب
         // مدين بطبعه بيبدأ برصيد دائن (زي حساب هيتحول مستقبلاً لمورد).
+        // لو الأدمن ما اختارتش تصنيف صريح، بنورّث تصنيف الحساب الأب
+        // (لو موجود) بدل ما يفضل account_category_id فاضي. account_type
+        // بياخد نفس القيمة بالظبط - العمودين بقوا بنفس المعنى المحاسبي
+        // (أصول/خصوم/إيرادات/مصروفات/حقوق ملكية) بعد ميجريشن
+        // 2026_09_02_000028.
+        $accountCategoryId = $validated['account_category_id']
+            ?? FinancialAccount::inheritedCategoryId($validated['parent_account_number'] ?? null);
+
         $account = FinancialAccount::create([
             'name' => $validated['name'],
-            'account_type' => $validated['account_type'] ?? null,
+            'account_type' => $accountCategoryId,
+            'account_category_id' => $accountCategoryId,
             'parent_account_number' => $validated['parent_account_number'] ?? null,
             'account_number' => $accountNumber,
             'start_balance' => $startBalance,
@@ -156,26 +268,40 @@ class AccountController extends Controller
 
     public function edit(FinancialAccount $account)
     {
-        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $this->authorize('accounts.edit');
 
-        return view('accounts.edit', compact('account', 'branches'));
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $accountTypes = AccountType::where('active', true)
+            ->orWhere('id', $account->account_category_id ?? 0)
+            ->orderBy('id')
+            ->get();
+
+        return view('accounts.edit', compact('account', 'branches', 'accountTypes'));
     }
 
     public function update(Request $request, FinancialAccount $account)
     {
+        $this->authorize('accounts.edit');
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'parent_account_number' => ['nullable', 'integer', 'exists:financialaccount,id', 'not_in:' . $account->id],
             'account_number' => ['nullable', 'string', 'max:50'],
+            'account_category_id' => ['nullable', 'integer', 'exists:account_types,id'],
             'branchs_id' => ['nullable', 'exists:branches,id'],
             'is_parent' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string'],
         ]);
 
+        // account_type بيتزامن مع account_category_id دايمًا (نفس القيمة
+        // أو فاضي مع بعض) - العمودين بقوا بنفس المعنى المحاسبي بعد
+        // ميجريشن 2026_09_02_000028.
         $account->update([
             'name' => $validated['name'],
             'parent_account_number' => $validated['parent_account_number'] ?? null,
             'account_number' => $validated['account_number'] ?? $account->account_number,
+            'account_type' => $validated['account_category_id'] ?? null,
+            'account_category_id' => $validated['account_category_id'] ?? null,
             'branchs_id' => $validated['branchs_id'] ?? null,
             'is_parent' => $request->boolean('is_parent', false),
             'notes' => $validated['notes'] ?? null,
@@ -185,16 +311,30 @@ class AccountController extends Controller
         return redirect()->route('accounts.index')->with('success', __('accounts.updated_successfully'));
     }
 
-    public function toggleActive(FinancialAccount $account)
+    /**
+     * تفعيل/تعطيل حساب. بيدعم نوعين من الاستخدام: فورم عادي (شاشة
+     * accounts.index) بيرجع redirect + flash session زي ما كان، أو
+     * طلب AJAX (سويتش التفعيل المباشر في شاشة الشجرة - accounts.tree)
+     * بيرجع JSON بدل ما يعمل صفحة كاملة من جديد.
+     */
+    public function toggleActive(Request $request, FinancialAccount $account)
     {
+        $this->authorize('accounts.edit');
+
         $account->update([
             'active' => ! $account->active,
             'updated_by' => Auth::id(),
         ]);
 
-        return back()->with('success', $account->active
+        $message = $account->active
             ? __('accounts.activated_successfully')
-            : __('accounts.deactivated_successfully'));
+            : __('accounts.deactivated_successfully');
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'active' => $account->active, 'message' => $message]);
+        }
+
+        return back()->with('success', $message);
     }
 
     /**
@@ -204,6 +344,8 @@ class AccountController extends Controller
      */
     public function statement(Request $request, FinancialAccount $account)
     {
+        $this->authorize('accounts.view');
+
         $query = CreditTransaction::where('customer_id', $account->id);
 
         if ($request->filled('date_from')) {
@@ -219,11 +361,25 @@ class AccountController extends Controller
         $transactions = $query->orderBy('created_at')->orderBy('id')->get();
 
         // الرصيد الجاري بيتحسب حسب طبيعة الحساب (مدين/دائن) زي current_balance
-        // بالظبط - راجعي تعليق FinancialAccount::isCreditNormal().
+        // بالظبط - راجع تعليق FinancialAccount::isCreditNormal().
         $sign = $account->isCreditNormal() ? -1 : 1;
 
-        $openingBalance = (float) $account->current_balance
-            - $sign * ((float) $transactions->sum('debtor') - (float) $transactions->sum('creditor'));
+        // لو فيه فلترة بتاريخ "من" - الرصيد الافتتاحي المفروض يبقى رصيد
+        // الحساب لحد قبل الفترة المفلترة دي (مش الرصيد الحالي مطروح منه
+        // كل الحركات اللي في الفترة بس)، عشان لو فيه حركات بعد تاريخ "إلى"
+        // برضه محسوبة في current_balance. فبنجيب كل الحركات اللي قبل
+        // تاريخ "من" ونحسب أثرها لوحدها.
+        if ($request->filled('date_from')) {
+            $beforePeriod = CreditTransaction::where('customer_id', $account->id)
+                ->whereDate('created_at', '<', $request->input('date_from'))
+                ->selectRaw('COALESCE(SUM(debtor), 0) as sum_debtor, COALESCE(SUM(creditor), 0) as sum_creditor')
+                ->first();
+
+            $openingBalance = $sign * ((float) $beforePeriod->sum_debtor - (float) $beforePeriod->sum_creditor);
+        } else {
+            $openingBalance = (float) $account->current_balance
+                - $sign * ((float) $transactions->sum('debtor') - (float) $transactions->sum('creditor'));
+        }
 
         $running = $openingBalance;
         $transactions = $transactions->map(function (CreditTransaction $t) use (&$running, $sign) {
@@ -233,10 +389,46 @@ class AccountController extends Controller
             return $t;
         });
 
+        // ثابتة هنا صراحةً (بدل الاعتماد على ثابت في موديل CreditTransaction)
+        // عشان تشتغل مهما كان تعريف الموديل الفعلي المُحمَّل وقت التشغيل.
+        $operationTypes = [
+            1 => 'مبيعات',
+            2 => 'مشتريات',
+            3 => 'سند قبض',
+            4 => 'سند صرف',
+            5 => 'قيد يومية',
+            6 => 'قيد افتتاحي',
+        ];
+
+        if ($request->get('export') === 'excel') {
+            $rows = [[__('accounts.opening_balance_label'), '', '', '', '', number_format($openingBalance, 2)]];
+            foreach ($transactions as $t) {
+                $rows[] = [
+                    optional($t->created_at)->format('Y-m-d'),
+                    $operationTypes[$t->operation_type] ?? '-',
+                    $t->note ?? '-',
+                    $t->invoice_number ?? '-',
+                    $t->debtor > 0 ? (float) $t->debtor : '',
+                    $t->creditor > 0 ? (float) $t->creditor : '',
+                    (float) $t->running_balance,
+                ];
+            }
+
+            return ReportExcelExporter::download(
+                [__('accounts.date'), __('accounts.operation_type'), __('accounts.description'), __('accounts.reference'), __('accounts.debtor'), __('accounts.creditor'), __('accounts.running_balance')],
+                $rows,
+                'account-statement-' . $account->id . '-' . now()->format('Y-m-d') . '.xlsx'
+            );
+        }
+
         return view('accounts.statement', [
             'account' => $account,
             'transactions' => $transactions,
             'openingBalance' => $openingBalance,
+            'dateFrom' => $request->input('date_from', ''),
+            'dateTo' => $request->input('date_to', ''),
+            'operationType' => $request->input('operation_type', ''),
+            'operationTypes' => $operationTypes,
         ]);
     }
 

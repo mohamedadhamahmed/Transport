@@ -655,9 +655,19 @@ class OnBoarding {
                     'data' => null
                 ];
             }else{
+                // كانت هنا بترجع $response (المصفوفة كلها) كـ 'message' بدل نص -
+                // ده كان بيسبب مشكلة "Array to string conversion" لو الرسالة
+                // دي اتحطت في Blade مباشرة. دلوقتي بنحاول نستخرج نص حقيقي من
+                // أي شكل محتمل لرد الزكاة، ولو معرفناش نرجع نص JSON مقروء.
+                $rawResponse = $response['response'] ?? null;
+                $message = $rawResponse->message
+                    ?? $rawResponse->dispositionMessage
+                    ?? (is_string($rawResponse) ? $rawResponse : null)
+                    ?? json_encode($rawResponse);
+
                 return [
                     'success' => false,
-                    'message' => $response,
+                    'message' => $message,
                     'data' => null
                 ];
             }

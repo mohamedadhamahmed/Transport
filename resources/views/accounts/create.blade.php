@@ -56,14 +56,25 @@
                         </div>
                     </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('accounts.branch') }}</label>
-                        <select name="branchs_id" class="w-full md:w-1/2 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
-                            <option value="">{{ __('accounts.all_branches') }}</option>
-                            @foreach ($branches as $branch)
-                                <option value="{{ $branch->id }}" @selected(old('branchs_id') == $branch->id)>{{ $branch->name }}</option>
-                            @endforeach
-                        </select>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('accounts.branch') }}</label>
+                            <select name="branchs_id" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                <option value="">{{ __('accounts.all_branches') }}</option>
+                                @foreach ($branches as $branch)
+                                    <option value="{{ $branch->id }}" @selected(old('branchs_id') == $branch->id)>{{ $branch->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('accounts.category') }}</label>
+                            <select name="account_category_id" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                <option value="">{{ __('accounts.no_category') }}</option>
+                                @foreach ($accountTypes as $accountType)
+                                    <option value="{{ $accountType->id }}" @selected(old('account_category_id') == $accountType->id)>{{ $accountType->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

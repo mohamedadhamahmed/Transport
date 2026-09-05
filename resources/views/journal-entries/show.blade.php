@@ -21,10 +21,12 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
+                    @can('journal_entries.edit')
                     <a href="{{ route('journal-entries.edit', $entry) }}"
                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
                         {{ __('journal_entries.edit_entry') }}
                     </a>
+                    @endcan
                     <a href="{{ route('journal-entries.print', $entry) }}" target="_blank"
                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
                         {{ __('journal_entries.print') }}

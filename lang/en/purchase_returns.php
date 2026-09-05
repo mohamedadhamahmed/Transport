@@ -64,4 +64,6 @@ return [
     'next' => 'Next',
     'linked_purchase' => 'Returned from invoice',
     'cost_center' => 'Cost center',
+    'download_pdf' => 'Download PDF',
+    'note' => 'Note',
 ];

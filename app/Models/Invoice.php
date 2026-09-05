@@ -117,4 +117,34 @@ protected $attributes = [
     {
         return $this->hasMany(InvoiceReturn::class);
     }
+
+    /**
+     * الفاتورة قابلة للتعديل بس لو:
+     * 1) معتمدة فعلاً (is_finalized) - المسودات ليها شاشة تعديل منفصلة
+     *    (DraftInvoiceController) مالهاش علاقة بالفاتورة دي أصلاً.
+     * 2) عندها بنود.
+     * 3) مفيش أي بند فيها اترجع منه أي كمية (مرتجع مبيعات) - عشان منطق
+     *    التعديل والإرجاع مش متزامنين مع بعض، ومنطق الإرجاع بيعتمد على
+     *    remaining_quantity اللي هيتمسح مع البند لو عدّلنا.
+     */
+    public function isEditable(): bool
+    {
+        if (!$this->is_finalized) {
+            return false;
+        }
+
+        $items = $this->items()->get();
+
+        if ($items->isEmpty()) {
+            return false;
+        }
+
+        foreach ($items as $item) {
+            if ((float) $item->returned_quantity > 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }

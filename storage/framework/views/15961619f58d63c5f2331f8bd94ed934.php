@@ -26,11 +26,25 @@
                         <p class="text-white/45 text-xs mt-0.5"><?php echo e(optional($purchase->issue_date)->format('Y-m-d') ?? $purchase->created_at->format('Y-m-d')); ?></p>
                     </div>
                 </div>
-                <a href="<?php echo e(route('purchases.index')); ?>"
-                   class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
-                    <?php echo e(__('purchases.back_to_list')); ?>
+                <div class="flex items-center gap-2">
+                    <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('purchases.edit')): ?>
+                    <?php if($purchase->isEditable()): ?>
+                    <a href="<?php echo e(route('purchases.edit', $purchase)); ?>"
+                       class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                        <?php echo e(__('purchases.edit')); ?>
 
-                </a>
+                    </a>
+                    <?php endif; ?>
+                    <?php endif; ?>
+                    <a href="<?php echo e(route('purchases.index')); ?>"
+                       class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
+                        <?php echo e(__('purchases.back_to_list')); ?>
+
+                    </a>
+                </div>
             </div>
 
             <?php echo $__env->make('partials.sweet-alert-flash', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>

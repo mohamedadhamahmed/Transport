@@ -47,11 +47,42 @@ return [
     'save_zakat_settings'   => 'حفظ إعدادات الزكاة والفوترة',
     'save_zakat_info'       => 'حفظ إعدادات الزكاة والفوترة', // أُضيف للمطابقة
 
+    // بيانات الشهادة الرقمية (مطلوبة للربط مع زكاة)
+    'certificate_fields_hint'   => 'هذه البيانات مطلوبة عند الربط مع منظومة زكاة والفوترة الإلكترونية (شاشة "الربط مع زكاة")',
+    'common_name'               => 'الاسم الشائع (Common Name)',
+    'organization_name'         => 'اسم المنشأة (Organization Name)',
+    'organization_unit_name'    => 'اسم الوحدة التنظيمية (Organization Unit)',
+    'country_name'               => 'كود الدولة',
+    'egs_serial_number'         => 'الرقم التسلسلي لجهاز الفوترة (EGS Serial Number)',
+    'registered_address'        => 'العنوان المسجل',
+    'go_to_onboarding'          => 'الربط مع زكاة',
+
+    // شاشة الربط مع زكاة (Onboarding)
+    'onboarding_title'              => 'الربط مع منظومة زكاة والفوترة الإلكترونية',
+    'onboarding_subtitle'           => 'يتم من خلال هذه الشاشة توليد الشهادة الرقمية وربط الفرع فعليًا مع بوابة فاتورة',
+    'onboarding_branch_info'        => 'بيانات الفرع الحالية',
+    'onboarding_missing_zakat_info' => 'يجب استكمال بيانات الزكاة والفوترة الإلكترونية أولاً (بما فيها بيانات الشهادة) من شاشة الإعدادات قبل محاولة الربط',
+    'connection_type'               => 'نوع البيئة',
+    'connection_type_simulation'    => 'بيئة تجريبية (Simulation)',
+    'connection_type_production'    => 'بيئة الإنتاج الفعلية (Production)',
+    'invoice_type_both'             => 'فاتورة ضريبية وفاتورة مبسطة (Both)',
+    'invoice_type_standard'         => 'فاتورة ضريبية (Standard - B2B)',
+    'invoice_type_simplified'       => 'فاتورة مبسطة (Simplified - B2C)',
+    'otp_label'                     => 'رمز التحقق (OTP) من بوابة فاتورة',
+    'otp_hint'                      => 'يمكنك الحصول على رمز التحقق من بوابة فاتورة التابعة لهيئة الزكاة والضريبة والجمارك',
+    'get_otp_from_fatoora'          => 'الذهاب إلى بوابة فاتورة للحصول على الرمز',
+    'connect_now'                   => 'ربط الآن',
+    'onboarding_success'            => 'تم الربط مع منظومة زكاة بنجاح',
+    'onboarding_failed'             => 'تعذر إتمام الربط مع منظومة زكاة',
+    'certificate_status'            => 'حالة الشهادة',
+    'certificate_issued'            => 'تم إصدار شهادة إنتاجية بنجاح',
+    'certificate_not_issued'        => 'لم يتم إصدار شهادة بعد',
+
     // الخصم للموظفين
     'employee_discounts_title'     => 'الخصم المسموح للموظفين',
     'branch_default_discount'      => 'النسبة الافتراضية لهذا الفرع',
     'max_default_discount'         => 'أقصى نسبة خصم افتراضية (%)',
-    'requires_approval_above'      => 'يحتاج موافقة مدير لو الخصم أعلى من (%)',
+    'requires_approval_above'      => 'يتطلب موافقة المدير إذا كانت نسبة الخصم أعلى من (%)',
     'save_default_discount'        => 'حفظ النسبة الافتراضية',
     'custom_employee_discounts'    => 'نسب مخصصة لكل موظف (اختياري)',
     'employee'                     => 'الموظف',

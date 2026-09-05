@@ -7,6 +7,7 @@ use App\Models\Customer;          // عدّل اسم الموديل حسب مو�
 use App\Models\DeliveryNoteItem;
 use App\Models\DeliveryNote;
 use App\Models\DeliveryInvoiceLink;
+use App\Models\Tax;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
@@ -31,6 +32,8 @@ class DeliveryNoteConvertController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('delivery_note.approve');
+
         // نعرض بس العملاء اللي فعلاً عندهم كمية معلّقة (متسلّمة، مش
         // مرتجعة، ومش مفوترة بعد) في أي سند تسليم.
         $customerIdsWithPending = DeliveryNoteItem::where('delivery_note_item.save', 1)
@@ -50,6 +53,8 @@ class DeliveryNoteConvertController extends Controller
      */
     public function create($customerId)
     {
+        $this->authorize('delivery_note.approve');
+
         $customer = Customer::findOrFail($customerId);
 
         $items = DeliveryNoteItem::where('delivery_note_item.save', 1)
@@ -60,7 +65,14 @@ class DeliveryNoteConvertController extends Controller
             ->with(['product', 'invoice'])
             ->get();
 
-        return view('delivery-note.convert_create', compact('customer', 'items'));
+        // نسبة الضريبة الافتراضية بتتحدد حسب أولوية الضريبة في جدول
+        // الضرائب (نفس منطق الفواتير/المشتريات/عروض الأسعار) بدل ما تبقى
+        // ثابتة 15%، مع إتاحة اختيار أي نسبة تانية من قايمة الضرائب
+        // المفعّلة قبل الاعتماد والتحويل لفاتورة.
+        $taxes = Tax::orderBy('priority', 'asc')->where('is_active', 1)->get();
+        $defaultTaxRate = Tax::defaultRateFraction();
+
+        return view('delivery-note.convert_create', compact('customer', 'items', 'taxes', 'defaultTaxRate'));
     }
 
     /**
@@ -69,6 +81,8 @@ class DeliveryNoteConvertController extends Controller
      */
     public function store(Request $request, $customerId)
     {
+        $this->authorize('delivery_note.approve');
+
         $items = json_decode((string) $request->input('items_json'), true) ?: [];
         $request->merge(['items' => $items]);
 
@@ -102,7 +116,7 @@ class DeliveryNoteConvertController extends Controller
                     'quantity' => $row['invoice_qty'],
                     'unit_price' => (float) $salesItem->Unit_Price,
                     'discount_amount' => 0,
-                    'tax_rate' => $row['tax_rate'] ?? 0.15,
+                    'tax_rate' => $row['tax_rate'] ?? Tax::defaultRateFraction(),
                     '_sales_item_id' => $salesItem->id, // مش هتتبعت للفاتورة، مستخدمة بس داخليًا تحت
                 ];
             }

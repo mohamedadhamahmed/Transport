@@ -1,8 +1,8 @@
 {{--
     رسائل SweetAlert2 - بتظهر تلقائي أي وقت فيه session('success') أو
     session('error') أو أخطاء validation، بدل الشريط الرمادي/الأخضر
-    القديم. ضيفي @include('partials.sweet-alert-flash') في أي صفحة
-    عايزة الرسائل دي تظهر فيها (تحت هيدر الصفحة مباشرة أحسن مكان).
+    القديم. ضيف @include('partials.sweet-alert-flash') في أي صفحة
+    عايز الرسائل دي تظهر فيها (تحت هيدر الصفحة مباشرة أحسن مكان).
 --}}
 @if (session('success') || session('error') || $errors->any())
     <script>

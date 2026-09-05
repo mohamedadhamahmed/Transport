@@ -230,6 +230,13 @@
       <a href="{{ route('deliverynote.return.create', $invoice->id) }}" class="secondary">
           {{ __('deliverynote.delivery_return') ?? 'مرتجع' }}
       </a>
+      @can('delivery_note.edit')
+        @if($invoice->isEditable())
+          <a href="{{ route('deliverynote.edit', $invoice->id) }}" class="secondary">
+              {{ __('deliverynote.edit_delivery_note') ?? 'تعديل' }}
+          </a>
+        @endif
+      @endcan
     </div>
 
     {{-- الهيدر: بيانات الشركة عربي / شعار / بيانات الشركة إنجليزي --}}

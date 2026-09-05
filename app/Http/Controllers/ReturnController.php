@@ -19,6 +19,8 @@ class ReturnController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('invoices.returns');
+
         $invoice = null;
         $notFound = false;
 
@@ -42,6 +44,8 @@ class ReturnController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('invoices.returns');
+
         $validated = Validator::make($request->all(), [
             'invoice_id' => ['required', 'exists:invoices,id'],
             'items' => ['required', 'array', 'min:1'],

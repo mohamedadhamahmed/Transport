@@ -17,6 +17,6 @@
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-    <!-- الاستايل الخاص بيكي - ملف عادي، أي تعديل فيه يظهر فورًا من غير npm -->
+    <!-- الاستايل الخاص بيك - ملف عادي، أي تعديل فيه يظهر فورًا من غير npm -->
     <link rel="stylesheet" href="{{ asset('css/custom.css') }}?v={{ filemtime(public_path('css/custom.css')) }}">
 </head>

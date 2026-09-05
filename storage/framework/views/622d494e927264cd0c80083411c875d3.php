@@ -9,28 +9,83 @@
 <?php endif; ?>
 <?php $component->withAttributes([]); ?>
     
-    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
     <style>
+        .ts-wrapper {
+            position: relative;
+            width: 100%;
+        }
         .ts-wrapper.single .ts-control {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            box-sizing: border-box;
             border-radius: 0.5rem;
-            border-color: #d1d5db;
+            border: 1px solid #d1d5db;
             background-color: #fff;
             min-height: 42px;
-            padding: 0.5rem 0.75rem;
+            padding-inline-start: 0.75rem;
+            padding-inline-end: 1.75rem;
+            padding-block: 0.5rem;
+            font-size: 0.875rem;
+            color: rgb(17 24 39);
+            cursor: pointer;
+            overflow: hidden;
+            transition: border-color .15s ease, box-shadow .15s ease;
         }
 
-        .ts-wrapper.single.focus .ts-control {
+        .ts-wrapper.single.focus .ts-control,
+        .ts-wrapper.single.dropdown-active .ts-control {
             border-color: #1456E8;
             box-shadow: 0 0 0 1px #1456E8;
         }
 
+        .ts-wrapper.single .ts-control::after {
+            content: "";
+            position: absolute;
+            inset-inline-end: 0.85rem;
+            top: 50%;
+            width: 0.4rem;
+            height: 0.4rem;
+            border-inline-end: 1.5px solid rgb(156 163 175);
+            border-block-end: 1.5px solid rgb(156 163 175);
+            transform: translateY(-70%) rotate(45deg);
+            pointer-events: none;
+        }
+
+        .ts-control input {
+            color: inherit;
+            font-size: inherit;
+            background: transparent;
+            min-width: 2rem;
+            cursor: pointer;
+        }
+
+        .ts-control input::placeholder {
+            color: rgb(156 163 175);
+        }
+
+        .ts-wrapper.single .ts-control > .item {
+            color: rgb(17 24 39);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .ts-dropdown {
             z-index: 9999;
+            margin-top: 0.25rem;
             background-color: #fff;
             border-radius: 0.5rem;
-            border-color: #d1d5db;
+            border: 1px solid #d1d5db;
             box-shadow: 0 10px 25px -5px rgba(15, 27, 76, 0.18), 0 8px 10px -6px rgba(15, 27, 76, 0.12);
             overflow: hidden;
+            font-size: 0.875rem;
+            text-align: start;
+        }
+
+        .ts-dropdown .ts-dropdown-content {
+            max-height: 15rem;
+            overflow-y: auto;
         }
 
         .ts-dropdown .option,
@@ -38,11 +93,25 @@
             white-space: normal;
             word-break: break-word;
             padding: 0.55rem 0.75rem;
+            cursor: pointer;
         }
 
-        .ts-dropdown .active {
+        .ts-dropdown .option.active,
+        .ts-dropdown .option:hover {
             background-color: #1456E8;
             color: #fff;
+        }
+
+        .ts-hidden-accessible {
+            border: 0 !important;
+            clip: rect(0 0 0 0) !important;
+            clip-path: inset(50%) !important;
+            height: 1px !important;
+            overflow: hidden !important;
+            padding: 0 !important;
+            position: absolute !important;
+            width: 1px !important;
+            white-space: nowrap !important;
         }
     </style>
     <?php
@@ -109,6 +178,14 @@
                         <?php echo e(__('purchases.add_new_supplier')); ?>
 
                     </button>
+                    <button type="button" id="open-tax-calculator-btn"
+                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="4" y="2" width="16" height="20" rx="2" />
+                            <path d="M8 6h8M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01" />
+                        </svg>
+                        حاسبة الضريبة والخصم
+                    </button>
                     <a href="<?php echo e(route('purchases.index')); ?>"
                         class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
                         <?php echo e(__('purchases.back_to_list')); ?>
@@ -130,8 +207,8 @@
                                 <select name="supplier_id" id="supplier_select" x-model="selectedSupplierId"
                                     class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]" required>
                                     <option value="">-</option>
-                                    <?php $__currentLoopData = $suppliers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $supplier): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <option value="<?php echo e($supplier->id); ?>" <?php if(isset($sourcePurchaseOrder) && $sourcePurchaseOrder && $sourcePurchaseOrder->supplier_id == $supplier->id): echo 'selected'; endif; ?>><?php echo e($supplier->name); ?></option>
+                                    <?php $__currentLoopData = $suppliers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $id => $name): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($id); ?>" selected><?php echo e($name); ?></option>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </select>
                                 <button type="button" @click="supplierModalOpen = true"
@@ -432,6 +509,8 @@
             </form>
         </div>
 
+        <?php echo $__env->make('partials.tax-calculator-modal', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+
       
 <div x-show="supplierModalOpen" x-cloak
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -706,6 +785,19 @@
                             create: false,
                             allowEmptyOption: true,
                             placeholder: '-',
+                            valueField: 'id',
+                            labelField: 'text',
+                            searchField: [],
+                            load: (query, callback) => {
+                                if (!query || query.length < 2) {
+                                    callback();
+                                    return;
+                                }
+                                fetch(`<?php echo e(route('suppliers.search')); ?>?q=` + encodeURIComponent(query))
+                                    .then((res) => res.json())
+                                    .then((json) => callback(json))
+                                    .catch(() => callback());
+                            },
                             onChange: (value) => {
                                 this.selectedSupplierId = value;
                             },
@@ -746,15 +838,15 @@
                         unit_price: parseFloat(p.purchase_price) || 0,
                         sale_price: parseFloat(p.sale_price) || 0,
                         discount_amount: 0,
-                        tax_rate: 0.15,
+                        tax_rate: <?php echo e($defaultTaxRate); ?>,
                     });
                     this.searchQuery = '';
                     this.searchResults = [];
                     this.loadCostHistory(p);
                 },
                 // بيتفتح لوحة "آخر أسعار الشراء" لنفس المنتج لما يتضاف لجدول
-                // الأصناف - عشان تقدري تقارني السعر الجديد بالسعر القديم
-                // قبل ما تأكدي الفاتورة.
+                // الأصناف - عشان تقدر تقارن السعر الجديد بالسعر القديم
+                // قبل ما تأكد الفاتورة.
                 async loadCostHistory(p) {
                     this.costHistoryProductName = p.name;
                     this.loadingCostHistory = true;
@@ -948,7 +1040,7 @@
                     if (data.id) {
                         if (this.supplierTomSelect) {
                             this.supplierTomSelect.addOption({
-                                value: String(data.id),
+                                id: String(data.id),
                                 text: data.name
                             });
                             this.supplierTomSelect.addItem(String(data.id));

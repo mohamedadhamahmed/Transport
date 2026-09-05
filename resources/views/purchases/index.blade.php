@@ -1,7 +1,7 @@
 <x-app-layout>
 
     <div class="py-6">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+        <div class="dc-max-w-page mx-auto sm:px-6 lg:px-8 space-y-6">
 
             {{-- هيدر الصفحة بلون البراند الكحلي --}}
             <div class="rounded-2xl bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] px-5 sm:px-6 py-5 shadow-lg shadow-[#0F1B4C]/15 flex items-center justify-between flex-wrap gap-4">
@@ -29,10 +29,14 @@
                     <form method="GET" action="{{ route('purchases.index') }}" class="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div>
                             <label class="block text-xs font-medium text-gray-500 mb-1">{{ __('purchases.filter_by_supplier') }}</label>
-                            <select name="supplier_id" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            <select name="supplier_id" data-ajax-select data-ajax-url="{{ route('suppliers.search') }}"
+                                    data-ajax-placeholder="{{ __('purchases.all_suppliers') }}"
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                 <option value="">{{ __('purchases.all_suppliers') }}</option>
-                                @foreach ($suppliers as $supplier)
-                                    <option value="{{ $supplier->id }}" @selected(request('supplier_id') == $supplier->id)>{{ $supplier->name }}</option>
+                                @foreach ($suppliers as $id => $name)
+                                    @if ($name)
+                                        <option value="{{ $id }}" selected>{{ $name }}</option>
+                                    @endif
                                 @endforeach
                             </select>
                         </div>
@@ -85,10 +89,37 @@
                                     </td>
                                     <td class="px-4 py-3 font-semibold text-[#0F1B4C]">{{ number_format($purchase->grand_total, 2) }}</td>
                                     <td class="px-4 py-3">
-                                        <a href="{{ route('purchases.show', $purchase) }}" title="{{ __('purchases.view') }}"
-                                           class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
-                                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                                        </a>
+                                        <div class="flex items-center gap-2">
+                                            <a href="{{ route('purchases.show', $purchase) }}" title="{{ __('purchases.view') }}"
+                                               class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
+                                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                            </a>
+                                            <a href="{{ route('purchases.pdf', $purchase) }}" title="{{ __('purchases.download_pdf') }}"
+                                               class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
+                                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/>
+                                                </svg>
+                                            </a>
+                                            {{-- تعديل: بيظهر بس لو المستخدم عنده صلاحية purchases.edit
+                                                 والفاتورة نفسها قابلة للتعديل (isEditable() في موديل Purchase) --}}
+                                            @can('purchases.edit')
+                                                @if ($purchase->isEditable())
+                                                    <a href="{{ route('purchases.edit', $purchase) }}" title="{{ __('purchases.edit') }}"
+                                                       class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-amber-50 text-amber-600 hover:bg-amber-100 transition">
+                                                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                                                        </svg>
+                                                    </a>
+                                                @else
+                                                    <span title="{{ __('purchases.not_editable') }}"
+                                                          class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-gray-100 text-gray-400 cursor-not-allowed">
+                                                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                                                        </svg>
+                                                    </span>
+                                                @endif
+                                            @endcan
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
@@ -133,4 +164,6 @@
             </div>
         </div>
     </div>
+
+    @include('partials.ajax-select-assets')
 </x-app-layout>

@@ -14,6 +14,10 @@ class DatabaseSeeder extends Seeder
         $this->call([
             UserSeeder::class,
             BranchSeeder::class,
+            // شجرة الحسابات (بعد الفروع مباشرة عشان محتاج الفروع
+            // موجودة أصلاً لحسابات كل فرع - راجع ChartOfAccountsSeeder).
+            ChartOfAccountsSeeder::class,
+            RolesAndPermissionsSeeder::class,
         ]);
     }
 }

@@ -17,6 +17,7 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
+                    @can('delivery_note.approve')
                     <a href="{{ route('deliverynote.convert.index') }}"
                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-[#F5811E] hover:brightness-95 transition whitespace-nowrap">
                         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -24,6 +25,8 @@
                         </svg>
                         {{ __('deliverynote.approve_and_invoice') }}
                     </a>
+                    @endcan
+                    @can('delivery_note.create')
                     <a href="{{ route('deliverynote.create') }}"
                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition whitespace-nowrap">
                         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -31,6 +34,7 @@
                         </svg>
                         {{ __('deliverynote.new_product') }}
                     </a>
+                    @endcan
                 </div>
             </div>
 
@@ -49,10 +53,14 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('deliverynote.chooseclient') }}</label>
-                        <select name="customer_id" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                        <select name="customer_id" data-ajax-select data-ajax-url="{{ route('customers.search') }}"
+                                data-ajax-placeholder="{{ __('deliverynote.all') }}"
+                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                             <option value="">{{ __('deliverynote.all') }}</option>
-                            @foreach($Customer as $customer)
-                                <option value="{{ $customer->id }}" @selected(request('customer_id') == $customer->id)>{{ $customer->name }}</option>
+                            @foreach($Customer as $id => $name)
+                                @if ($name)
+                                    <option value="{{ $id }}" selected>{{ $name }}</option>
+                                @endif
                             @endforeach
                         </select>
                     </div>
@@ -106,6 +114,7 @@
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="flex items-center gap-2">
+                                        @can('delivery_note.view')
                                         <a href="{{ route('deliverynote.show', $invoice->id) }}" target="_blank"
                                            class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#1456E8] bg-[#1456E8]/10 hover:bg-[#1456E8]/20 transition">
                                             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -113,7 +122,20 @@
                                             </svg>
                                             {{ __('deliverynote.view') }}
                                         </a>
+                                        @endcan
+                                        @can('delivery_note.edit')
+                                        @if($invoice->isEditable())
+                                        <a href="{{ route('deliverynote.edit', $invoice->id) }}"
+                                           class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-emerald-700 bg-emerald-500/10 hover:bg-emerald-500/20 transition">
+                                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                                            </svg>
+                                            {{ __('deliverynote.edit_delivery_note') }}
+                                        </a>
+                                        @endif
+                                        @endcan
                                         @if($invoice->status != 1 && $invoice->status != 3)
+                                        @can('delivery_note.view')
                                         <a href="{{ route('deliverynote.return.create', $invoice->id) }}"
                                            class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#F5811E] bg-[#F5811E]/10 hover:bg-[#F5811E]/20 transition">
                                             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -121,6 +143,7 @@
                                             </svg>
                                             {{ __('deliverynote.delivery_return') }}
                                         </a>
+                                        @endcan
                                         @endif
                                     </div>
                                 </td>
@@ -143,4 +166,6 @@
 
         </div>
     </div>
+
+    @include('partials.ajax-select-assets')
 </x-app-layout>

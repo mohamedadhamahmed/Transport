@@ -113,4 +113,28 @@ class DeliveryNote extends Model
     {
         return $this->hasMany(\App\Models\DeliveryNoteItem::class, 'invoice_id');
     }
+
+    /**
+     * سند التسليم قابل للتعديل بس لو لسه "معلّق بالكامل" (status = 0)
+     * ومفيش أي بند منه اتحول جزئيًا/كليًا لفاتورة حقيقية (invoiced_quantity)
+     * أو اترجع (quantityreturn) - لإن أي من الاتنين ده معناه إن جزء من
+     * السند بقى له أثر خارجه (فاتورة حقيقية بقيودها المحاسبية، أو مخزون
+     * اترجع) مبنيّ على القيم الحالية، فتعديل السند وقتها ممكن يسبب تعارض
+     * (مثلاً تقليل الكمية لأقل من اللي اتحول/رجع بالفعل). التعديل هنا
+     * تسجيل بحت زي الإنشاء بالظبط - من غير أي منطق "ترجيع وإعادة تطبيق".
+     */
+    public function isEditable(): bool
+    {
+        if ((int) $this->status !== 0) {
+            return false;
+        }
+
+        return $this->items()
+            ->where('save', 1)
+            ->where(function ($q) {
+                $q->where('invoiced_quantity', '>', 0)
+                    ->orWhere('quantityreturn', '>', 0);
+            })
+            ->doesntExist();
+    }
 }
