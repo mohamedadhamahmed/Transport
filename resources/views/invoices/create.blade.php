@@ -4,6 +4,14 @@
         // عمود/بطاقة الربح في شاشة إنشاء الفاتورة (نفس الصلاحية مستخدمة
         // في التسليم وعروض الأسعار كمان).
         $canViewProfit = auth()->user()?->hasPermission('sensitive_data.view_profit');
+        // زرار "العمليات" في مودال اختيار منتج بيفتح صفحة فيها روابط
+        // لتقارير المبيعات/المشتريات/حركة المخزون الخاصة بالمنتج ده -
+        // بيظهر بس لو المستخدم عنده صلاحية على تقرير واحد على الأقل من
+        // التلاتة دول (نفس صلاحيات مركز التقارير بالظبط، من غير ما نخترع
+        // صلاحية جديدة).
+        $canViewProductOperations = auth()->user()?->hasPermission('reports_sales.by_product')
+            || auth()->user()?->hasPermission('reports_purchases.by_product')
+            || auth()->user()?->hasPermission('reports_products.stock_transfers');
     @endphp
     {{-- TomSelect - لتحسين قايمة اختيار العميل (بحث + إضافة عنصر جديد ديناميكيًا).
          ⚠️ منحملش قالب Bootstrap 5 الجاهز (tom-select.bootstrap5.min.css) لإن
@@ -336,6 +344,9 @@
                                         <span>
                                             <span class="font-medium text-gray-800" x-text="p.name"></span>
                                             <span class="text-xs text-gray-400" x-text="p.code ? ' (' + p.code + ')' : ''"></span>
+                                            <span x-show="selectedCustomerId && lastPricesByProduct[p.id] !== undefined"
+                                                  class="inline-flex items-center ms-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-300 whitespace-nowrap"
+                                                  x-text="'{{ __('invoices.last_price_to_customer') }}'.replace(':price', (parseFloat(lastPricesByProduct[p.id]) || 0).toFixed(2))"></span>
                                         </span>
                                         <span class="text-sm text-gray-500" x-text="p.sale_price"></span>
                                     </button>
@@ -373,7 +384,15 @@
                                 <template x-for="(item, index) in items" :key="index">
                                     <tr class="hover:bg-[#1456E8]/5 transition">
                                         <td class="px-3 py-2 text-gray-400 text-xs" x-text="item.code || '-'"></td>
-                                        <td class="px-3 py-2 font-medium text-gray-800 min-w-[600px] whitespace-normal" x-text="item.name"></td>
+                                        <td class="px-3 py-2 min-w-[600px]">
+                                            {{-- اسم الصنف بيتحط بالاسم الحقيقي من الكتالوج وقت الإضافة،
+                                                 لكن قابل للتعديل بعد كده (زي الكمية/السعر بالظبط -
+                                                 x-model بيتزامن تلقائيًا مع items_json وقت الحفظ من غير
+                                                 أي منطق مزامنة إضافي) - عشان الكاشير يقدر يضيف ملاحظة
+                                                 أو وصف مختلف يتحفظ ويتطبع بالظبط زي ما كتبه. --}}
+                                            <input type="text" x-model="item.name"
+                                                class="w-full rounded-lg border-gray-300 shadow-sm text-sm font-medium text-gray-800 focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                        </td>
                                         <td class="px-3 py-2">
                                             <input type="number" step="0.01" min="0.01" x-model.number="item.quantity"
                                                 class="w-20 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
@@ -381,6 +400,12 @@
                                         <td class="px-3 py-2">
                                             <input type="number" step="0.01" min="0" x-model.number="item.unit_price"
                                                 class="w-24 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                            {{-- تلميح بسيط لآخر سعر بيع اتسجل بيه هذا الصنف لنفس العميل
+                                                 المختار - مرجع سريع للموظف وهو بيكتب السعر الفعلي، مش
+                                                 قيمة بتتفرض عليه. --}}
+                                            <p x-show="selectedCustomerId && lastPricesByProduct[item.product_id] !== undefined"
+                                               class="text-[10px] text-emerald-700 mt-0.5 whitespace-nowrap"
+                                               x-text="'{{ __('invoices.last_price_to_customer') }}'.replace(':price', (parseFloat(lastPricesByProduct[item.product_id]) || 0).toFixed(2))"></p>
                                         </td>
                                         <td class="px-3 py-2 text-gray-500" x-text="linePriceWithTax(item).toFixed(2)"></td>
                                         <td class="px-3 py-2">
@@ -705,7 +730,15 @@
                                     <td class="px-3 py-2">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100" x-text="p.code || '-'"></span>
                                     </td>
-                                    <td class="px-3 py-2 font-medium text-gray-800 min-w-[220px] whitespace-normal" x-text="p.name"></td>
+                                    <td class="px-3 py-2 font-medium text-gray-800 min-w-[220px] whitespace-normal">
+                                        <span x-text="p.name"></span>
+                                        {{-- بادچ "آخر سعر لهذا العميل" - بيظهر بس لو فيه عميل مختار
+                                             وباع له هذا المنتج قبل كده (lastPricesByProduct بتتحمّل من
+                                             invoices.products.last-prices وقت اختيار/تغيير العميل). --}}
+                                        <span x-show="selectedCustomerId && lastPricesByProduct[p.id] !== undefined"
+                                              class="inline-flex items-center mt-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-300 whitespace-nowrap"
+                                              x-text="'{{ __('invoices.last_price_to_customer') }}'.replace(':price', (parseFloat(lastPricesByProduct[p.id]) || 0).toFixed(2))"></span>
+                                    </td>
                                     <td class="px-3 py-2">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200" x-text="p.branch_name || '-'"></span>
                                     </td>
@@ -719,12 +752,25 @@
                                     <td class="px-3 py-2 text-gray-400 text-xs" x-text="p.reference_number ? p.reference_number.split('+').join(' - ') : '-'"></td>
                                     <td class="px-3 py-2 text-gray-400 text-xs" x-text="p.notes || '-'"></td>
                                     <td class="px-3 py-2">
-                                        <button type="button" @click="addProduct(p); markAdded(p.id)"
-                                            class="px-3 py-1.5 rounded-lg text-white text-xs font-medium transition whitespace-nowrap"
-                                            :class="isAdded(p.id) ? 'bg-emerald-500' : 'bg-[#F5811E] hover:brightness-95'">
-                                            <span x-show="!isAdded(p.id)">+ {{ __('invoices.add') }}</span>
-                                            <span x-show="isAdded(p.id)">✓ {{ __('invoices.added') }}</span>
-                                        </button>
+                                        <div class="flex flex-col gap-1.5 items-stretch">
+                                            <button type="button" @click="addProduct(p); markAdded(p.id)"
+                                                class="px-3 py-1.5 rounded-lg text-white text-xs font-medium transition whitespace-nowrap"
+                                                :class="isAdded(p.id) ? 'bg-emerald-500' : 'bg-[#F5811E] hover:brightness-95'">
+                                                <span x-show="!isAdded(p.id)">+ {{ __('invoices.add') }}</span>
+                                                <span x-show="isAdded(p.id)">✓ {{ __('invoices.added') }}</span>
+                                            </button>
+                                            @if($canViewProductOperations)
+                                                <button type="button" @click="openOperations(p)"
+                                                    class="px-3 py-1.5 rounded-lg text-white text-xs font-medium bg-[#1456E8] hover:brightness-95 transition whitespace-nowrap">
+                                                    {{ __('invoices.operations') }}
+                                                </button>
+                                            @endif
+                                            <button type="button" x-show="(p.alternates_count ?? 0) > 0" x-cloak
+                                                @click="openAlternates(p)"
+                                                class="px-3 py-1.5 rounded-lg text-white text-xs font-medium bg-[#0F1B4C] hover:bg-[#0F1B4C]/90 transition whitespace-nowrap">
+                                                {{ __('invoices.alternates') }}
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             </template>
@@ -749,6 +795,167 @@
                             {{ __('invoices.next') }}
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- مودال "العمليات" - مبيعات/مشتريات/تحويلات منتج واحد مجمّعة في
+             جدول واحد، بيتفتح فوق مودال اختيار منتج من غير أي navigation
+             (زي طلب العميل: "حاجة محترفة" مش لينك بيفتح تاب جديد). --}}
+        <div x-show="operationsModalOpen" x-cloak
+            class="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+            <div class="bg-white rounded-xl w-full max-w-5xl my-8 flex flex-col max-h-[90vh] shadow-2xl" @click.outside="operationsModalOpen = false">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] rounded-t-xl">
+                    <h3 class="font-semibold text-white">
+                        {{ __('invoices.operations') }} - <span x-text="operationsProductName"></span>
+                    </h3>
+                    <button type="button" @click="operationsModalOpen = false" class="text-white/60 hover:text-white transition">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap items-end gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">{{ __('invoices.operation_type') }}</label>
+                        <select x-model="operationsType" @change="loadOperations()"
+                            class="rounded-lg border-gray-300 shadow-sm text-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            <option value="all">{{ __('invoices.operation_type_all') }}</option>
+                            <option value="sales">{{ __('products.operations.type_sales') }}</option>
+                            <option value="purchases">{{ __('products.operations.type_purchases') }}</option>
+                            <option value="transfers">{{ __('products.operations.type_transfers') }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">{{ __('reports.date_from') }}</label>
+                        <input type="date" x-model="operationsDateFrom" @change="loadOperations()"
+                            class="rounded-lg border-gray-300 shadow-sm text-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">{{ __('reports.date_to') }}</label>
+                        <input type="date" x-model="operationsDateTo" @change="loadOperations()"
+                            class="rounded-lg border-gray-300 shadow-sm text-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                    </div>
+                </div>
+                <div class="overflow-y-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="sticky top-0">
+                            <tr class="bg-[#0F1B4C] text-white/80">
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">#</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.invoice_number') }}</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.product') }}</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.date') }}</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.operation_type') }}</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.operation_entity') }}</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.quantity') }}</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.unit_price') }}</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.operations') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 bg-white">
+                            <template x-for="(row, idx) in operationsRows" :key="idx">
+                                <tr class="hover:bg-[#1456E8]/5 transition">
+                                    <td class="px-3 py-2 text-gray-400" x-text="idx + 1"></td>
+                                    <td class="px-3 py-2 text-gray-700" x-text="row.document_number || '-'"></td>
+                                    <td class="px-3 py-2 font-medium text-gray-800" x-text="row.product_name"></td>
+                                    <td class="px-3 py-2 text-gray-500" x-text="row.date || '-'"></td>
+                                    <td class="px-3 py-2">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                              :class="{
+                                                  'bg-emerald-50 text-emerald-700 border border-emerald-100': row.type_key === 'sales',
+                                                  'bg-[#F5811E]/10 text-[#F5811E] border border-[#F5811E]': row.type_key === 'purchases',
+                                                  'bg-[#1456E8]/10 text-[#1456E8]': row.type_key === 'transfers',
+                                              }" x-text="row.type_label"></span>
+                                    </td>
+                                    <td class="px-3 py-2 text-gray-600" x-text="row.entity_name || '-'"></td>
+                                    <td class="px-3 py-2 text-gray-600" x-text="row.quantity"></td>
+                                    <td class="px-3 py-2 text-gray-600" x-text="(parseFloat(row.price) || 0).toFixed(2)"></td>
+                                    <td class="px-3 py-2 text-gray-300">-</td>
+                                </tr>
+                            </template>
+                            <tr x-show="!operationsLoading && operationsRows.length === 0">
+                                <td colspan="9" class="px-3 py-8 text-center text-gray-400">
+                                    {{ __('invoices.no_operations_found') }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex items-center justify-end px-6 py-3 border-t border-gray-100">
+                    <button type="button" @click="operationsModalOpen = false"
+                        class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
+                        {{ __('invoices.cancel') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {{-- مودال "البدائل" - منفصل تمامًا عن مودال العمليات - منتجات بديلة
+             للمنتج المختار، كل واحد بزرار "إضافة" خاص بيه يضيفه هو نفسه
+             للفاتورة بدل المنتج الأصلي. --}}
+        <div x-show="alternatesModalOpen" x-cloak
+            class="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+            <div class="bg-white rounded-xl w-full max-w-5xl my-8 flex flex-col max-h-[90vh] shadow-2xl" @click.outside="alternatesModalOpen = false">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] rounded-t-xl">
+                    <h3 class="font-semibold text-white">
+                        {{ __('invoices.alternates') }} - <span x-text="alternatesProductName"></span>
+                    </h3>
+                    <button type="button" @click="alternatesModalOpen = false" class="text-white/60 hover:text-white transition">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="overflow-y-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="sticky top-0">
+                            <tr class="bg-[#0F1B4C] text-white/80">
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.code') }}</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.product') }}</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.branch') }}</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.quantity') }}</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">{{ __('invoices.unit_price') }}</th>
+                                <th class="px-3 py-2.5"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 bg-white">
+                            <template x-for="p in alternatesRows" :key="p.id">
+                                <tr class="hover:bg-[#1456E8]/5 transition">
+                                    <td class="px-3 py-2">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100" x-text="p.code || '-'"></span>
+                                    </td>
+                                    <td class="px-3 py-2 font-medium text-gray-800 min-w-[220px] whitespace-normal" x-text="p.name"></td>
+                                    <td class="px-3 py-2">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200" x-text="p.branch_name || '-'"></span>
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <span x-show="(p.stock_quantity ?? 0) <= 0" class="text-red-600 font-bold text-xs">{{ __('invoices.not_available') }}</span>
+                                        <span x-show="(p.stock_quantity ?? 0) > 0" class="text-emerald-600 font-bold" x-text="p.stock_quantity"></span>
+                                    </td>
+                                    <td class="px-3 py-2 text-gray-500" x-text="(parseFloat(p.sale_price) || 0).toFixed(2)"></td>
+                                    <td class="px-3 py-2">
+                                        <button type="button" @click="addAlternateProduct(p)"
+                                            class="px-3 py-1.5 rounded-lg text-white text-xs font-medium transition whitespace-nowrap"
+                                            :class="isAdded(p.id) ? 'bg-emerald-500' : 'bg-[#F5811E] hover:brightness-95'">
+                                            <span x-show="!isAdded(p.id)">+ {{ __('invoices.add') }}</span>
+                                            <span x-show="isAdded(p.id)">✓ {{ __('invoices.added') }}</span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="!alternatesLoading && alternatesRows.length === 0">
+                                <td colspan="6" class="px-3 py-8 text-center text-gray-400">
+                                    {{ __('invoices.no_alternates_found') }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex items-center justify-end px-6 py-3 border-t border-gray-100">
+                    <button type="button" @click="alternatesModalOpen = false"
+                        class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
+                        {{ __('invoices.cancel') }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -787,6 +994,26 @@
                 addedProductIds: [],
                 selectedCustomerId: '',
                 customerTomSelect: null,
+                // آخر سعر بيع اتسجل بيه كل منتج للعميل المختار حاليًا -
+                // {product_id: price}. بتتحمّل من invoices.products.last-prices
+                // وقت اختيار/تغيير العميل ووقت تحميل صفحة منتجات جديدة في
+                // مودال الاختيار (شوف refreshLastPrices تحت).
+                lastPricesByProduct: {},
+                // مودال "العمليات" (مبيعات/مشتريات/تحويلات منتج واحد) - مودال
+                // ثاني بيتفتح فوق مودال اختيار منتج من غير أي navigation.
+                operationsModalOpen: false,
+                operationsProductId: null,
+                operationsProductName: '',
+                operationsRows: [],
+                operationsLoading: false,
+                operationsType: 'all',
+                operationsDateFrom: '',
+                operationsDateTo: '',
+                // مودال "البدائل" - منفصل تمامًا عن مودال العمليات.
+                alternatesModalOpen: false,
+                alternatesProductName: '',
+                alternatesRows: [],
+                alternatesLoading: false,
                 newCustomer: {
                     name: '',
                     phone: '',
@@ -860,6 +1087,12 @@
                             // يعمل مشاكل في السكرول.
                             onChange: (value) => {
                                 this.selectedCustomerId = value;
+                                // العميل اتغيّر - نمسح الكاش القديم (كان لعميل
+                                // تاني) ونجيب آخر أسعار العميل الجديد لكل
+                                // المنتجات الظاهرة دلوقتي (مودال الاختيار +
+                                // نتائج البحث السريع + الأصناف المضافة بالفعل).
+                                this.lastPricesByProduct = {};
+                                this.refreshLastPrices(this.visibleProductIds());
                             },
                         });
                     }
@@ -897,6 +1130,7 @@
                     }
                     const res = await fetch(`{{ route('invoices.products.search') }}?q=` + encodeURIComponent(this.searchQuery));
                     this.searchResults = await res.json();
+                    this.refreshLastPrices(this.searchResults.map(p => p.id));
                 },
                 addProduct(p) {
                     this.items.push({
@@ -911,6 +1145,40 @@
                     });
                     this.searchQuery = '';
                     this.searchResults = [];
+                    this.refreshLastPrices([p.id]);
+                },
+                // بيجمع كل الـ product_id الظاهرة دلوقتي على الشاشة (مودال
+                // الاختيار + نتائج البحث السريع + الأصناف المضافة بالفعل)
+                // عشان نجيب آخر سعر بيع لكل واحد منهم للعميل المختار.
+                visibleProductIds() {
+                    return [
+                        ...this.pickerProducts.map(p => p.id),
+                        ...this.searchResults.map(p => p.id),
+                        ...this.items.map(i => i.product_id),
+                    ];
+                },
+                // بيجيب آخر سعر بيع اتسجل بيه كل منتج من productIds للعميل
+                // المختار حاليًا (selectedCustomerId) ويدمجه في lastPricesByProduct
+                // - بتتجاهل أي id متخزّن بالفعل عشان منكررش نفس الطلب. لو مفيش
+                // عميل مختار، مفيش داعي نطلب حاجة (مفيش بادچ يظهر أصلًا).
+                async refreshLastPrices(productIds) {
+                    if (!this.selectedCustomerId) return;
+                    const ids = [...new Set((productIds || []).filter(Boolean))]
+                        .filter(id => !(id in this.lastPricesByProduct));
+                    if (ids.length === 0) return;
+
+                    const params = new URLSearchParams();
+                    params.set('customer_id', this.selectedCustomerId);
+                    ids.forEach(id => params.append('product_ids[]', id));
+
+                    try {
+                        const res = await fetch(`{{ route('invoices.products.last-prices') }}?` + params.toString());
+                        const data = await res.json();
+                        Object.assign(this.lastPricesByProduct, data);
+                    } catch (e) {
+                        // فشل الطلب مش لازم يوقف حاجة تانية في الشاشة - البادچ
+                        // هيفضل مخفي وبس.
+                    }
                 },
                 // بتتنفذ لما نسبة الضريبة "من فوق" تتغيّر - بتطبقها على كل
                 // الأصناف اللي في الجدول أوتوماتيك عشان الجدول يفضل بس عارض
@@ -944,6 +1212,7 @@
                         this.pickerPage = data.current_page;
                         this.pickerLastPage = data.last_page;
                         this.pickerTotal = data.total;
+                        this.refreshLastPrices(this.pickerProducts.map(p => p.id));
                     } finally {
                         this.pickerLoading = false;
                     }
@@ -953,6 +1222,49 @@
                 },
                 markAdded(id) {
                     if (!this.addedProductIds.includes(id)) this.addedProductIds.push(id);
+                },
+                // مودال "العمليات" (مبيعات/مشتريات/تحويلات منتج واحد) - مودال
+                // ثاني بيتفتح فوق مودال اختيار منتج من غير أي navigation، وبيتحمّل
+                // بيانات جدول واحد موحّد بالـ ajax (زي شكل مودال الاختيار نفسه).
+                openOperations(p) {
+                    this.operationsProductId = p.id;
+                    this.operationsProductName = p.name;
+                    this.operationsType = 'all';
+                    this.operationsDateFrom = '';
+                    this.operationsDateTo = '';
+                    this.operationsModalOpen = true;
+                    this.loadOperations();
+                },
+                async loadOperations() {
+                    if (!this.operationsProductId) return;
+                    this.operationsLoading = true;
+                    try {
+                        const params = new URLSearchParams({ type: this.operationsType });
+                        if (this.operationsDateFrom) params.set('date_from', this.operationsDateFrom);
+                        if (this.operationsDateTo) params.set('date_to', this.operationsDateTo);
+                        const url = `{{ route('products.operations.data', ['product' => '__PID__']) }}`.replace('__PID__', this.operationsProductId);
+                        const res = await fetch(url + '?' + params.toString());
+                        const data = await res.json();
+                        this.operationsRows = data.rows || [];
+                    } finally {
+                        this.operationsLoading = false;
+                    }
+                },
+                // مودال "البدائل" - منفصل تمامًا عن مودال العمليات، بيعرض
+                // منتجات بديلة للمنتج المختار وكل واحد بزرار "إضافة" خاص بيه.
+                openAlternates(p) {
+                    this.alternatesProductName = p.name;
+                    this.alternatesModalOpen = true;
+                    this.alternatesLoading = true;
+                    const url = `{{ route('products.alternates', ['product' => '__PID__']) }}`.replace('__PID__', p.id);
+                    fetch(url)
+                        .then(res => res.json())
+                        .then(rows => { this.alternatesRows = rows; })
+                        .finally(() => { this.alternatesLoading = false; });
+                },
+                addAlternateProduct(p) {
+                    this.addProduct(p);
+                    this.markAdded(p.id);
                 },
                 lineSubtotal(item) {
                     return ((parseFloat(item.unit_price) || 0) * (parseFloat(item.quantity) || 0)) - (parseFloat(item.discount_amount) || 0);

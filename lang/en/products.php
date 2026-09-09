@@ -60,4 +60,35 @@ return [
     'created_successfully' => 'Product added successfully',
     'deleted_successfully' => 'Product deleted successfully',
     'initial_stock_quantity' => 'Initial Stock Quantity',
+
+    // "Product Operations" page - opened from the Operations button in the choose-product modal
+    'operations' => [
+        'title' => 'Product Operations',
+        'subtitle' => 'Quick links to this product\'s sales, purchases, and stock-movement reports',
+        'product_code' => 'Code',
+        'product_branch' => 'Branch',
+        'current_stock' => 'Current Stock',
+        'sales_title' => 'Sales',
+        'sales_desc' => 'All sales of this product over any period',
+        'purchases_title' => 'Purchases',
+        'purchases_desc' => 'All purchases of this product over any period',
+        'transfers_title' => 'Stock Movement Between Branches',
+        'transfers_desc' => 'Every time this product was sent from or received into a branch',
+        'open_report' => 'Open Report',
+        'no_permission_any' => 'You do not have permission to view any of these operations - contact your manager if you need access',
+
+        // Operation type labels - used in the "Operations" modal (filter +
+        // the type column in the table), same values as the invoices/purchases filter.
+        'type_sales' => 'Sales',
+        'type_purchases' => 'Purchases',
+        'type_transfers' => 'Transfer',
+    ],
+
+    // Product create/edit form - "Is this product an alternate for another product?" section
+    'alternates_section_title' => 'Is this product an alternate for another product?',
+    'is_alternate_label' => 'Yes, this product is an alternate for one or more existing products',
+    'primary_products_label' => 'Primary products this product is an alternate for',
+    'search_primary_product_placeholder' => 'Search by name or code to add a primary product...',
+    'no_primary_products_selected' => 'No primary products selected yet',
+    'remove_primary_product' => 'Remove',
 ];

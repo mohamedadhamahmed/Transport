@@ -114,4 +114,15 @@ return [
 'building_number' => 'Building Number',
 'plot_identification' => 'Plot Identification',
 'postal_code' => 'Postal Code',
+
+    // "Operations" modal (a product's sales/purchases/stock-transfer history)
+    'operations' => 'Operations',
+    'operation_type' => 'Operation Type',
+    'operation_type_all' => 'All',
+    'operation_entity' => 'Supplier / Party',
+    'no_operations_found' => 'No operations found for this product',
+
+    // "Alternates" modal - substitute products for a given product
+    'alternates' => 'Alternates',
+    'no_alternates_found' => 'No alternates registered for this product',
     ];

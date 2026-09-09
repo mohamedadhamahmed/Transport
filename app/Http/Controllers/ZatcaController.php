@@ -114,7 +114,7 @@ class ZatcaController extends Controller
         }
 
         $result = $this->performSend($invoice, $setting);
-
+return  $result;
         return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
     }
 
@@ -263,7 +263,6 @@ class ZatcaController extends Controller
         }
 
         $customer = $invoice->customer;
-
         // فاتورة "standard" (فيها بيانات عميل كاملة) لازم العنوان الوطني
         // والرقم الضريبي للعميل يكونوا مكتملين - زي نظامك القديم بالظبط
         $isFullTaxNumber = !empty($customer?->tax_number) && strlen((string) $customer->tax_number) === 15;
@@ -289,6 +288,7 @@ class ZatcaController extends Controller
         // مستحيل نرجع من غير array دلوقتي.
         try {
             $response = $this->buildAndSendInvoice($invoice, $setting, $customer, $documentType);
+
         } catch (Throwable $e) {
             Log::error('ZATCA send failed (exception before/while calling ZATCA)', [
                 'invoice_id' => $invoice->id,
@@ -437,9 +437,7 @@ class ZatcaController extends Controller
             ->setCountryName('SA')
             ->setVatNumber($setting->trn)
             ->setVatName($setting->name);
-
-        $delivery = (new Delivery())->setDeliveryDateTime($invoice->issue_date);
-        $paymentType = (new PaymentType())->setPaymentType('10');
+$delivery = (new Delivery())->setDeliveryDateTime(\Carbon\Carbon::parse($invoice->issue_date)->toDateString());        $paymentType = (new PaymentType())->setPaymentType('10');
         $previousHashObj = (new PIH())->setPIH($previousHash);
         $additionalDocumentReference = (new AdditionalDocumentReference())
             ->setInvoiceID(($setting->invoices_count ?? 0) + 1);
@@ -477,7 +475,7 @@ class ZatcaController extends Controller
             ->setZatcaLang('en')
             ->setInvoiceNumber($invoice->invoice_number)
             ->setInvoiceUuid($myUuid)
-            ->setInvoiceIssueDate((string) $invoice->issue_date)
+            ->setInvoiceIssueDate(\Carbon\Carbon::parse($invoice->issue_date)->toDateString())
             ->setInvoiceIssueTime((string) $invoice->issue_time)
             ->setInvoiceType($documentType === 'simplified' ? '0200000' : '0100000', $invoice->zatca_invoice_type ?: '388')
             ->setInvoiceCurrencyCode('SAR')

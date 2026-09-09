@@ -7,7 +7,7 @@ return [
     'customer' => 'العميل',
     'branch' => 'الفرع',
     'add_new_customer' => 'إضافة عميل جديد',
-    'search_product_placeholder' => 'ابحث بالاسم أو الكود   ...',
+    'search_product_placeholder' => 'ابحث بالاسم أو الكود أو الملاحظات أو الرقم المرجعي...',
     'product' => 'المنتج',
     'code' => 'الكود',
     'quantity' => 'الكمية',
@@ -79,7 +79,7 @@ return [
     'profit_per_unit' => 'الربح على القطعة',
     'invoice_discount' => 'الخصم على الفاتورة',
     'po_number' => 'رقم أمر الشراء (P.O)',
-
+'total_profit'=>"اجمالي  الربح علي  فاتورة",
     // مودال اختيار منتج من قائمة (زي النظام القديم)
     'choose_product' => 'اختيار منتج',
     'product_location' => 'موقع المنتج',
@@ -89,9 +89,24 @@ return [
     'not_available' => 'غير متاح',
     'reference_number' => 'الرقم المرجعي',
     'no_products_found' => 'لا يوجد منتجات',
+    'operations' => 'العمليات',
     'previous' => 'السابق',
     'next' => 'التالي',
     'page_of_total' => 'صفحة :current من :last - إجمالي :total منتج',
+
+    // مودال "العمليات" (مبيعات/مشتريات/تحويلات منتج واحد) - بيتفتح من
+    // زرار العمليات في مودال اختيار منتج
+    'operation_type' => 'نوع العملية',
+    'operation_type_all' => 'الكل',
+    'operation_entity' => 'العميل / الجهة',
+    'no_operations_found' => 'لا توجد عمليات لهذا المنتج',
+
+    // مودال "البدائل" - منتجات بديلة لمنتج معيّن
+    'alternates' => 'البدائل',
+    'no_alternates_found' => 'لا توجد بدائل مسجّلة لهذا المنتج',
+
+    // بادچ "آخر سعر لهذا العميل" - في مودال اختيار منتج وجدول أصناف الفاتورة
+    'last_price_to_customer' => 'آخر سعر لهذا العميل: :price',
 
     // مودال إضافة منتج سريع
     'quick_add_product' => 'إضافة منتج سريعة',

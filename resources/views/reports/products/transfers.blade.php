@@ -18,6 +18,18 @@
                 </a>
             </div>
 
+            @if($productFilter ?? null)
+                <div class="dc-print-hide rounded-xl border border-[#1456E8]/20 bg-[#1456E8]/5 px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+                    <span class="text-sm text-[#0F1B4C]">
+                        {{ __('reports.filtered_by_product', ['name' => $productFilter->name, 'code' => $productFilter->code ?? '-']) }}
+                    </span>
+                    <a href="{{ route('reports.products.transfers', request()->except('product_id')) }}"
+                       class="text-xs font-medium text-[#1456E8] hover:underline">
+                        {{ __('reports.clear_product_filter') }}
+                    </a>
+                </div>
+            @endif
+
             <h2 class="dc-print-only text-xl font-bold text-center">{{ __('reports.products.transfers') }} ({{ $dateFrom }} → {{ $dateTo }})</h2>
 
             <div class="bg-white overflow-hidden shadow-sm border border-gray-100 sm:rounded-xl dc-print-plain">

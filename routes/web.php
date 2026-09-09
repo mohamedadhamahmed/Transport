@@ -4,7 +4,6 @@ use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ZatcaController;
-use App\Http\Controllers\NotificationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ReturnController;
@@ -48,6 +47,14 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\BomController;
+use App\Http\Controllers\ManufacturingOrderController;
+use App\Http\Controllers\ManufacturingOrderStatusController;
+use App\Http\Controllers\ProductionPlanController;
+use App\Http\Controllers\WorkstationController;
+use App\Http\Controllers\EmployeeContractController;
+use App\Http\Controllers\NotificationController;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -64,6 +71,54 @@ Route::middleware(['auth', 'verified'])->group(function () {
 // جوه الكنترولرات نفسها بـ $this->authorize('...') (مش هنا في الراوتس)،
 // عشان أي طلب مباشر للرابط برضه يترفض لو المستخدم مش معاه الصلاحية.
 Route::middleware(['auth'])->group(function () {
+
+
+Route::prefix('manufacturing')->name('manufacturing.')->group(function () {
+
+    // محطات العمل
+    Route::get('workstations', [WorkstationController::class, 'index'])->name('workstations.index');
+    Route::post('workstations', [WorkstationController::class, 'store'])->name('workstations.store');
+    Route::put('workstations/{workstation}', [WorkstationController::class, 'update'])->name('workstations.update');
+    Route::delete('workstations/{workstation}', [WorkstationController::class, 'destroy'])->name('workstations.destroy');
+
+    // حالات الأوامر (قابلة للتخصيص)
+    Route::get('statuses', [ManufacturingOrderStatusController::class, 'index'])->name('statuses.index');
+    Route::post('statuses', [ManufacturingOrderStatusController::class, 'store'])->name('statuses.store');
+    Route::put('statuses/{status}', [ManufacturingOrderStatusController::class, 'update'])->name('statuses.update');
+    Route::delete('statuses/{status}', [ManufacturingOrderStatusController::class, 'destroy'])->name('statuses.destroy');
+
+    // قوائم مواد الإنتاج (BOM)
+    Route::get('bom', [BomController::class, 'index'])->name('bom.index');
+    Route::get('bom/create', [BomController::class, 'create'])->name('bom.create');
+    Route::post('bom', [BomController::class, 'store'])->name('bom.store');
+    Route::get('bom/{bom}/edit', [BomController::class, 'edit'])->name('bom.edit');
+    Route::put('bom/{bom}', [BomController::class, 'update'])->name('bom.update');
+    Route::delete('bom/{bom}', [BomController::class, 'destroy'])->name('bom.destroy');
+
+    // خطط الإنتاج
+    Route::get('production-plans', [ProductionPlanController::class, 'index'])->name('production-plans.index');
+    Route::get('production-plans/create', [ProductionPlanController::class, 'create'])->name('production-plans.create');
+    Route::post('production-plans', [ProductionPlanController::class, 'store'])->name('production-plans.store');
+    Route::get('production-plans/{productionPlan}/edit', [ProductionPlanController::class, 'edit'])->name('production-plans.edit');
+    Route::put('production-plans/{productionPlan}', [ProductionPlanController::class, 'update'])->name('production-plans.update');
+    Route::delete('production-plans/{productionPlan}', [ProductionPlanController::class, 'destroy'])->name('production-plans.destroy');
+    Route::post('production-plans/{productionPlan}/convert', [ProductionPlanController::class, 'convertToOrder'])->name('production-plans.convert');
+
+    // أوامر التصنيع
+    Route::get('orders', [ManufacturingOrderController::class, 'index'])->name('orders.index');
+    Route::get('orders/create', [ManufacturingOrderController::class, 'create'])->name('orders.create');
+    Route::post('orders', [ManufacturingOrderController::class, 'store'])->name('orders.store');
+    Route::get('orders/{order}/edit', [ManufacturingOrderController::class, 'edit'])->name('orders.edit');
+    Route::put('orders/{order}', [ManufacturingOrderController::class, 'update'])->name('orders.update');
+    Route::delete('orders/{order}', [ManufacturingOrderController::class, 'destroy'])->name('orders.destroy');
+    Route::post('orders/{order}/complete', [ManufacturingOrderController::class, 'complete'])->name('orders.complete');
+    Route::put('orders/{order}/items/{itemId}', [ManufacturingOrderController::class, 'updateItem'])->name('orders.items.update');
+    Route::post('orders/{order}/indirect-costs', [ManufacturingOrderController::class, 'addIndirectCost'])->name('orders.indirect-costs.store');
+    Route::delete('orders/{order}/indirect-costs/{indirectCostId}', [ManufacturingOrderController::class, 'removeIndirectCost'])->name('orders.indirect-costs.destroy');
+});
+
+
+
     Route::resource('users', UserController::class)->except(['show']);
     Route::patch('/users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
     Route::resource('branches', BranchController::class)->except(['show']);
@@ -88,6 +143,19 @@ Route::get('/suppliers/{supplier}/edit', [SupplierController::class, 'edit'])->n
 Route::put('/suppliers/{supplier}', [SupplierController::class, 'update'])->name('suppliers.update');
 
 // ===== الموارد البشرية: الموظفين (أساس قسم الموارد البشرية) =====
+
+Route::prefix('contracts')->name('contracts.')->group(function () {
+    Route::get('/', [EmployeeContractController::class, 'index'])->name('index');
+    Route::get('create', [EmployeeContractController::class, 'create'])->name('create');
+    Route::post('/', [EmployeeContractController::class, 'store'])->name('store');
+    Route::get('{contract}/edit', [EmployeeContractController::class, 'edit'])->name('edit');
+    Route::put('{contract}', [EmployeeContractController::class, 'update'])->name('update');
+    Route::delete('{contract}', [EmployeeContractController::class, 'destroy'])->name('destroy');
+});
+
+Route::prefix('notifications')->name('notifications.')->group(function () {
+    Route::get('/', [NotificationController::class, 'index'])->name('index');
+});
 // الروتس الثابتة (create/import/...) لازم تسبق أي روت فيه باراميتر
 // ({employee}) بنفس القاعدة المتبعة في باقي المشروع.
 Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
@@ -164,6 +232,18 @@ Route::put('/products/{product}', [ProductInventoryController::class, 'update'])
 
 // تعديل كمية المخزون فقط
 Route::patch('/products/{product}/stock', [ProductInventoryController::class, 'updateStock'])->name('products.stock.update');
+
+// مودال "العمليات" الخاص بمنتج واحد (زرار العمليات في مودال اختيار منتج،
+// الفواتير والمشتريات مع بعض) - بيانات JSON مجمّعة من مبيعات/مشتريات/
+// تحويلات المخزون لنفس المنتج. الحماية الفعلية جوه ProductController@operationsData.
+Route::get('/products/{product}/operations-data', [ProductController::class, 'operationsData'])->name('products.operations.data');
+
+// مودال "البدائل" الخاص بمنتج واحد (زرار البدائل في مودال اختيار منتج).
+Route::get('/products/{product}/alternates', [ProductController::class, 'alternatesData'])->name('products.alternates');
+
+// بحث Ajax عام (كل الفروع) مستخدم في فورم إنشاء/تعديل منتج لاختيار
+// المنتجات "الأساسية" اللي المنتج ده بديل ليها.
+Route::get('/products/search-alternates', [ProductController::class, 'searchAlternates'])->name('products.search-alternates');
 
 // رفع إكسيل (مخزون افتتاحي / تعديل بالجملة)
 Route::get('/products/branch/{branch}/import', [ProductInventoryController::class, 'showImportForm'])->name('products.import.form');
@@ -343,6 +423,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/invoices/products/pick', [InvoiceController::class, 'pickProducts'])->name('invoices.products.pick');
     Route::get('/invoices/products/search', [InvoiceController::class, 'searchProducts'])->name('invoices.products.search');
     Route::post('/invoices/products/quick', [InvoiceController::class, 'quickStoreProduct'])->name('invoices.products.quick');
+    // آخر سعر بيع لكل منتج لعميل معيّن - بادچ "آخر سعر لهذا العميل" في
+    // مودال اختيار منتج وجدول أصناف الفاتورة.
+    Route::get('/invoices/products/last-prices', [InvoiceController::class, 'lastCustomerPrices'])->name('invoices.products.last-prices');
     Route::post('/invoices/customers/quick', [InvoiceController::class, 'quickStoreCustomer'])->name('invoices.customers.quick');
 });
 
@@ -391,7 +474,9 @@ Route::middleware(['auth'])->group(function () {
 // ReportController للتفاصيل الكاملة عن منطق كل تقرير وفلتر الفرع. =====
 Route::middleware(['auth'])->group(function () {
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
-
+Route::get('/reports/stock-adjustments', [ReportController::class, 'stockAdjustments'])
+    ->name('reports.stock_adjustments')
+    ->middleware(['auth']);
     Route::get('/reports/accounts', [ReportController::class, 'accountsIndex'])->name('reports.accounts.index');
     Route::get('/reports/accounts/trial-balance', [ReportController::class, 'trialBalance'])->name('reports.accounts.trial-balance');
     Route::get('/reports/accounts/income-statement', [ReportController::class, 'incomeStatement'])->name('reports.accounts.income-statement');
@@ -434,6 +519,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports/products/stock', [ReportController::class, 'productsStock'])->name('reports.products.stock');
     Route::get('/reports/products/low-stock', [ReportController::class, 'productsLowStock'])->name('reports.products.low-stock');
     Route::get('/reports/products/transfers', [ReportController::class, 'productsStockTransfers'])->name('reports.products.transfers');
+    Route::get('/reports/products/movement', [ReportController::class, 'productsMovement'])->name('reports.products.movement');
 
     // ===== قسم الموارد البشرية =====
     Route::get('/reports/hr', [ReportController::class, 'hrIndex'])->name('reports.hr.index');

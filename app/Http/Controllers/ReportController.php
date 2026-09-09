@@ -23,6 +23,7 @@ use App\Models\PayrollEmployeeLine;
 use App\Models\PayrollLoanDeduction;
 use App\Models\PayrollPosting;
 use App\Models\Product;
+use App\Models\StockAdjustment;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\PurchaseReturn;
@@ -1302,6 +1303,12 @@ class ReportController extends Controller
         $branches = Branch::orderBy('name')->get(['id', 'name']);
         $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
         $q = trim((string) $request->input('q'));
+        // فلترة اختيارية على صنف بعينه بالـ id (مش بالاسم) - مستخدمة من
+        // زرار "العمليات" في مودال اختيار منتج (شاشة إنشاء الفاتورة)
+        // عشان تفتح نفس تقرير "المبيعات حسب الصنف" ده مفلتر على منتج
+        // واحد بس، من غير ما نكرر منطق التقرير في مكان تاني.
+        $productId = $request->filled('product_id') ? (int) $request->input('product_id') : null;
+        $productFilter = $productId ? Product::find($productId, ['id', 'name', 'code']) : null;
         [$dateFrom, $dateTo] = $this->resolvePeriod($request);
 
         $rows = InvoiceItem::query()
@@ -1310,7 +1317,8 @@ class ReportController extends Controller
             ->whereDate('invoices.issue_date', '>=', $dateFrom)
             ->whereDate('invoices.issue_date', '<=', $dateTo)
             ->when($branchId, fn ($query) => $query->where('invoice_items.branch_id', $branchId))
-            ->when($q !== '', fn ($query) => $query->where('products.name', 'like', "%{$q}%"))
+            ->when($productId, fn ($query) => $query->where('invoice_items.product_id', $productId))
+            ->when(! $productId && $q !== '', fn ($query) => $query->where('products.name', 'like', "%{$q}%"))
             ->groupBy('products.id', 'products.name')
             ->orderByDesc('revenue')
             ->get([
@@ -1332,6 +1340,8 @@ class ReportController extends Controller
             'branches' => $branches,
             'branchId' => $branchId,
             'q' => $q,
+            'productId' => $productId,
+            'productFilter' => $productFilter,
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
             'rows' => $rows,
@@ -1570,6 +1580,10 @@ class ReportController extends Controller
         $branches = Branch::orderBy('name')->get(['id', 'name']);
         $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
         $q = trim((string) $request->input('q'));
+        // فلترة اختيارية على صنف بعينه بالـ id - نفس فكرة salesByProduct
+        // فوق، مستخدمة من زرار "العمليات" في مودال اختيار منتج.
+        $productId = $request->filled('product_id') ? (int) $request->input('product_id') : null;
+        $productFilter = $productId ? Product::find($productId, ['id', 'name', 'code']) : null;
         [$dateFrom, $dateTo] = $this->resolvePeriod($request);
 
         $rows = PurchaseItem::query()
@@ -1578,7 +1592,8 @@ class ReportController extends Controller
             ->whereDate('purchases.issue_date', '>=', $dateFrom)
             ->whereDate('purchases.issue_date', '<=', $dateTo)
             ->when($branchId, fn ($query) => $query->where('purchases.branch_id', $branchId))
-            ->when($q !== '', fn ($query) => $query->where('products.name', 'like', "%{$q}%"))
+            ->when($productId, fn ($query) => $query->where('purchase_items.product_id', $productId))
+            ->when(! $productId && $q !== '', fn ($query) => $query->where('products.name', 'like', "%{$q}%"))
             ->groupBy('products.id', 'products.name')
             ->orderByDesc('cost_total')
             ->get([
@@ -1600,6 +1615,8 @@ class ReportController extends Controller
             'branches' => $branches,
             'branchId' => $branchId,
             'q' => $q,
+            'productId' => $productId,
+            'productFilter' => $productFilter,
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
             'rows' => $rows,
@@ -1764,6 +1781,12 @@ class ReportController extends Controller
         $branches = Branch::orderBy('name')->get(['id', 'name']);
         $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
         $q = trim((string) $request->input('q'));
+        // فلترة اختيارية على صنف بعينه - مستخدمة من زرار "العمليات" في
+        // مودال اختيار منتج عشان نعرض بس سندات التحويل اللي فيها الصنف
+        // ده (سواء كان هو منتج الفرع المرسل from_product_id أو منتج
+        // الفرع المستلم to_product_id بعد التأكيد).
+        $productId = $request->filled('product_id') ? (int) $request->input('product_id') : null;
+        $productFilter = $productId ? Product::find($productId, ['id', 'name', 'code']) : null;
         [$dateFrom, $dateTo] = $this->resolvePeriod($request);
 
         $transfers = StockTransfer::query()
@@ -1776,7 +1799,13 @@ class ReportController extends Controller
                     $w->where('from_branch_id', $branchId)->orWhere('to_branch_id', $branchId);
                 });
             })
-            ->when($q !== '', fn ($query) => $query->where('transfer_number', 'like', "%{$q}%"))
+            ->when($productId, function ($query) use ($productId) {
+                $query->whereHas('items', function ($itemQuery) use ($productId) {
+                    $itemQuery->where('from_product_id', $productId)
+                        ->orWhere('to_product_id', $productId);
+                });
+            })
+            ->when(! $productId && $q !== '', fn ($query) => $query->where('transfer_number', 'like', "%{$q}%"))
             ->orderByDesc('transfer_date')
             ->get();
 
@@ -1798,12 +1827,104 @@ class ReportController extends Controller
             'branches' => $branches,
             'branchId' => $branchId,
             'q' => $q,
+            'productId' => $productId,
+            'productFilter' => $productFilter,
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
             'transfers' => $transfers,
             'totalQuantity' => round((float) $transfers->sum('items_sum_quantity'), 2),
         ]);
     }
+
+    /**
+     * تقرير "حركة منتج" - نفس البيانات الموحّدة (مبيعات + مشتريات +
+     * تحويلات) اللي مودال "العمليات" بيعرضها من داخل شاشة اختيار منتج
+     * في الفواتير/المشتريات، بس هنا كصفحة تقرير قائمة بذاتها ليها
+     * اختيار منتج خاص بيها (بما إنها بتتفتح من قايمة التقارير مباشرة،
+     * مش من صف منتج جاهز). الصفحة دي شِل بسيط بس - كل جلب البيانات
+     * الفعلي بيحصل بالـ AJAX من نفس endpoint الموجود بالفعل
+     * (ProductController::operationsData) عشان منكررش نفس منطق
+     * الاستعلامات والصلاحيات مرتين. نفس صلاحيات التلات أنواع بالظبط
+     * (لو المستخدم مالوش ولا واحدة فيهم، الصفحة نفسها بترفض 403 - زي
+     * ما كارت "حركة منتج" في reports.products.index مبيظهرش أصلاً).
+     */
+    public function productsMovement(Request $request)
+    {
+        $user = auth()->user();
+
+        abort_unless(
+            $user?->hasPermission('reports_sales.by_product')
+                || $user?->hasPermission('reports_purchases.by_product')
+                || $user?->hasPermission('reports_products.stock_transfers'),
+            403
+        );
+
+        return view('reports.products.movement');
+    }
+
+    public function stockAdjustments(Request $request)
+{
+    $this->authorize('reports.products.stock_adjustments');
+
+    $query = StockAdjustment::with(['product', 'user'])->latest();
+
+    // فلترة الفرع إذا وجد
+    $branchId = $request->get('branch_id');
+    if ($branchId) {
+        // إذا كان جدول السجلات مرتبطاً بالمنتج والمنتج يتبع فرعاً، أو إذا كنت تريد فلترتها حسب فرع المنتج
+        // $query->whereHas('product', fn($q) => $q->where('branch_id', $branchId));
+    }
+
+    // دعم الفلترة بالمنتج
+    $productId = $request->get('product_id');
+    $productFilter = null;
+    if ($productId) {
+        $query->where('product_id', $productId);
+        $productFilter = \App\Models\Product::find($productId);
+    }
+
+    // دعم البحث (الكلمة المفتاحية)
+    $q = $request->get('search');
+    if ($q) {
+        $query->where(function($queryBuilder) use ($q) {
+            $queryBuilder->where('reason', 'like', "%{$q}%")
+                         ->orWhereHas('product', function($sub) use ($q) {
+                             $sub->where('name', 'like', "%{$q}%")
+                                 ->orWhere('code', 'like', "%{$q}%");
+                         });
+        });
+    }
+
+    // دعم فلتر التواريخ إن كان مستخدماً في _filters
+    $dateFrom = $request->get('date_from');
+    $dateTo = $request->get('date_to');
+    if ($dateFrom) {
+        $query->whereDate('created_at', '>=', $dateFrom);
+    }
+    if ($dateTo) {
+        $query->whereDate('created_at', '<=', $dateTo);
+    }
+
+    // جلب الفروع لتظهر في الفلتر العلوي
+    $branches = Branch::all(); 
+
+    $adjustments = $query->paginate(20)->withQueryString();
+
+    return view('reports.products.stock_adjustments', [
+        'branches' => $branches,
+        'branchId' => $branchId,
+        'q' => $q,
+        'productId' => $productId,
+        'productFilter' => $productFilter,
+        'dateFrom' => $dateFrom,
+        'dateTo' => $dateTo,
+        'adjustments' => $adjustments,
+    ]);
+}
+
+
+
+
 
     private function annotateStockValue($products): void
     {

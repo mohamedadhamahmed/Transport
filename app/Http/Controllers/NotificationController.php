@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Purchase;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use App\Models\EmployeeContract;
 
 /*
 |--------------------------------------------------------------------------
@@ -32,13 +33,46 @@ use Illuminate\Http\Request;
 */
 class NotificationController extends Controller
 {
+
     private const PAGE_SIZE = 5;
 
     // حد أقصى دفاعي لكل نوع عملية في اليوم الواحد - عشان يوم مزدحم جدًا
     // (مئات العمليات) متعملش استعلام وترتيب لكل حاجة من غير أي حد. القيمة
     // دي كبيرة كفاية إنها متأثرش على الاستخدام العادي.
     private const MAX_PER_TYPE = 200;
+ public function index()
+    {
+        $days = 30; // نطاق التنبيه بالأيام - عدّله زي ما تحب
 
+        $contracts = EmployeeContract::with('employee')
+            ->expiringWithin($days)
+            ->get();
+
+        $today = now()->startOfDay();
+        $alerts = collect();
+
+        foreach ($contracts as $c) {
+            foreach ([
+                'end_date'           => __('notifications.contract_end'),
+                'residency_expiry'   => __('notifications.residency'),
+                'work_permit_expiry' => __('notifications.work_permit'),
+            ] as $field => $label) {
+                if ($c->$field && $c->$field->between($today, $today->copy()->addDays($days))) {
+                    $alerts->push([
+                        'employee'  => $c->employee,
+                        'type'      => $label,
+                        'date'      => $c->$field,
+                        'days_left' => $today->diffInDays($c->$field, false),
+                        'contract'  => $c,
+                    ]);
+                }
+            }
+        }
+
+        $alerts = $alerts->sortBy('date')->values();
+
+        return view('notifications.index', compact('alerts', 'days'));
+    }
     public function summary(Request $request)
     {
         $user = auth()->user();

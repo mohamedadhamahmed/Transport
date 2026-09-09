@@ -8,7 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
-
+use App\Models\StockAdjustment;
+use Illuminate\Support\Facades\Auth;
 /**
  * قسم المنتجات والمخزون:
  * - قائمة "جميع المنتجات" مع فلترة إجبارية بالفرع أولاً، ثم فلترة اختيارية بالفئة/الرقم.
@@ -105,7 +106,6 @@ public function update(Request $request, Product $product)
     {
         $this->authorize('products.edit');
 
-    dd( $request);
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'name_en' => ['nullable', 'string', 'max:255'],
@@ -133,19 +133,34 @@ public function update(Request $request, Product $product)
     /**
      * تعديل كمية المخزون فقط
      */
-    public function updateStock(Request $request, Product $product)
-    {
-        $this->authorize('products.edit');
+ public function updateStock(Request $request, Product $product)
+{
+    $this->authorize('products.edit');
 
-        $validated = $request->validate([
-            'stock_quantity' => ['required', 'numeric'],
-            'reason' => ['nullable', 'string'],
-        ]);
+    $validated = $request->validate([
+        'stock_quantity' => ['required', 'numeric'],
+        'reason' => ['nullable', 'string'],
+    ]);
 
-        $product->update(['stock_quantity' => $validated['stock_quantity']]);
+    $oldQuantity = $product->stock_quantity;
+    $newQuantity = $validated['stock_quantity'];
+    $difference = $newQuantity - $oldQuantity;
 
-        return redirect()->back()->with('success', __('products.stock_updated_success'));
-    }
+    // تحديث المخزون للمنتج
+    $product->update(['stock_quantity' => $newQuantity]);
+
+    // تسجيل التعديل في جدول السجلات
+    StockAdjustment::create([
+        'product_id' => $product->id,
+        'user_id' => Auth::id(),
+        'old_quantity' => $oldQuantity,
+        'new_quantity' => $newQuantity,
+        'difference' => $difference,
+        'reason' => $validated['reason'] ?? null,
+    ]);
+
+    return redirect()->back()->with('success', __('products.stock_updated_success'));
+}
 
     /**
      * عرض فورم رفع ملف إكسيل (تحديث كميات بالجملة / مخزون افتتاحي)
@@ -185,7 +200,8 @@ public function update(Request $request, Product $product)
         $notFound = [];
 
         DB::transaction(function () use ($rows, $branch, $request, &$updated, &$notFound) {
-            foreach ($rows as $index => $row) {
+
+        foreach ($rows as $index => $row) {
                 if ($index === 0) {
                     continue; // تخطي صف العناوين
                 }
@@ -206,10 +222,32 @@ public function update(Request $request, Product $product)
                     continue;
                 }
 
+                $oldQuantity = $product->stock_quantity;
+                $newQuantity = $oldQuantity;
+                $reasonText = '';
+
                 if ($request->mode === 'opening_stock') {
-                    $product->update(['stock_quantity' => $quantity]);
+                    $newQuantity = $quantity;
+                    $product->update(['stock_quantity' => $newQuantity]);
+                    $reasonText = 'استيراد إكسيل (مخزون افتتاحي - استبدال)';
                 } else {
+                    $newQuantity = $oldQuantity + $quantity;
                     $product->increment('stock_quantity', $quantity);
+                    $reasonText = 'استيراد إكسيل (تعديل/إضافة كمية)';
+                }
+
+                $difference = $newQuantity - $oldQuantity;
+
+                // تسجيل التعديل في جدول السجلات إذا حدث تغيير فعلي
+                if ($difference != 0) {
+                    \App\Models\StockAdjustment::create([
+                        'product_id' => $product->id,
+                        'user_id' => \Illuminate\Support\Facades\Auth::id(),
+                        'old_quantity' => $oldQuantity,
+                        'new_quantity' => $newQuantity,
+                        'difference' => $difference,
+                        'reason' => $reasonText,
+                    ]);
                 }
 
                 $updated++;

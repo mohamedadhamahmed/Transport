@@ -103,6 +103,8 @@
                     </div>
                 </div>
 
+                @include('products._alternates-field', ['selectedPrimaries' => [], 'excludeId' => null])
+
                 <div class="flex items-center gap-3 mt-6">
                     <button type="submit" class="px-5 py-2 rounded-lg text-white font-medium bg-gradient-to-r from-[#1456E8] to-[#6B2FD6] hover:opacity-90 transition">
                         {{ __('products.save') }}

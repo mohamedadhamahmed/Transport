@@ -94,6 +94,16 @@
                     </div>
                 </div>
 
+                @php
+                    // المنتجات الأساسية اللي المنتج ده بديل ليها بالفعل (لو
+                    // موجودة) - بتتحط جاهزة في مكوّن الاختيار Alpine بنفس
+                    // الشكل اللي بيرجعه بحث products.search-alternates.
+                    $selectedPrimaries = $product->primaryProducts()->get(['products.id', 'products.name', 'products.code'])
+                        ->map(fn ($p) => ['id' => $p->id, 'text' => $p->name . ($p->code ? " ({$p->code})" : '')])
+                        ->values();
+                @endphp
+                @include('products._alternates-field', ['selectedPrimaries' => $selectedPrimaries, 'excludeId' => $product->id])
+
                 <div class="bg-[#0F1B4C]/5 border border-[#0F1B4C]/10 rounded-lg p-4 mt-6 text-sm text-gray-600">
                     {{ __('products.stock_edit_note') }}
                     <span class="font-semibold text-[#0F1B4C]">{{ $product->stock_quantity }}</span> —

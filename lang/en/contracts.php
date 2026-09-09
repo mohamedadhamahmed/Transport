@@ -1,0 +1,22 @@
+<?php
+return [
+    'title' => 'Contracts and Documents Management',
+    'add_new' => 'Add New Contract',
+    'employee_name' => 'Name',
+    'contract_type' => 'Contract Type',
+    'start_date' => 'Start Date',
+    'end_date' => 'End Date',
+    'residency_expiry' => 'Residency Expiry',
+    'work_permit_expiry' => 'Work Permit Expiry',
+    'notes' => 'Notes',
+    'actions' => 'Actions',
+    'empty' => 'No contracts added',
+    'save' => 'Save',
+    'edit' => 'Edit',
+    'delete' => 'Delete',
+    'confirm_delete' => 'Are you sure you want to delete this contract?',
+    'added' => 'Contract added successfully',
+    'updated' => 'Contract updated successfully',
+    'deleted' => 'Contract deleted successfully',
+    'select_employee' => 'Select Employee',
+];

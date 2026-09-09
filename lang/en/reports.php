@@ -6,6 +6,19 @@ return [
     'hub_subtitle' => 'All system reports grouped by department',
     'available' => 'Available',
     'coming_soon' => 'Coming Soon',
+    'product_name'=>'product name',
+// Stock Adjustments Report
+    'stock_adjustments_title' => 'Stock Adjustments Report',
+    'stock_adjustments_desc' => 'Log of all manual adjustments and discrepancies on inventory quantities',
+    'old_quantity' => 'Old Quantity',
+    'new_quantity' => 'New Quantity',
+    'difference' => 'Difference',
+    'reason' => 'Reason',
+    'user' => 'User',
+    'no_adjustments_found' => 'No matching stock adjustment records found',
+    'total_records' => 'Total Records',
+    'search_product_or_reason' => 'Search by product name or reason...',
+
 
     'sections' => [
         'accounts' => 'Accounts',
@@ -41,6 +54,12 @@ return [
     'section' => 'Section',
     'item' => 'Item',
     'branch_filter_note' => 'Accounts shared across all branches (such as customers, suppliers, and equity) always appear regardless of the branch selected, since they are not split per branch in the chart of accounts - so if most of your accounts are like this, the report may look nearly identical across branches. Accounts that truly belong to the selected branch are marked "Branch-specific" in the table.',
+
+    // "Filtered by product" banner - shown when the report is opened with
+    // product_id (from the "Operations" button in the choose-product modal)
+    // instead of a name search.
+    'filtered_by_product' => 'Showing only this product: :name (code: :code)',
+    'clear_product_filter' => 'Clear product filter and show all items',
 
     'accounts' => [
         'title' => 'Accounts',
@@ -249,6 +268,11 @@ return [
         'low_stock_desc' => 'Products at or below their configured low-stock alert level',
         'transfers' => 'Inter-Branch Stock Transfers',
         'transfers_desc' => 'Stock transfer documents between branches over a selected period',
+        'movement' => 'Product Movement',
+        'movement_desc' => 'Sales, purchases, and transfers for a single product in one report',
+        'movement_choose_product' => 'Choose a product',
+        'movement_search_placeholder' => 'Search by name or code...',
+        'movement_no_product_selected' => 'Choose a product first to see its movement',
     ],
     'product_code' => 'Code',
     'unit' => 'Unit',

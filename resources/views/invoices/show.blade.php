@@ -383,7 +383,7 @@
                   <tr>
                     <td>{{$i}}</td>
                     <td dir="rtl">{{ optional($product->productData)->code ?? '-' }}</td>
-                    <td>{{ optional($product->productData)->name ?? 'منتج محذوف' }}</td>
+                    <td>{{ $product->product_name_snapshot ?? optional($product->productData)->name ?? 'منتج محذوف' }}</td>
                     <td>{{$product->quantity}}</td>
                     <td>{{ number_format($product->unit_price, 2, '.', '')}}</td>
                     <td>{{ number_format($product->unit_price*$product->quantity, 2, '.', '')}}</td>

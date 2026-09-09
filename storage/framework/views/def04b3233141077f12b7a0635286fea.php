@@ -381,7 +381,7 @@
                   <tr>
                     <td><?php echo e($i); ?></td>
                     <td dir="rtl"><?php echo e(optional($product->productData)->code ?? '-'); ?></td>
-                    <td><?php echo e(optional($product->productData)->name ?? 'منتج محذوف'); ?></td>
+                    <td><?php echo e($product->product_name_snapshot ?? optional($product->productData)->name ?? 'منتج محذوف'); ?></td>
                     <td><?php echo e($product->quantity); ?></td>
                     <td><?php echo e(number_format($product->unit_price, 2, '.', '')); ?></td>
                     <td><?php echo e(number_format($product->unit_price*$product->quantity, 2, '.', '')); ?></td>

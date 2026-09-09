@@ -399,9 +399,15 @@ public function createInvoiceFromData(array $validated): Invoice
             ->when($branchId, function ($q) use ($branchId) {
                 $q->where('branch_id', $branchId);
             })
+            // البحث بيغطي: اسم الصنف، الكود، الملاحظات، والرقم المرجعي
+            // (طلب العميل يبحث بالاسم أو الكود أو الملاحظات أو الأرقام
+            // البديلة - مفيش جدول منفصل للأرقام البديلة حاليًا فاعتمدنا
+            // على عمود reference_number الموجود بالفعل).
             ->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('code', 'like', "%{$search}%");
+                    ->orWhere('code', 'like', "%{$search}%")
+                    ->orWhere('notes', 'like', "%{$search}%")
+                    ->orWhere('reference_number', 'like', "%{$search}%");
             })
             ->limit(20)
             ->get(['id', 'name', 'code', 'sale_price', 'purchase_price', 'stock_quantity']);
@@ -422,13 +428,21 @@ public function createInvoiceFromData(array $validated): Invoice
 
         $products = Product::query()
             ->with('branch:id,name')
+            // withCount بيدينا عدد البدائل المرتبطة بالمنتج ده (لو هو
+            // "أساسي" وليه بدائل) من غير ما نعمل استعلام منفصل لكل صف -
+            // مستخدم في الواجهة لإظهار/إخفاء زرار "البدائل".
+            ->withCount('alternates')
             ->when($branchId, function ($q) use ($branchId) {
                 $q->where('branch_id', $branchId);
             })
+            // البحث هنا (مودال "اختيار منتج" الكامل) بيغطي نفس حقول
+            // searchProducts فوق: الاسم، الكود، الملاحظات، والرقم المرجعي.
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($qq) use ($search) {
                     $qq->where('name', 'like', "%{$search}%")
-                        ->orWhere('code', 'like', "%{$search}%");
+                        ->orWhere('code', 'like', "%{$search}%")
+                        ->orWhere('notes', 'like', "%{$search}%")
+                        ->orWhere('reference_number', 'like', "%{$search}%");
                 });
             })
             ->orderBy('name')
@@ -448,12 +462,55 @@ public function createInvoiceFromData(array $validated): Invoice
                     'average_cost' => $p->average_cost,
                     'notes' => $p->notes,
                     'reference_number' => $p->reference_number,
+                    'alternates_count' => $p->alternates_count,
                 ];
             })->values(),
             'current_page' => $products->currentPage(),
             'last_page' => $products->lastPage(),
             'total' => $products->total(),
         ]);
+    }
+
+    /**
+     * آخر سعر بيع اتسجل بيه كل منتج (من الأصناف المطلوبة) لعميل معيّن -
+     * مستخدمة في شاشة إنشاء الفاتورة عشان تعرض بادچ صغير جنب المنتج في
+     * مودال الاختيار وتحت خانة سعر الوحدة في جدول الأصناف المضافة، تساعد
+     * الموظف يتذكر آخر سعر باعه بيه لنفس العميل ده تحديدًا. بترجع
+     * object بسيط {product_id: price} عشان تبقى سهلة الدمج في الواجهة.
+     * بترجّع بس أحدث سعر لكل منتج (مش تاريخ كامل - ده موجود بالفعل في
+     * تقرير "المبيعات حسب الصنف" لو حد محتاج التفاصيل الكاملة).
+     */
+    public function lastCustomerPrices(Request $request)
+    {
+        $customerId = $request->query('customer_id');
+        $productIds = collect((array) $request->query('product_ids', []))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if (! $customerId || $productIds->isEmpty()) {
+            return response()->json([]);
+        }
+
+        $rows = InvoiceItem::query()
+            ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
+            ->where('invoices.customer_id', $customerId)
+            ->whereIn('invoice_items.product_id', $productIds)
+            ->orderByDesc('invoices.issue_date')
+            ->orderByDesc('invoice_items.id')
+            ->get(['invoice_items.product_id', 'invoice_items.unit_price']);
+
+        // أول صف نشوفه لكل product_id هو الأحدث فعلًا (بفضل الـ order by
+        // فوق) - فبنسيب أول قيمة نلاقيها بس ونتجاهل أي تكرار بعد كده.
+        $lastPrices = [];
+        foreach ($rows as $row) {
+            if (! array_key_exists($row->product_id, $lastPrices)) {
+                $lastPrices[$row->product_id] = (float) $row->unit_price;
+            }
+        }
+
+        return response()->json($lastPrices);
     }
 
     /**
@@ -747,7 +804,14 @@ return redirect()->back();
                 'discount_amount' => $item['discount_amount'] ?? 0,
                 'tax_amount' => $lineTax,
                 'tax_rate' => $item['tax_rate'],
-                'product_name_snapshot' => $product?->name,
+                // لو الكاشير عدّل اسم الصنف في سطر الفاتورة (زي إضافة
+                // ملاحظة أو وصف مختلف عن اسم المنتج في الكتالوج)، الاسم
+                // المُدخل هو اللي المفروض يتحفظ ويتطبع - مش اسم المنتج
+                // الأصلي. لو السطر جاي فاضي أو من غير حقل name خالص (أي
+                // مسار قديم قبل الميزة دي)، بنرجع لاسم المنتج زي ما كان.
+                'product_name_snapshot' => !empty(trim((string) ($item['name'] ?? '')))
+                    ? trim((string) $item['name'])
+                    : $product?->name,
                 'is_finalized' => $isFinalized,
                 'created_by' => Auth::id(),
                 'remaining_quantity' => $item['quantity'],

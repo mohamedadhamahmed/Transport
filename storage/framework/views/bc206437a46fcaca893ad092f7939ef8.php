@@ -101,10 +101,36 @@
                                     </td>
                                     <td class="px-4 py-3 font-semibold text-[#0F1B4C]"><?php echo e(number_format($purchase->grand_total, 2)); ?></td>
                                     <td class="px-4 py-3">
-                                        <a href="<?php echo e(route('purchases.show', $purchase)); ?>" title="<?php echo e(__('purchases.view')); ?>"
-                                           class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
-                                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                                        </a>
+                                        <div class="flex items-center gap-2">
+                                            <a href="<?php echo e(route('purchases.show', $purchase)); ?>" title="<?php echo e(__('purchases.view')); ?>"
+                                               class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
+                                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                            </a>
+                                            <a href="<?php echo e(route('purchases.pdf', $purchase)); ?>" title="<?php echo e(__('purchases.download_pdf')); ?>"
+                                               class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
+                                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/>
+                                                </svg>
+                                            </a>
+                                            
+                                            <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('purchases.edit')): ?>
+                                                <?php if($purchase->isEditable()): ?>
+                                                    <a href="<?php echo e(route('purchases.edit', $purchase)); ?>" title="<?php echo e(__('purchases.edit')); ?>"
+                                                       class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-amber-50 text-amber-600 hover:bg-amber-100 transition">
+                                                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                                                        </svg>
+                                                    </a>
+                                                <?php else: ?>
+                                                    <span title="<?php echo e(__('purchases.not_editable')); ?>"
+                                                          class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-gray-100 text-gray-400 cursor-not-allowed">
+                                                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                                                        </svg>
+                                                    </span>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>

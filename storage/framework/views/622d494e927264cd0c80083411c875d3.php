@@ -8,6 +8,16 @@
 <?php $attributes = $attributes->except(\App\View\Components\AppLayout::ignoredParameterNames()); ?>
 <?php endif; ?>
 <?php $component->withAttributes([]); ?>
+    <?php
+        // زرار "العمليات" في مودال اختيار منتج بيفتح مودال فيه مبيعات/
+        // مشتريات/تحويلات المنتج ده - بيظهر بس لو المستخدم عنده صلاحية
+        // على تقرير واحد على الأقل من التلاتة دول (نفس صلاحيات مركز
+        // التقارير بالظبط، من غير ما نخترع صلاحية جديدة). نفس المنطق
+        // المستخدم في invoices/create.blade.php بالظبط.
+        $canViewProductOperations = auth()->user()?->hasPermission('reports_sales.by_product')
+            || auth()->user()?->hasPermission('reports_purchases.by_product')
+            || auth()->user()?->hasPermission('reports_products.stock_transfers');
+    ?>
     
     <style>
         .ts-wrapper {
@@ -688,12 +698,27 @@
                                     <td class="px-3 py-2 text-gray-500" x-text="p.stock_quantity ?? 0"></td>
                                     <td class="px-3 py-2 text-gray-500" x-text="(parseFloat(p.purchase_price) || 0).toFixed(2)"></td>
                                     <td class="px-3 py-2">
-                                        <button type="button" @click="addProduct(p); markAdded(p.id)"
-                                            class="px-3 py-1.5 rounded-lg text-white text-xs font-medium transition whitespace-nowrap"
-                                            :class="isAdded(p.id) ? 'bg-emerald-500' : 'bg-[#F5811E] hover:brightness-95'">
-                                            <span x-show="!isAdded(p.id)">+ <?php echo e(__('purchases.add')); ?></span>
-                                            <span x-show="isAdded(p.id)">✓ <?php echo e(__('purchases.added')); ?></span>
-                                        </button>
+                                        <div class="flex flex-col gap-1.5 items-stretch">
+                                            <button type="button" @click="addProduct(p); markAdded(p.id)"
+                                                class="px-3 py-1.5 rounded-lg text-white text-xs font-medium transition whitespace-nowrap"
+                                                :class="isAdded(p.id) ? 'bg-emerald-500' : 'bg-[#F5811E] hover:brightness-95'">
+                                                <span x-show="!isAdded(p.id)">+ <?php echo e(__('purchases.add')); ?></span>
+                                                <span x-show="isAdded(p.id)">✓ <?php echo e(__('purchases.added')); ?></span>
+                                            </button>
+                                            <?php if($canViewProductOperations): ?>
+                                                <button type="button" @click="openOperations(p)"
+                                                    class="px-3 py-1.5 rounded-lg text-white text-xs font-medium bg-[#F5811E]/80 hover:bg-[#F5811E] transition whitespace-nowrap">
+                                                    <?php echo e(__('purchases.operations')); ?>
+
+                                                </button>
+                                            <?php endif; ?>
+                                            <button type="button" x-show="(p.alternates_count ?? 0) > 0" x-cloak
+                                                @click="openAlternates(p)"
+                                                class="px-3 py-1.5 rounded-lg text-white text-xs font-medium bg-[#0F1B4C] hover:bg-[#0F1B4C]/90 transition whitespace-nowrap">
+                                                <?php echo e(__('purchases.alternates')); ?>
+
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             </template>
@@ -724,6 +749,165 @@
                 </div>
             </div>
         </div>
+
+        
+        <div x-show="operationsModalOpen" x-cloak
+            class="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+            <div class="bg-white rounded-xl w-full max-w-5xl my-8 flex flex-col max-h-[90vh] shadow-2xl" @click.outside="operationsModalOpen = false">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] rounded-t-xl">
+                    <h3 class="font-semibold text-white">
+                        <?php echo e(__('purchases.operations')); ?> - <span x-text="operationsProductName"></span>
+                    </h3>
+                    <button type="button" @click="operationsModalOpen = false" class="text-white/60 hover:text-white transition">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap items-end gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1"><?php echo e(__('purchases.operation_type')); ?></label>
+                        <select x-model="operationsType" @change="loadOperations()"
+                            class="rounded-lg border-gray-300 shadow-sm text-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                            <option value="all"><?php echo e(__('purchases.operation_type_all')); ?></option>
+                            <option value="sales"><?php echo e(__('products.operations.type_sales')); ?></option>
+                            <option value="purchases"><?php echo e(__('products.operations.type_purchases')); ?></option>
+                            <option value="transfers"><?php echo e(__('products.operations.type_transfers')); ?></option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1"><?php echo e(__('reports.date_from')); ?></label>
+                        <input type="date" x-model="operationsDateFrom" @change="loadOperations()"
+                            class="rounded-lg border-gray-300 shadow-sm text-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1"><?php echo e(__('reports.date_to')); ?></label>
+                        <input type="date" x-model="operationsDateTo" @change="loadOperations()"
+                            class="rounded-lg border-gray-300 shadow-sm text-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                    </div>
+                </div>
+                <div class="overflow-y-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="sticky top-0">
+                            <tr class="bg-[#0F1B4C] text-white/80">
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide">#</th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.purchase_number')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.product')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.date')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.operation_type')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.operation_entity')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.quantity')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.unit_price')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.operations')); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 bg-white">
+                            <template x-for="(row, idx) in operationsRows" :key="idx">
+                                <tr class="hover:bg-[#1456E8]/5 transition">
+                                    <td class="px-3 py-2 text-gray-400" x-text="idx + 1"></td>
+                                    <td class="px-3 py-2 text-gray-700" x-text="row.document_number || '-'"></td>
+                                    <td class="px-3 py-2 font-medium text-gray-800" x-text="row.product_name"></td>
+                                    <td class="px-3 py-2 text-gray-500" x-text="row.date || '-'"></td>
+                                    <td class="px-3 py-2">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                              :class="{
+                                                  'bg-emerald-50 text-emerald-700 border border-emerald-100': row.type_key === 'sales',
+                                                  'bg-[#F5811E]/10 text-[#F5811E] border border-[#F5811E]/20': row.type_key === 'purchases',
+                                                  'bg-[#1456E8]/10 text-[#1456E8] border border-[#1456E8]/20': row.type_key === 'transfers',
+                                              }" x-text="row.type_label"></span>
+                                    </td>
+                                    <td class="px-3 py-2 text-gray-600" x-text="row.entity_name || '-'"></td>
+                                    <td class="px-3 py-2 text-gray-600" x-text="row.quantity"></td>
+                                    <td class="px-3 py-2 text-gray-600" x-text="(parseFloat(row.price) || 0).toFixed(2)"></td>
+                                    <td class="px-3 py-2 text-gray-300">-</td>
+                                </tr>
+                            </template>
+                            <tr x-show="!operationsLoading && operationsRows.length === 0">
+                                <td colspan="9" class="px-3 py-8 text-center text-gray-400">
+                                    <?php echo e(__('purchases.no_operations_found')); ?>
+
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex items-center justify-end px-6 py-3 border-t border-gray-100">
+                    <button type="button" @click="operationsModalOpen = false"
+                        class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
+                        <?php echo e(__('purchases.cancel')); ?>
+
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        
+        <div x-show="alternatesModalOpen" x-cloak
+            class="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+            <div class="bg-white rounded-xl w-full max-w-5xl my-8 flex flex-col max-h-[90vh] shadow-2xl" @click.outside="alternatesModalOpen = false">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] rounded-t-xl">
+                    <h3 class="font-semibold text-white">
+                        <?php echo e(__('purchases.alternates')); ?> - <span x-text="alternatesProductName"></span>
+                    </h3>
+                    <button type="button" @click="alternatesModalOpen = false" class="text-white/60 hover:text-white transition">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="overflow-y-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="sticky top-0">
+                            <tr class="bg-[#0F1B4C] text-white/80">
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.code')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.product')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.product_location')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.quantity')); ?></th>
+                                <th class="px-3 py-2.5 text-start text-xs font-semibold uppercase tracking-wide"><?php echo e(__('purchases.unit_price')); ?></th>
+                                <th class="px-3 py-2.5"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 bg-white">
+                            <template x-for="p in alternatesRows" :key="p.id">
+                                <tr class="hover:bg-[#1456E8]/5 transition">
+                                    <td class="px-3 py-2">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100" x-text="p.code || '-'"></span>
+                                    </td>
+                                    <td class="px-3 py-2 font-medium text-gray-800 min-w-[220px] whitespace-normal" x-text="p.name"></td>
+                                    <td class="px-3 py-2 text-gray-500" x-text="p.location || '-'"></td>
+                                    <td class="px-3 py-2">
+                                        <span x-show="(p.stock_quantity ?? 0) <= 0" class="text-red-600 font-bold text-xs"><?php echo e(__('purchases.not_available')); ?></span>
+                                        <span x-show="(p.stock_quantity ?? 0) > 0" class="text-emerald-600 font-bold" x-text="p.stock_quantity"></span>
+                                    </td>
+                                    <td class="px-3 py-2 text-gray-500" x-text="(parseFloat(p.purchase_price) || 0).toFixed(2)"></td>
+                                    <td class="px-3 py-2">
+                                        <button type="button" @click="addAlternateProduct(p)"
+                                            class="px-3 py-1.5 rounded-lg text-white text-xs font-medium transition whitespace-nowrap"
+                                            :class="isAdded(p.id) ? 'bg-emerald-500' : 'bg-[#F5811E] hover:brightness-95'">
+                                            <span x-show="!isAdded(p.id)">+ <?php echo e(__('purchases.add')); ?></span>
+                                            <span x-show="isAdded(p.id)">✓ <?php echo e(__('purchases.added')); ?></span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="!alternatesLoading && alternatesRows.length === 0">
+                                <td colspan="6" class="px-3 py-8 text-center text-gray-400">
+                                    <?php echo e(__('purchases.no_alternates_found')); ?>
+
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex items-center justify-end px-6 py-3 border-t border-gray-100">
+                    <button type="button" @click="alternatesModalOpen = false"
+                        class="px-5 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
+                        <?php echo e(__('purchases.cancel')); ?>
+
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script>
@@ -746,6 +930,21 @@
                 addedProductIds: sourcePO ? sourcePO.items.map(i => i.product_id).filter(Boolean) : [],
                 selectedSupplierId: sourcePO ? String(sourcePO.supplier_id) : '',
                 supplierTomSelect: null,
+                // مودال "العمليات" (مبيعات/مشتريات/تحويلات منتج واحد) - مودال
+                // ثاني بيتفتح فوق مودال اختيار منتج من غير أي navigation.
+                operationsModalOpen: false,
+                operationsProductId: null,
+                operationsProductName: '',
+                operationsRows: [],
+                operationsLoading: false,
+                operationsType: 'all',
+                operationsDateFrom: '',
+                operationsDateTo: '',
+                // مودال "البدائل" - منفصل تمامًا عن مودال العمليات.
+                alternatesModalOpen: false,
+                alternatesProductName: '',
+                alternatesRows: [],
+                alternatesLoading: false,
                 paymentAccountId: '',
                 // قايمة حسابات الدفع (خزينة/بنك) الخاصة بالفرع المختار حاليًا
                 // بس - بتتحمّل أول مرة من السيرفر (<?php echo \Illuminate\Support\Js::from($paymentAccounts)->toHtml() ?>)
@@ -966,6 +1165,49 @@
                 },
                 markAdded(id) {
                     if (!this.addedProductIds.includes(id)) this.addedProductIds.push(id);
+                },
+                // مودال "العمليات" (مبيعات/مشتريات/تحويلات منتج واحد) - نفس
+                // الـ endpoint المستخدم في شاشة إنشاء الفاتورة (ProductController،
+                // مش خاص بفاتورة/مشتريات معيّنة، فبيشتغل هنا برضه من غير أي
+                // تكرار في الباك إند).
+                openOperations(p) {
+                    this.operationsProductId = p.id;
+                    this.operationsProductName = p.name;
+                    this.operationsType = 'all';
+                    this.operationsDateFrom = '';
+                    this.operationsDateTo = '';
+                    this.operationsModalOpen = true;
+                    this.loadOperations();
+                },
+                async loadOperations() {
+                    if (!this.operationsProductId) return;
+                    this.operationsLoading = true;
+                    try {
+                        const params = new URLSearchParams({ type: this.operationsType });
+                        if (this.operationsDateFrom) params.set('date_from', this.operationsDateFrom);
+                        if (this.operationsDateTo) params.set('date_to', this.operationsDateTo);
+                        const url = `<?php echo e(route('products.operations.data', ['product' => '__PID__'])); ?>`.replace('__PID__', this.operationsProductId);
+                        const res = await fetch(url + '?' + params.toString());
+                        const data = await res.json();
+                        this.operationsRows = data.rows || [];
+                    } finally {
+                        this.operationsLoading = false;
+                    }
+                },
+                // مودال "البدائل" - منفصل تمامًا عن مودال العمليات.
+                openAlternates(p) {
+                    this.alternatesProductName = p.name;
+                    this.alternatesModalOpen = true;
+                    this.alternatesLoading = true;
+                    const url = `<?php echo e(route('products.alternates', ['product' => '__PID__'])); ?>`.replace('__PID__', p.id);
+                    fetch(url)
+                        .then(res => res.json())
+                        .then(rows => { this.alternatesRows = rows; })
+                        .finally(() => { this.alternatesLoading = false; });
+                },
+                addAlternateProduct(p) {
+                    this.addProduct(p);
+                    this.markAdded(p.id);
                 },
                 lineSubtotal(item) {
                     return ((parseFloat(item.unit_price) || 0) * (parseFloat(item.quantity) || 0)) - (parseFloat(item.discount_amount) || 0);

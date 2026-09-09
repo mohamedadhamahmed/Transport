@@ -55,9 +55,11 @@
                 .catch(() => { this.loading = false; });
             }
          }"
-         @click.prevent="
-            if ($event.target.closest('#products-table-wrapper .pagination a, #products-table-wrapper nav a')) {
-                fetchProducts($event.target.closest('a').getAttribute('href'));
+         @click="
+            const paginationLink = $event.target.closest('#products-table-wrapper .pagination a, #products-table-wrapper nav a');
+            if (paginationLink) {
+                $event.preventDefault();
+                fetchProducts(paginationLink.getAttribute('href'));
             }
          ">
         <div class="max-w-[1680px] mx-auto sm:px-6 lg:px-8 space-y-6">
@@ -75,6 +77,16 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2 flex-wrap">
+                    <?php if(auth()->user()?->hasPermission('products.create')): ?>
+                        <a href="<?php echo e(route('products.create')); ?>"
+                           class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-[#1456E8] hover:brightness-95 transition whitespace-nowrap">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 5v14M5 12h14" />
+                            </svg>
+                            <?php echo e(__('products.new_product')); ?>
+
+                        </a>
+                    <?php endif; ?>
                     <a href="<?php echo e(route('products.choose_branch')); ?>"
                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
                         <?php echo e(__('products.change_branch')); ?>

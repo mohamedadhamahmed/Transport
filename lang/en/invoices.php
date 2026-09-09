@@ -7,7 +7,7 @@ return [
     'customer' => 'Customer',
     'branch' => 'Branch',
     'add_new_customer' => 'Add New Customer',
-    'search_product_placeholder' => 'Search by name or code to add a product...',
+    'search_product_placeholder' => 'Search by name, code, notes, or reference number...',
     'product' => 'Product',
     'code' => 'Code',
     'quantity' => 'Quantity',
@@ -99,4 +99,20 @@ return [
     // "Send to ZATCA / Print" modal shown right after saving
     'save_choice_prompt' => 'What would you like to do now?',
     'close' => 'Close',
+
+    // "Operations" button in the choose-product modal
+    'operations' => 'Operations',
+
+    // "Operations" modal (a product's sales/purchases/stock-transfer history)
+    'operation_type' => 'Operation Type',
+    'operation_type_all' => 'All',
+    'operation_entity' => 'Customer / Party',
+    'no_operations_found' => 'No operations found for this product',
+
+    // "Alternates" modal - substitute products for a given product
+    'alternates' => 'Alternates',
+    'no_alternates_found' => 'No alternates registered for this product',
+
+    // "Last price to this customer" badge - choose-product modal and invoice items table
+    'last_price_to_customer' => 'Last price to this customer: :price',
 ];
