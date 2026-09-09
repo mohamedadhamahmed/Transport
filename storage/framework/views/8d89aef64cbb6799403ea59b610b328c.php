@@ -186,6 +186,8 @@
         'label' => __('employees.hr_section_title'),
         'icon' => 'user',
         'items' => [
+        ['label' => __('contracts.title'), 'url' => route('contracts.index')],
+        ['label' => __('notifications.title'), 'url' => route('notifications.index')],
         ['label' => __('employees.title'), 'url' => route('employees.index')],
         ['label' => __('employees.new_employee'), 'url' => route('employees.create')],
         ['label' => __('employees.import_title'), 'url' => route('employees.import.form')],
@@ -345,6 +347,25 @@
         ['label' => __('stock_transfers.box_draft'), 'url' => route('stock-transfers.index', ['box' => 'draft'])],
         ],
         ],
+        ],
+        ],
+        // <-- حط قسم التصنيع هنا
+        [
+        'label' => __('manufacturing.manufacturing'),
+        'groups' => [
+            [
+                'key' => 'manufacturing',
+                'match' => ['manufacturing'],
+                'label' => __('manufacturing.manufacturing'),
+                'icon' => 'box',
+                'items' => [
+                    ['label' => __('manufacturing.workstations_title'), 'url' => route('manufacturing.workstations.index')],
+                    ['label' => __('manufacturing.statuses_title'), 'url' => route('manufacturing.statuses.index')],
+                    ['label' => __('manufacturing.bom_title'), 'url' => route('manufacturing.bom.index')],
+                    ['label' => __('manufacturing.plans_title'), 'url' => route('manufacturing.production-plans.index')],
+                    ['label' => __('manufacturing.orders_title'), 'url' => route('manufacturing.orders.index')],
+                ],
+            ],
         ],
         ],
         [
