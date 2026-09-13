@@ -76,6 +76,22 @@ class DashboardController extends Controller
             ->selectRaw("COUNT(*) as cnt, COALESCE(SUM({$netTotalExpr}), 0) as net")
             ->first();
 
+        $todaySalesProfit = DB::table('invoice_items')
+            ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
+            ->join('products', 'products.id', '=', 'invoice_items.product_id')
+            ->when($branchId, fn ($q) => $q->where('invoices.branch_id', $branchId))
+            ->whereDate('invoices.issue_date', $today)
+            ->selectRaw('COALESCE(SUM(((invoice_items.unit_price * invoice_items.quantity) - invoice_items.discount_amount) - (invoice_items.quantity * CASE WHEN products.average_cost > 0 THEN products.average_cost ELSE products.purchase_price END)), 0) as profit')
+            ->value('profit');
+
+        $monthSalesProfit = DB::table('invoice_items')
+            ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
+            ->join('products', 'products.id', '=', 'invoice_items.product_id')
+            ->when($branchId, fn ($q) => $q->where('invoices.branch_id', $branchId))
+            ->whereDate('invoices.issue_date', '>=', $monthStart)
+            ->selectRaw('COALESCE(SUM(((invoice_items.unit_price * invoice_items.quantity) - invoice_items.discount_amount) - (invoice_items.quantity * CASE WHEN products.average_cost > 0 THEN products.average_cost ELSE products.purchase_price END)), 0) as profit')
+            ->value('profit');
+
         $todayPurchases = Purchase::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereDate('issue_date', $today)
@@ -193,8 +209,10 @@ class DashboardController extends Controller
 
             'today_sales_count' => (int) $todaySales->cnt,
             'today_sales_net' => round((float) $todaySales->net, 2),
+            'today_sales_profit' => round((float) $todaySalesProfit, 2),
             'month_sales_count' => (int) $monthSales->cnt,
             'month_sales_net' => round((float) $monthSales->net, 2),
+            'month_sales_profit' => round((float) $monthSalesProfit, 2),
 
             'today_purchases_count' => (int) $todayPurchases->cnt,
             'today_purchases_net' => round((float) $todayPurchases->net, 2),
@@ -226,6 +244,8 @@ class DashboardController extends Controller
             'top_branches_today' => $branchId
                 ? $this->topProductsToday($today, $branchId)
                 : $this->topBranchesToday($netTotalExpr, $today),
+
+            'top_selling_products' => $this->topSellingProductsDashboard($branchId),
 
             'recent_sales' => $this->recentSales($branchId),
             'recent_purchases' => $this->recentPurchases($branchId),
@@ -320,6 +340,28 @@ class DashboardController extends Controller
             ->selectRaw('invoice_items.product_name_snapshot as name, COALESCE(SUM(invoice_items.unit_price * invoice_items.quantity), 0) as net')
             ->get()
             ->map(fn ($row) => ['name' => $row->name, 'net' => round((float) $row->net, 2)])
+            ->all();
+    }
+
+    /**
+     * أكثر 5 منتجات مبيعاً بالكمية والقيمة
+     */
+    private function topSellingProductsDashboard(?int $branchId): array
+    {
+        return InvoiceItem::query()
+            ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
+            ->join('products', 'products.id', '=', 'invoice_items.product_id')
+            ->when($branchId, fn ($q) => $q->where('invoices.branch_id', $branchId))
+            ->groupBy('products.id', 'products.name')
+            ->orderByDesc('qty')
+            ->limit(5)
+            ->selectRaw('products.name as name, COALESCE(SUM(invoice_items.quantity), 0) as qty, COALESCE(SUM((invoice_items.unit_price * invoice_items.quantity) - invoice_items.discount_amount), 0) as net')
+            ->get()
+            ->map(fn ($row) => [
+                'name' => $row->name,
+                'qty' => round((float) $row->qty, 2),
+                'net' => round((float) $row->net, 2),
+            ])
             ->all();
     }
 

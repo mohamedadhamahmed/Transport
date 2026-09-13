@@ -1,1 +1,0 @@
-<img src="<?php echo e(asset('images/MainLogo.png')); ?>" alt="<?php echo e(config('app.name', 'NEW VISION')); ?>" <?php echo e($attributes->merge(['class' => 'object-contain'])); ?>><?php /**PATH C:\xampp\htdocs\factory\resources\views/components/application-logo.blade.php ENDPATH**/ ?>

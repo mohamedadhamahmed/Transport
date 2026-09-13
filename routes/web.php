@@ -491,10 +491,14 @@ Route::get('/reports/stock-adjustments', [ReportController::class, 'stockAdjustm
     Route::get('/reports/accounts/customer-supplier-accounts', [ReportController::class, 'customerSupplierAccounts'])->name('reports.accounts.customer-supplier-accounts');
     Route::get('/reports/accounts/customer-supplier-accounts/search', [ReportController::class, 'customerSupplierAccountsSearch'])->name('reports.accounts.customer-supplier-accounts.search');
     Route::get('/reports/accounts/daily-closing', [ReportController::class, 'dailyClosingReport'])->name('reports.accounts.daily-closing');
+    Route::get('/reports/accounts/tax', [ReportController::class, 'taxReport'])->name('reports.accounts.tax');
 
     // ===== قسم المبيعات =====
     Route::get('/reports/sales', [ReportController::class, 'salesIndex'])->name('reports.sales.index');
     Route::get('/reports/sales/summary', [ReportController::class, 'salesSummary'])->name('reports.sales.summary');
+    Route::get('/reports/sales/profits', [ReportController::class, 'salesProfits'])->name('reports.sales.profits');
+    Route::get('/reports/sales/employee-profits', [ReportController::class, 'salesEmployeeProfits'])->name('reports.sales.employee-profits');
+    Route::get('/reports/sales/top-products', [ReportController::class, 'topSellingProducts'])->name('reports.sales.top-products');
     Route::get('/reports/sales/by-customer', [ReportController::class, 'salesByCustomer'])->name('reports.sales.by-customer');
     Route::get('/reports/sales/by-product', [ReportController::class, 'salesByProduct'])->name('reports.sales.by-product');
     Route::get('/reports/sales/returns', [ReportController::class, 'salesReturns'])->name('reports.sales.returns');
@@ -511,6 +515,7 @@ Route::get('/reports/stock-adjustments', [ReportController::class, 'stockAdjustm
     Route::get('/reports/purchases/summary', [ReportController::class, 'purchasesSummary'])->name('reports.purchases.summary');
     Route::get('/reports/purchases/by-supplier', [ReportController::class, 'purchasesBySupplier'])->name('reports.purchases.by-supplier');
     Route::get('/reports/purchases/by-product', [ReportController::class, 'purchasesByProduct'])->name('reports.purchases.by-product');
+    Route::get('/reports/purchases/purchases-vs-sales', [ReportController::class, 'purchasesVsSales'])->name('reports.purchases.purchases-vs-sales');
     Route::get('/reports/purchases/returns', [ReportController::class, 'purchasesReturns'])->name('reports.purchases.returns');
     Route::get('/reports/purchases/by-employee', [ReportController::class, 'purchasesByEmployee'])->name('reports.purchases.by-employee');
 

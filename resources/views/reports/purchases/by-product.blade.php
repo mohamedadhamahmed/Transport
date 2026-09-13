@@ -12,10 +12,18 @@
                     </span>
                     <h2 class="text-white font-bold text-lg">{{ __('reports.purchases.by_product') }}</h2>
                 </div>
-                <a href="{{ route('reports.purchases.index') }}"
-                   class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
-                    {{ __('reports.purchases.title') }}
-                </a>
+                <div class="flex items-center gap-2 flex-wrap">
+                    @can('reports_purchases.purchases_vs_sales')
+                        <a href="{{ route('reports.purchases.purchases-vs-sales', request()->query()) }}"
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30 transition whitespace-nowrap">
+                            {{ __('reports.purchases.purchases_vs_sales') }} &larr;
+                        </a>
+                    @endcan
+                    <a href="{{ route('reports.purchases.index') }}"
+                       class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
+                        {{ __('reports.purchases.title') }}
+                    </a>
+                </div>
             </div>
 
             @if($productFilter ?? null)

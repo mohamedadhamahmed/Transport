@@ -1114,6 +1114,198 @@ class ReportController extends Controller
         ]);
     }
 
+    /**
+     * تقرير الإقرار الضريبي (ضريبة القيمة المضافة):
+     * ملخص شامل ودقيق لضريبة المخرجات (مبيعات - مرتجع مبيعات)
+     * وضريبة المدخلات (مشتريات - مرتجع مشتريات + مصروفات خاضعة للضريبة)،
+     * وحساب صافي الضريبة المستحقة للسداد أو المستردة مع بيان عدد الفواتير والمستندات.
+     */
+    public function taxReport(Request $request)
+    {
+        $this->authorize('reports_accounting.tax_report');
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
+        [$dateFrom, $dateTo] = $this->resolvePeriod($request);
+
+        // 1. المبيعات (فواتير المبيعات الصادرة)
+        $salesQuery = Invoice::query()
+            ->whereDate('issue_date', '>=', $dateFrom)
+            ->whereDate('issue_date', '<=', $dateTo)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
+
+        $salesCount = (clone $salesQuery)->count();
+        $salesTaxable = round((float) (clone $salesQuery)->selectRaw('COALESCE(SUM(subtotal - discount_amount), 0) as val')->value('val'), 2);
+        $salesTax = round((float) (clone $salesQuery)->selectRaw('COALESCE(SUM(tax_amount), 0) as val')->value('val'), 2);
+        $salesTotalWithTax = round($salesTaxable + $salesTax, 2);
+
+        $salesInvoices = (clone $salesQuery)
+            ->with(['customer:id,name'])
+            ->orderByDesc('issue_date')
+            ->limit(100)
+            ->get(['id', 'invoice_number', 'customer_id', 'issue_date', 'subtotal', 'discount_amount', 'tax_amount', 'branch_id']);
+
+        // 2. مرتجع المبيعات
+        $salesReturnsQuery = InvoiceReturn::query()
+            ->whereDate('created_at', '>=', $dateFrom)
+            ->whereDate('created_at', '<=', $dateTo)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
+
+        $salesReturnsCount = (clone $salesReturnsQuery)->count();
+        $salesReturnsTaxable = round((float) (clone $salesReturnsQuery)->selectRaw('COALESCE(SUM((unit_price * quantity) - discount_amount), 0) as val')->value('val'), 2);
+        $salesReturnsTax = round((float) (clone $salesReturnsQuery)->selectRaw('COALESCE(SUM(tax_amount), 0) as val')->value('val'), 2);
+        $salesReturnsTotalWithTax = round($salesReturnsTaxable + $salesReturnsTax, 2);
+
+        $salesReturnsList = (clone $salesReturnsQuery)
+            ->with(['invoice:id,invoice_number', 'product:id,name'])
+            ->orderByDesc('created_at')
+            ->limit(100)
+            ->get();
+
+        // صافي المبيعات
+        $netSalesTaxable = round($salesTaxable - $salesReturnsTaxable, 2);
+        $netSalesTax = round($salesTax - $salesReturnsTax, 2);
+        $netSalesTotalWithTax = round($salesTotalWithTax - $salesReturnsTotalWithTax, 2);
+
+        // 3. المشتريات
+        $purchasesQuery = Purchase::query()
+            ->whereDate('issue_date', '>=', $dateFrom)
+            ->whereDate('issue_date', '<=', $dateTo)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
+
+        $purchasesCount = (clone $purchasesQuery)->count();
+        $purchasesTaxable = round((float) (clone $purchasesQuery)->selectRaw('COALESCE(SUM(subtotal - discount_amount), 0) as val')->value('val'), 2);
+        $purchasesTax = round((float) (clone $purchasesQuery)->selectRaw('COALESCE(SUM(tax_amount), 0) as val')->value('val'), 2);
+        $purchasesTotalWithTax = round($purchasesTaxable + $purchasesTax, 2);
+
+        $purchasesList = (clone $purchasesQuery)
+            ->with(['supplier:id,name'])
+            ->orderByDesc('issue_date')
+            ->limit(100)
+            ->get(['id', 'purchase_number', 'supplier_id', 'issue_date', 'subtotal', 'discount_amount', 'tax_amount', 'grand_total', 'branch_id']);
+
+        // 4. مرتجع المشتريات
+        $purchaseReturnsQuery = PurchaseReturn::query()
+            ->whereDate('return_date', '>=', $dateFrom)
+            ->whereDate('return_date', '<=', $dateTo)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
+
+        $purchaseReturnsCount = (clone $purchaseReturnsQuery)->count();
+        $purchaseReturnsTaxable = round((float) (clone $purchaseReturnsQuery)->selectRaw('COALESCE(SUM(subtotal - discount_amount), 0) as val')->value('val'), 2);
+        $purchaseReturnsTax = round((float) (clone $purchaseReturnsQuery)->selectRaw('COALESCE(SUM(tax_amount), 0) as val')->value('val'), 2);
+        $purchaseReturnsTotalWithTax = round($purchaseReturnsTaxable + $purchaseReturnsTax, 2);
+
+        $purchaseReturnsList = (clone $purchaseReturnsQuery)
+            ->with(['supplier:id,name'])
+            ->orderByDesc('return_date')
+            ->limit(100)
+            ->get(['id', 'return_number', 'supplier_id', 'return_date', 'subtotal', 'discount_amount', 'tax_amount', 'grand_total', 'branch_id']);
+
+        // صافي المشتريات
+        $netPurchasesTaxable = round($purchasesTaxable - $purchaseReturnsTaxable, 2);
+        $netPurchasesTax = round($purchasesTax - $purchaseReturnsTax, 2);
+        $netPurchasesTotalWithTax = round($purchasesTotalWithTax - $purchaseReturnsTotalWithTax, 2);
+
+        // 5. المصروفات الخاضعة للضريبة (من سندات الصرف)
+        $expensesQuery = DB::table('account_voucher_lines')
+            ->join('account_vouchers', 'account_vouchers.id', '=', 'account_voucher_lines.account_voucher_id')
+            ->where('account_vouchers.type', AccountVoucher::TYPE_PAYMENT)
+            ->where(function ($q) {
+                $q->where('account_voucher_lines.is_taxable', 1)
+                  ->orWhere('account_voucher_lines.tax_amount', '>', 0);
+            })
+            ->whereDate('account_vouchers.voucher_date', '>=', $dateFrom)
+            ->whereDate('account_vouchers.voucher_date', '<=', $dateTo)
+            ->when($branchId, fn ($q) => $q->where('account_vouchers.branch_id', $branchId));
+
+        $taxableExpensesCount = (clone $expensesQuery)->distinct('account_vouchers.id')->count('account_vouchers.id');
+        $expensesTaxable = round((float) (clone $expensesQuery)->selectRaw('COALESCE(SUM(account_voucher_lines.net_amount), 0) as val')->value('val'), 2);
+        $expensesTax = round((float) (clone $expensesQuery)->selectRaw('COALESCE(SUM(account_voucher_lines.tax_amount), 0) as val')->value('val'), 2);
+        $expensesTotalWithTax = round((float) (clone $expensesQuery)->selectRaw('COALESCE(SUM(account_voucher_lines.amount), 0) as val')->value('val'), 2);
+
+        $accountsTable = (new FinancialAccount())->getTable();
+        $taxableExpensesList = (clone $expensesQuery)
+            ->leftJoin($accountsTable, "{$accountsTable}.id", '=', 'account_voucher_lines.counterpart_account_id')
+            ->select([
+                'account_vouchers.id as voucher_id',
+                'account_vouchers.voucher_number',
+                'account_vouchers.voucher_date',
+                "{$accountsTable}.name as expense_account_name",
+                'account_voucher_lines.description',
+                'account_voucher_lines.tax_rate',
+                'account_voucher_lines.net_amount',
+                'account_voucher_lines.tax_amount',
+                'account_voucher_lines.amount as total_amount',
+            ])
+            ->orderByDesc('account_vouchers.voucher_date')
+            ->limit(100)
+            ->get();
+
+        // 6. الإجماليات وصافي الضريبة
+        $totalInputTax = round($netPurchasesTax + $expensesTax, 2);
+        $netTaxDue = round($netSalesTax - $totalInputTax, 2);
+
+        if ($request->get('export') === 'excel') {
+            return ReportExcelExporter::download(
+                [__('reports.item'), __('reports.taxable_amount'), __('reports.tax_amount'), __('reports.total_with_tax'), __('reports.invoices_count')],
+                [
+                    [__('reports.sales_taxable'), $salesTaxable, $salesTax, $salesTotalWithTax, $salesCount],
+                    [__('reports.sales_returns_taxable'), $salesReturnsTaxable, $salesReturnsTax, $salesReturnsTotalWithTax, $salesReturnsCount],
+                    [__('reports.net_sales_tax'), $netSalesTaxable, $netSalesTax, $netSalesTotalWithTax, '-'],
+                    ['---', '---', '---', '---', '---'],
+                    [__('reports.purchases_taxable'), $purchasesTaxable, $purchasesTax, $purchasesTotalWithTax, $purchasesCount],
+                    [__('reports.purchases_returns_taxable'), $purchaseReturnsTaxable, $purchaseReturnsTax, $purchaseReturnsTotalWithTax, $purchaseReturnsCount],
+                    [__('reports.net_purchases_tax'), $netPurchasesTaxable, $netPurchasesTax, $netPurchasesTotalWithTax, '-'],
+                    ['---', '---', '---', '---', '---'],
+                    [__('reports.expenses_taxable'), $expensesTaxable, $expensesTax, $expensesTotalWithTax, $taxableExpensesCount],
+                    ['---', '---', '---', '---', '---'],
+                    [__('reports.total_input_tax'), round($netPurchasesTaxable + $expensesTaxable, 2), $totalInputTax, round($netPurchasesTotalWithTax + $expensesTotalWithTax, 2), '-'],
+                    [__('reports.net_declaration_result'), '-', $netTaxDue, '-', '-'],
+                ],
+                'tax-declaration-report-' . now()->format('Y-m-d') . '.xlsx'
+            );
+        }
+
+        return view('reports.accounts.tax', [
+            'branches' => $branches,
+            'branchId' => $branchId,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'salesCount' => $salesCount,
+            'salesTaxable' => $salesTaxable,
+            'salesTax' => $salesTax,
+            'salesTotalWithTax' => $salesTotalWithTax,
+            'salesInvoices' => $salesInvoices,
+            'salesReturnsCount' => $salesReturnsCount,
+            'salesReturnsTaxable' => $salesReturnsTaxable,
+            'salesReturnsTax' => $salesReturnsTax,
+            'salesReturnsTotalWithTax' => $salesReturnsTotalWithTax,
+            'salesReturnsList' => $salesReturnsList,
+            'netSalesTaxable' => $netSalesTaxable,
+            'netSalesTax' => $netSalesTax,
+            'netSalesTotalWithTax' => $netSalesTotalWithTax,
+            'purchasesCount' => $purchasesCount,
+            'purchasesTaxable' => $purchasesTaxable,
+            'purchasesTax' => $purchasesTax,
+            'purchasesTotalWithTax' => $purchasesTotalWithTax,
+            'purchasesList' => $purchasesList,
+            'purchaseReturnsCount' => $purchaseReturnsCount,
+            'purchaseReturnsTaxable' => $purchaseReturnsTaxable,
+            'purchaseReturnsTax' => $purchaseReturnsTax,
+            'purchaseReturnsTotalWithTax' => $purchaseReturnsTotalWithTax,
+            'purchaseReturnsList' => $purchaseReturnsList,
+            'netPurchasesTaxable' => $netPurchasesTaxable,
+            'netPurchasesTax' => $netPurchasesTax,
+            'netPurchasesTotalWithTax' => $netPurchasesTotalWithTax,
+            'taxableExpensesCount' => $taxableExpensesCount,
+            'expensesTaxable' => $expensesTaxable,
+            'expensesTax' => $expensesTax,
+            'expensesTotalWithTax' => $expensesTotalWithTax,
+            'taxableExpensesList' => $taxableExpensesList,
+            'totalInputTax' => $totalInputTax,
+            'netTaxDue' => $netTaxDue,
+        ]);
+    }
+
     // =====================================================================
     // قسم المبيعات - راجع Invoice/InvoiceItem/InvoiceReturn. الفرع هنا
     // "صارم" (branch_id عمود عادي غير قابل للـ null في الفواتير الفعلية)
@@ -1185,6 +1377,363 @@ class ReportController extends Controller
             'totalDiscount' => round((float) $invoices->sum('discount_amount'), 2),
             'totalNet' => round((float) $invoices->sum('net_total'), 2),
             'totalQuantity' => round((float) $invoices->sum('total_quantity'), 2),
+        ]);
+    }
+
+    /**
+     * تقرير أرباح المبيعات: كل فاتورة صدرت خلال الفترة مع تكلفة بضاعتها
+     * ومجمل الربح ونسبة هامش الربح وتفاصيل أرباح كل بند.
+     */
+    public function salesProfits(Request $request)
+    {
+        $this->authorize('reports_sales.profits');
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
+        $customerId = $request->filled('customer_id') ? (int) $request->input('customer_id') : null;
+        $customers = $this->entitySelectedOption($customerId, Customer::class);
+        $q = trim((string) $request->input('q'));
+        [$dateFrom, $dateTo] = $this->resolvePeriod($request);
+
+        $invoices = Invoice::query()
+            ->with([
+                'customer:id,name',
+                'creator:id,name',
+                'branch:id,name',
+                'items.product:id,name,code,purchase_price,average_cost',
+            ])
+            ->whereDate('issue_date', '>=', $dateFrom)
+            ->whereDate('issue_date', '<=', $dateTo)
+            ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+            ->when($customerId, fn ($query) => $query->where('customer_id', $customerId))
+            ->when($q !== '', fn ($query) => $query->where('invoice_number', 'like', "%{$q}%"))
+            ->orderByDesc('issue_date')
+            ->orderByDesc('id')
+            ->get();
+
+        foreach ($invoices as $invoice) {
+            $invoice->sales_revenue = round((float) $invoice->subtotal - (float) $invoice->discount_amount, 2);
+            $invoice->net_total = round((float) $invoice->subtotal + (float) $invoice->tax_amount - (float) $invoice->discount_amount, 2);
+
+            $invoiceCost = 0.0;
+            foreach ($invoice->items as $item) {
+                $product = $item->product;
+                $unitCost = $product ? (float) ($product->average_cost > 0 ? $product->average_cost : $product->purchase_price) : 0.0;
+                $itemQty = (float) $item->quantity;
+                $itemCost = round($unitCost * $itemQty, 2);
+                $itemRevenue = round(((float) $item->unit_price * $itemQty) - (float) $item->discount_amount, 2);
+                $itemProfit = round($itemRevenue - $itemCost, 2);
+                $itemMargin = $itemRevenue > 0 ? round(($itemProfit / $itemRevenue) * 100, 1) : 0.0;
+
+                $item->unit_cost = $unitCost;
+                $item->total_cost = $itemCost;
+                $item->revenue = $itemRevenue;
+                $item->profit = $itemProfit;
+                $item->margin = $itemMargin;
+
+                $invoiceCost += $itemCost;
+            }
+
+            $invoice->total_cost = round($invoiceCost, 2);
+            $invoice->profit = round($invoice->sales_revenue - $invoice->total_cost, 2);
+            $invoice->profit_margin = $invoice->sales_revenue > 0 ? round(($invoice->profit / $invoice->sales_revenue) * 100, 1) : 0.0;
+        }
+
+        $totalSales = round((float) $invoices->sum('sales_revenue'), 2);
+        $totalCost = round((float) $invoices->sum('total_cost'), 2);
+        $totalProfit = round((float) $invoices->sum('profit'), 2);
+        $totalNet = round((float) $invoices->sum('net_total'), 2);
+        $totalQuantity = round((float) $invoices->sum('total_quantity'), 2);
+        $avgMargin = $totalSales > 0 ? round(($totalProfit / $totalSales) * 100, 1) : 0.0;
+
+        if ($request->get('export') === 'excel') {
+            return ReportExcelExporter::download(
+                [__('reports.invoice_number'), __('reports.customer'), __('reports.date'), __('reports.quantity'), __('reports.total_sales'), __('reports.total_cost'), __('reports.profit'), __('reports.profit_margin_percent')],
+                $invoices->map(fn ($i) => [
+                    $i->invoice_number,
+                    optional($i->customer)->name ?? '-',
+                    optional($i->issue_date)->format('Y-m-d'),
+                    (float) $i->total_quantity,
+                    (float) $i->sales_revenue,
+                    (float) $i->total_cost,
+                    (float) $i->profit,
+                    (float) $i->profit_margin . '%',
+                ])->toArray(),
+                'sales-profits-' . now()->format('Y-m-d') . '.xlsx'
+            );
+        }
+
+        return view('reports.sales.profits', [
+            'branches' => $branches,
+            'branchId' => $branchId,
+            'customers' => $customers,
+            'customerId' => $customerId,
+            'q' => $q,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'invoices' => $invoices,
+            'totalSales' => $totalSales,
+            'totalCost' => $totalCost,
+            'totalProfit' => $totalProfit,
+            'totalNet' => $totalNet,
+            'totalQuantity' => $totalQuantity,
+            'avgMargin' => $avgMargin,
+        ]);
+    }
+
+    /**
+     * تقرير أرباح مبيعات الموظفين: إجمالي المبيعات، التكلفة، وصافي الربح
+     * ونسبة هامش الربح ومعدل ربح الفاتورة لكل موظف.
+     */
+    public function salesEmployeeProfits(Request $request)
+    {
+        $this->authorize('reports_sales.employee_profits');
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
+        $userId = $request->filled('user_id') ? (int) $request->input('user_id') : null;
+        [$dateFrom, $dateTo] = $this->resolvePeriod($request);
+
+        $users = \App\Models\User::orderBy('name')->get(['id', 'name']);
+
+        $invoices = Invoice::query()
+            ->with([
+                'items.product:id,average_cost,purchase_price',
+                'creator:id,name',
+            ])
+            ->whereDate('issue_date', '>=', $dateFrom)
+            ->whereDate('issue_date', '<=', $dateTo)
+            ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+            ->when($userId, fn ($query) => $query->where('created_by', $userId))
+            ->get();
+
+        $employeesMap = [];
+        foreach ($invoices as $inv) {
+            $uid = $inv->created_by ?: 0;
+            $uName = optional($inv->creator)->name ?? __('reports.all_employees');
+            if (! isset($employeesMap[$uid])) {
+                $employeesMap[$uid] = (object) [
+                    'user_id' => $uid,
+                    'user_name' => $uName,
+                    'invoices_count' => 0,
+                    'total_quantity' => 0.0,
+                    'total_sales' => 0.0,
+                    'total_cost' => 0.0,
+                    'net_profit' => 0.0,
+                    'profit_margin' => 0.0,
+                    'avg_profit_per_invoice' => 0.0,
+                ];
+            }
+            $employeesMap[$uid]->invoices_count++;
+            $employeesMap[$uid]->total_quantity += (float) $inv->total_quantity;
+            $invRevenue = (float) $inv->subtotal - (float) $inv->discount_amount;
+            $employeesMap[$uid]->total_sales += $invRevenue;
+
+            $invCost = 0.0;
+            foreach ($inv->items as $item) {
+                $p = $item->product;
+                $uCost = $p ? (float) ($p->average_cost > 0 ? $p->average_cost : $p->purchase_price) : 0.0;
+                $invCost += $uCost * (float) $item->quantity;
+            }
+            $employeesMap[$uid]->total_cost += $invCost;
+            $employeesMap[$uid]->net_profit += ($invRevenue - $invCost);
+        }
+
+        $rows = collect($employeesMap)->map(function ($emp) {
+            $emp->total_quantity = round($emp->total_quantity, 2);
+            $emp->total_sales = round($emp->total_sales, 2);
+            $emp->total_cost = round($emp->total_cost, 2);
+            $emp->net_profit = round($emp->net_profit, 2);
+            $emp->profit_margin = $emp->total_sales > 0 ? round(($emp->net_profit / $emp->total_sales) * 100, 1) : 0.0;
+            $emp->avg_profit_per_invoice = $emp->invoices_count > 0 ? round($emp->net_profit / $emp->invoices_count, 2) : 0.0;
+
+            return $emp;
+        })->sortByDesc('net_profit')->values();
+
+        $totalInvoices = (int) $rows->sum('invoices_count');
+        $totalQuantity = round((float) $rows->sum('total_quantity'), 2);
+        $totalSales = round((float) $rows->sum('total_sales'), 2);
+        $totalCost = round((float) $rows->sum('total_cost'), 2);
+        $totalProfit = round((float) $rows->sum('net_profit'), 2);
+        $avgMargin = $totalSales > 0 ? round(($totalProfit / $totalSales) * 100, 1) : 0.0;
+        $topEmployee = $rows->first();
+
+        if ($request->get('export') === 'excel') {
+            return ReportExcelExporter::download(
+                [__('reports.employee'), __('reports.invoices_count'), __('reports.quantity'), __('reports.total_sales'), __('reports.total_cost'), __('reports.net_profit'), __('reports.profit_margin_percent'), __('reports.avg_profit_per_invoice')],
+                $rows->map(fn ($r) => [
+                    $r->user_name,
+                    (int) $r->invoices_count,
+                    (float) $r->total_quantity,
+                    (float) $r->total_sales,
+                    (float) $r->total_cost,
+                    (float) $r->net_profit,
+                    (float) $r->profit_margin . '%',
+                    (float) $r->avg_profit_per_invoice,
+                ])->toArray(),
+                'employee-sales-profits-' . now()->format('Y-m-d') . '.xlsx'
+            );
+        }
+
+        return view('reports.sales.employee-profits', [
+            'branches' => $branches,
+            'branchId' => $branchId,
+            'users' => $users,
+            'userId' => $userId,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'rows' => $rows,
+            'totalInvoices' => $totalInvoices,
+            'totalQuantity' => $totalQuantity,
+            'totalSales' => $totalSales,
+            'totalCost' => $totalCost,
+            'totalProfit' => $totalProfit,
+            'avgMargin' => $avgMargin,
+            'topEmployee' => $topEmployee,
+        ]);
+    }
+
+    /**
+     * تقرير المنتجات الأكثر مبيعاً: ترتيب الأصناف تنازلياً حسب
+     * الكمية أو الإيراد أو الربح، مع نسبة المساهمة والتكلفة.
+     */
+    public function topSellingProducts(Request $request)
+    {
+        $this->authorize('reports_sales.top_products');
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
+        $q = trim((string) $request->input('q'));
+        $sortBy = in_array($request->input('sort_by'), ['qty', 'revenue', 'profit'], true) ? $request->input('sort_by') : 'qty';
+        $limitParam = $request->input('limit', '10');
+        $limit = in_array((int) $limitParam, [10, 25, 50, 100], true) ? (int) $limitParam : ($limitParam === 'all' ? null : 10);
+        [$dateFrom, $dateTo] = $this->resolvePeriod($request);
+
+        $items = InvoiceItem::query()
+            ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
+            ->join('products', 'products.id', '=', 'invoice_items.product_id')
+            ->whereDate('invoices.issue_date', '>=', $dateFrom)
+            ->whereDate('invoices.issue_date', '<=', $dateTo)
+            ->when($branchId, fn ($query) => $query->where('invoice_items.branch_id', $branchId))
+            ->when($q !== '', fn ($query) => $query->where(function ($w) use ($q) {
+                $w->where('products.name', 'like', "%{$q}%")
+                    ->orWhere('products.code', 'like', "%{$q}%");
+            }))
+            ->select([
+                'products.id as product_id',
+                'products.name as product_name',
+                'products.code as product_code',
+                'products.average_cost',
+                'products.purchase_price',
+                'products.unit',
+                'invoice_items.invoice_id',
+                'invoice_items.quantity',
+                'invoice_items.unit_price',
+                'invoice_items.discount_amount',
+            ])
+            ->get();
+
+        $productsMap = [];
+        $overallRevenue = 0.0;
+        $overallQuantity = 0.0;
+        $overallCost = 0.0;
+        $overallProfit = 0.0;
+
+        foreach ($items as $item) {
+            $pid = $item->product_id;
+            if (! isset($productsMap[$pid])) {
+                $productsMap[$pid] = (object) [
+                    'product_id' => $pid,
+                    'product_name' => $item->product_name,
+                    'product_code' => $item->product_code,
+                    'unit' => $item->unit,
+                    'invoices_set' => [],
+                    'total_quantity' => 0.0,
+                    'total_revenue' => 0.0,
+                    'total_cost' => 0.0,
+                    'net_profit' => 0.0,
+                    'profit_margin' => 0.0,
+                    'contribution_percent' => 0.0,
+                ];
+            }
+            $productsMap[$pid]->invoices_set[$item->invoice_id] = true;
+            $qty = (float) $item->quantity;
+            $productsMap[$pid]->total_quantity += $qty;
+            $rev = ((float) $item->unit_price * $qty) - (float) $item->discount_amount;
+            $productsMap[$pid]->total_revenue += $rev;
+
+            $uCost = (float) ($item->average_cost > 0 ? $item->average_cost : $item->purchase_price);
+            $cost = $uCost * $qty;
+            $productsMap[$pid]->total_cost += $cost;
+            $productsMap[$pid]->net_profit += ($rev - $cost);
+
+            $overallRevenue += $rev;
+            $overallQuantity += $qty;
+            $overallCost += $cost;
+            $overallProfit += ($rev - $cost);
+        }
+
+        $collection = collect($productsMap)->map(function ($p) use ($overallRevenue) {
+            $p->invoices_count = count($p->invoices_set);
+            unset($p->invoices_set);
+            $p->total_quantity = round($p->total_quantity, 2);
+            $p->total_revenue = round($p->total_revenue, 2);
+            $p->total_cost = round($p->total_cost, 2);
+            $p->net_profit = round($p->net_profit, 2);
+            $p->profit_margin = $p->total_revenue > 0 ? round(($p->net_profit / $p->total_revenue) * 100, 1) : 0.0;
+            $p->contribution_percent = $overallRevenue > 0 ? round(($p->total_revenue / $overallRevenue) * 100, 1) : 0.0;
+
+            return $p;
+        });
+
+        if ($sortBy === 'revenue') {
+            $sorted = $collection->sortByDesc('total_revenue');
+        } elseif ($sortBy === 'profit') {
+            $sorted = $collection->sortByDesc('net_profit');
+        } else {
+            $sorted = $collection->sortByDesc('total_quantity');
+        }
+
+        $rows = $limit ? $sorted->take($limit)->values() : $sorted->values();
+
+        $totalProductsCount = $collection->count();
+        $totalQuantity = round($overallQuantity, 2);
+        $totalRevenue = round($overallRevenue, 2);
+        $totalCost = round($overallCost, 2);
+        $totalProfit = round($overallProfit, 2);
+        $avgMargin = $totalRevenue > 0 ? round(($totalProfit / $totalRevenue) * 100, 1) : 0.0;
+
+        if ($request->get('export') === 'excel') {
+            return ReportExcelExporter::download(
+                [__('reports.rank'), __('reports.product_code'), __('reports.product'), __('reports.invoices_count'), __('reports.quantity'), __('reports.total_sales'), __('reports.total_cost'), __('reports.profit'), __('reports.profit_margin_percent'), __('reports.sales_contribution')],
+                $rows->map(fn ($r, $idx) => [
+                    $idx + 1,
+                    $r->product_code ?? '-',
+                    $r->product_name,
+                    (int) $r->invoices_count,
+                    (float) $r->total_quantity,
+                    (float) $r->total_revenue,
+                    (float) $r->total_cost,
+                    (float) $r->net_profit,
+                    (float) $r->profit_margin . '%',
+                    (float) $r->contribution_percent . '%',
+                ])->toArray(),
+                'top-selling-products-' . now()->format('Y-m-d') . '.xlsx'
+            );
+        }
+
+        return view('reports.sales.top-products', [
+            'branches' => $branches,
+            'branchId' => $branchId,
+            'q' => $q,
+            'sortBy' => $sortBy,
+            'limit' => $limitParam,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'rows' => $rows,
+            'totalProductsCount' => $totalProductsCount,
+            'totalQuantity' => $totalQuantity,
+            'totalRevenue' => $totalRevenue,
+            'totalCost' => $totalCost,
+            'totalProfit' => $totalProfit,
+            'avgMargin' => $avgMargin,
         ]);
     }
 
@@ -1622,6 +2171,185 @@ class ReportController extends Controller
             'rows' => $rows,
             'totalQuantity' => round((float) $rows->sum('total_quantity'), 2),
             'totalCost' => round((float) $rows->sum('cost_total'), 2),
+        ]);
+    }
+
+    /**
+     * تقرير مقارنة مشتريات ومبيعات الأصناف: إجمالي الكميات والتكاليف المشتراة
+     * مقابل الكميات والإيرادات المباعة ونسبة التصريف والأرباح والمخزون المتبقي.
+     */
+    public function purchasesVsSales(Request $request)
+    {
+        $this->authorize('reports_purchases.purchases_vs_sales');
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
+        $q = trim((string) $request->input('q'));
+        $productId = $request->filled('product_id') ? (int) $request->input('product_id') : null;
+        $productFilter = $productId ? Product::find($productId, ['id', 'name', 'code']) : null;
+        [$dateFrom, $dateTo] = $this->resolvePeriod($request);
+
+        $purchasesQuery = PurchaseItem::query()
+            ->join('purchases', 'purchases.id', '=', 'purchase_items.purchase_id')
+            ->join('products', 'products.id', '=', 'purchase_items.product_id')
+            ->whereDate('purchases.issue_date', '>=', $dateFrom)
+            ->whereDate('purchases.issue_date', '<=', $dateTo)
+            ->when($branchId, fn ($query) => $query->where('purchases.branch_id', $branchId))
+            ->when($productId, fn ($query) => $query->where('purchase_items.product_id', $productId))
+            ->when(! $productId && $q !== '', fn ($query) => $query->where(function ($w) use ($q) {
+                $w->where('products.name', 'like', "%{$q}%")
+                    ->orWhere('products.code', 'like', "%{$q}%");
+            }))
+            ->groupBy('products.id', 'products.name', 'products.code', 'products.stock_quantity', 'products.average_cost', 'products.purchase_price', 'products.unit')
+            ->select([
+                'products.id as product_id',
+                'products.name as product_name',
+                'products.code as product_code',
+                'products.stock_quantity',
+                'products.average_cost',
+                'products.purchase_price',
+                'products.unit',
+                DB::raw('COALESCE(SUM(purchase_items.quantity), 0) as purchased_qty'),
+                DB::raw('COALESCE(SUM((purchase_items.unit_price * purchase_items.quantity) + purchase_items.tax_amount - purchase_items.discount_amount), 0) as purchased_cost'),
+            ])
+            ->get();
+
+        $salesQuery = InvoiceItem::query()
+            ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
+            ->join('products', 'products.id', '=', 'invoice_items.product_id')
+            ->whereDate('invoices.issue_date', '>=', $dateFrom)
+            ->whereDate('invoices.issue_date', '<=', $dateTo)
+            ->when($branchId, fn ($query) => $query->where('invoices.branch_id', $branchId))
+            ->when($productId, fn ($query) => $query->where('invoice_items.product_id', $productId))
+            ->when(! $productId && $q !== '', fn ($query) => $query->where(function ($w) use ($q) {
+                $w->where('products.name', 'like', "%{$q}%")
+                    ->orWhere('products.code', 'like', "%{$q}%");
+            }))
+            ->groupBy('products.id', 'products.name', 'products.code', 'products.stock_quantity', 'products.average_cost', 'products.purchase_price', 'products.unit')
+            ->select([
+                'products.id as product_id',
+                'products.name as product_name',
+                'products.code as product_code',
+                'products.stock_quantity',
+                'products.average_cost',
+                'products.purchase_price',
+                'products.unit',
+                DB::raw('COALESCE(SUM(invoice_items.quantity), 0) as sold_qty'),
+                DB::raw('COALESCE(SUM((invoice_items.unit_price * invoice_items.quantity) - invoice_items.discount_amount), 0) as sales_revenue'),
+            ])
+            ->get();
+
+        $productsMap = [];
+
+        foreach ($purchasesQuery as $p) {
+            $pid = $p->product_id;
+            $productsMap[$pid] = (object) [
+                'product_id' => $pid,
+                'product_name' => $p->product_name,
+                'product_code' => $p->product_code,
+                'stock_quantity' => (float) $p->stock_quantity,
+                'average_cost' => (float) $p->average_cost,
+                'purchase_price' => (float) $p->purchase_price,
+                'unit' => $p->unit,
+                'purchased_qty' => (float) $p->purchased_qty,
+                'purchased_cost' => (float) $p->purchased_cost,
+                'sold_qty' => 0.0,
+                'sales_revenue' => 0.0,
+            ];
+        }
+
+        foreach ($salesQuery as $s) {
+            $pid = $s->product_id;
+            if (! isset($productsMap[$pid])) {
+                $productsMap[$pid] = (object) [
+                    'product_id' => $pid,
+                    'product_name' => $s->product_name,
+                    'product_code' => $s->product_code,
+                    'stock_quantity' => (float) $s->stock_quantity,
+                    'average_cost' => (float) $s->average_cost,
+                    'purchase_price' => (float) $s->purchase_price,
+                    'unit' => $s->unit,
+                    'purchased_qty' => 0.0,
+                    'purchased_cost' => 0.0,
+                    'sold_qty' => (float) $s->sold_qty,
+                    'sales_revenue' => (float) $s->sales_revenue,
+                ];
+            } else {
+                $productsMap[$pid]->sold_qty = (float) $s->sold_qty;
+                $productsMap[$pid]->sales_revenue = (float) $s->sales_revenue;
+            }
+        }
+
+        $rows = collect($productsMap)->map(function ($row) {
+            $row->purchased_qty = round($row->purchased_qty, 2);
+            $row->purchased_cost = round($row->purchased_cost, 2);
+            $row->sold_qty = round($row->sold_qty, 2);
+            $row->sales_revenue = round($row->sales_revenue, 2);
+            $row->current_stock = round((float) $row->stock_quantity, 2);
+
+            $row->sell_through_percent = $row->purchased_qty > 0
+                ? round(($row->sold_qty / $row->purchased_qty) * 100, 1)
+                : ($row->sold_qty > 0 ? 100.0 : 0.0);
+
+            $unitCost = $row->average_cost > 0 ? $row->average_cost : $row->purchase_price;
+            $row->cogs = round($row->sold_qty * $unitCost, 2);
+            $row->profit = round($row->sales_revenue - $row->cogs, 2);
+            $row->profit_margin = $row->sales_revenue > 0 ? round(($row->profit / $row->sales_revenue) * 100, 1) : 0.0;
+
+            return $row;
+        })->sortByDesc('purchased_cost')->values();
+
+        $totalPurchasedQty = round((float) $rows->sum('purchased_qty'), 2);
+        $totalPurchasedCost = round((float) $rows->sum('purchased_cost'), 2);
+        $totalSoldQty = round((float) $rows->sum('sold_qty'), 2);
+        $totalSalesRevenue = round((float) $rows->sum('sales_revenue'), 2);
+        $totalProfit = round((float) $rows->sum('profit'), 2);
+        $overallSellThrough = $totalPurchasedQty > 0 ? round(($totalSoldQty / $totalPurchasedQty) * 100, 1) : 0.0;
+
+        if ($request->get('export') === 'excel') {
+            return ReportExcelExporter::download(
+                [
+                    __('reports.rank'),
+                    __('reports.product_code'),
+                    __('reports.product'),
+                    __('reports.purchased_qty'),
+                    __('reports.purchased_cost'),
+                    __('reports.sold_qty'),
+                    __('reports.sales_revenue'),
+                    __('reports.current_stock'),
+                    __('reports.sell_through_percent'),
+                    __('reports.profit'),
+                ],
+                $rows->map(fn ($r, $idx) => [
+                    $idx + 1,
+                    $r->product_code ?? '-',
+                    $r->product_name,
+                    (float) $r->purchased_qty,
+                    (float) $r->purchased_cost,
+                    (float) $r->sold_qty,
+                    (float) $r->sales_revenue,
+                    (float) $r->current_stock,
+                    (float) $r->sell_through_percent . '%',
+                    (float) $r->profit,
+                ])->toArray(),
+                'purchases-vs-sales-' . now()->format('Y-m-d') . '.xlsx'
+            );
+        }
+
+        return view('reports.purchases.purchases-vs-sales', [
+            'branches' => $branches,
+            'branchId' => $branchId,
+            'q' => $q,
+            'productId' => $productId,
+            'productFilter' => $productFilter,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'rows' => $rows,
+            'totalPurchasedQty' => $totalPurchasedQty,
+            'totalPurchasedCost' => $totalPurchasedCost,
+            'totalSoldQty' => $totalSoldQty,
+            'totalSalesRevenue' => $totalSalesRevenue,
+            'totalProfit' => $totalProfit,
+            'overallSellThrough' => $overallSellThrough,
         ]);
     }
 

@@ -154,7 +154,7 @@
         ],
         [
         // قسم جديد: "الإضافات" - إدارة العملاء والموردين (إضافة/تعديل).
-        'label' => __('messages.additions') ?? 'الإضافات',
+        'label' => __('messages.additions'),
         'groups' => [
         [
         'key' => 'customers',
@@ -213,7 +213,7 @@
         [
         // قسم جديد: "المنتجات والمخزون" - نقطة الدخول دايمًا "اختيار
         // الفرع" لأنه إجباري قبل أي عرض/تعديل للمنتجات.
-        'label' => __('products.title') ?? 'المنتجات والمخزون',
+        'label' => __('products.title'),
         'groups' => [
         [
         'key' => 'products',
@@ -221,7 +221,7 @@
         'icon' => 'box',
         'items' => [
         ['label' => __('products.all_products'), 'url' => route('products.choose_branch')],
-        ['label' => __('products.add_group') ?? 'إضافة مجموعة منتجات', 'url' => route('product-groups.create')],
+        ['label' => __('products.add_group'), 'url' => route('product-groups.create')],
         ],
         ],
         ],
@@ -294,6 +294,7 @@
             || auth()->user()?->hasPermission('reports_purchases.by_supplier')
             || auth()->user()?->hasPermission('reports_purchases.by_employee')
             || auth()->user()?->hasPermission('reports_purchases.by_product')
+            || auth()->user()?->hasPermission('reports_purchases.purchases_vs_sales')
             || auth()->user()?->hasPermission('reports_purchases.returns')
             || auth()->user()?->hasPermission('reports_products.stock')
             || auth()->user()?->hasPermission('reports_products.low_stock')
@@ -313,15 +314,17 @@
         auth()->user()?->hasPermission('reports_accounting.balance_sheet') ? ['label' => __('reports.accounts.balance_sheet'), 'url' => route('reports.accounts.balance-sheet')] : null,
         auth()->user()?->hasPermission('reports_accounting.equity_changes') ? ['label' => __('reports.accounts.equity_changes'), 'url' => route('reports.accounts.equity-changes')] : null,
         auth()->user()?->hasPermission('reports_accounting.cash_flow') ? ['label' => __('reports.accounts.cash_flow'), 'url' => route('reports.accounts.cash-flow')] : null,
-        (auth()->user()?->hasPermission('reports_sales.summary') || auth()->user()?->hasPermission('reports_sales.by_customer')
-            || auth()->user()?->hasPermission('reports_sales.by_employee') || auth()->user()?->hasPermission('reports_sales.by_product')
-            || auth()->user()?->hasPermission('reports_sales.returns'))
+        (auth()->user()?->hasPermission('reports_sales.summary') || auth()->user()?->hasPermission('reports_sales.profits')
+            || auth()->user()?->hasPermission('reports_sales.employee_profits') || auth()->user()?->hasPermission('reports_sales.top_products')
+            || auth()->user()?->hasPermission('reports_sales.by_customer') || auth()->user()?->hasPermission('reports_sales.by_employee')
+            || auth()->user()?->hasPermission('reports_sales.by_product') || auth()->user()?->hasPermission('reports_sales.returns'))
             ? ['label' => __('reports.sections.sales'), 'url' => route('reports.sales.index')] : null,
         (auth()->user()?->hasPermission('reports_delivery.summary') || auth()->user()?->hasPermission('reports_delivery.pending')
             || auth()->user()?->hasPermission('reports_delivery.by_employee'))
             ? ['label' => __('reports.sections.delivery'), 'url' => route('reports.delivery.index')] : null,
         (auth()->user()?->hasPermission('reports_purchases.summary') || auth()->user()?->hasPermission('reports_purchases.by_supplier')
             || auth()->user()?->hasPermission('reports_purchases.by_employee') || auth()->user()?->hasPermission('reports_purchases.by_product')
+            || auth()->user()?->hasPermission('reports_purchases.purchases_vs_sales')
             || auth()->user()?->hasPermission('reports_purchases.returns'))
             ? ['label' => __('reports.sections.purchases'), 'url' => route('reports.purchases.index')] : null,
         (auth()->user()?->hasPermission('reports_products.stock') || auth()->user()?->hasPermission('reports_products.low_stock')
@@ -354,25 +357,7 @@
         ],
         ],
         ],
-        // <-- حط قسم التصنيع هنا
-        [
-        'label' => __('manufacturing.manufacturing'),
-        'groups' => [
-            [
-                'key' => 'manufacturing',
-                'match' => ['manufacturing'],
-                'label' => __('manufacturing.manufacturing'),
-                'icon' => 'box',
-                'items' => [
-                    ['label' => __('manufacturing.workstations_title'), 'url' => route('manufacturing.workstations.index')],
-                    ['label' => __('manufacturing.statuses_title'), 'url' => route('manufacturing.statuses.index')],
-                    ['label' => __('manufacturing.bom_title'), 'url' => route('manufacturing.bom.index')],
-                    ['label' => __('manufacturing.plans_title'), 'url' => route('manufacturing.production-plans.index')],
-                    ['label' => __('manufacturing.orders_title'), 'url' => route('manufacturing.orders.index')],
-                ],
-            ],
-        ],
-        ],
+       
         [
         'label' => __('settings.title'),
         'groups' => [

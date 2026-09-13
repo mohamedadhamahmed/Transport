@@ -13,11 +13,28 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        require_once app_path('helpers.php');
         //
     }
 
     public function boot(): void
     {
+        view()->composer('*', function ($view) {
+            try {
+                $currCode = \App\Models\SystemSetting::getActiveCurrencyCode();
+                $currSymbol = \App\Models\SystemSetting::getActiveCurrencySymbol();
+                $currName = \App\Models\SystemSetting::getActiveCurrencyName();
+                $currList = \App\Models\SystemSetting::getCurrencyList();
+
+                $view->with([
+                    'currencyCode' => $currCode,
+                    'currencySymbol' => $currSymbol,
+                    'currencyName' => $currName,
+                    'currencyList' => $currList,
+                ]);
+            } catch (\Throwable $e) {}
+        });
+
         Paginator::useBootstrap();
 
         // نظام الصلاحيات: أي @can(...) / $this->authorize(...) / can:

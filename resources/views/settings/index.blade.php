@@ -43,6 +43,39 @@
                                class="w-full rounded-lg border-gray-300 focus:ring-[#1456E8] focus:border-[#1456E8]">
                     </div>
 
+                                        {{-- اختيار عملة النظام --}}
+                    <div class="md:col-span-2 bg-gradient-to-r from-blue-50/70 to-indigo-50/70 p-4 rounded-xl border border-blue-200/80">
+                        <div class="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                            <label class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                <span class="text-base">💱</span>
+                                <span>عملة النظام الرسمية (System Currency)</span>
+                                <span class="text-red-500">*</span>
+                            </label>
+                            <span class="text-[11px] text-gray-500">تُطبق على كافة فواتير المبيعات، شاشات الكاشير (POS)، الإيصالات، والتقارير المالية</span>
+                        </div>
+                        <select name="currency" required
+                                class="w-full rounded-xl border-gray-300 focus:ring-[#1456E8] focus:border-[#1456E8] text-sm font-bold text-gray-800 py-2.5">
+                            <option value="SAR" @selected(old('currency', $systemSetting->currency ?? 'SAR') == 'SAR')>
+                                🇸🇦 ريال سعودي (SAR - ر.س)
+                            </option>
+                            <option value="EGP" @selected(old('currency', $systemSetting->currency) == 'EGP')>
+                                🇪🇬 جنيه مصري (EGP - ج.م)
+                            </option>
+                            <option value="AED" @selected(old('currency', $systemSetting->currency) == 'AED')>
+                                🇦🇪 درهم إماراتي (AED - د.إ)
+                            </option>
+                            <option value="KWD" @selected(old('currency', $systemSetting->currency) == 'KWD')>
+                                🇰🇼 دينار كويتي (KWD - د.ك)
+                            </option>
+                            <option value="OMR" @selected(old('currency', $systemSetting->currency) == 'OMR')>
+                                🇴🇲 ريال عماني (OMR - ر.ع)
+                            </option>
+                            <option value="QAR" @selected(old('currency', $systemSetting->currency) == 'QAR')>
+                                🇶🇦 ريال قطري (QAR - ر.ق)
+                            </option>
+                        </select>
+                    </div>
+
                     <div>
                         <label class="text-xs text-gray-500 mb-1 block">{{ __('settings.commercial_record') }} (SR)</label>
                         <input type="text" name="SR" value="{{ old('SR', $systemSetting->SR) }}"

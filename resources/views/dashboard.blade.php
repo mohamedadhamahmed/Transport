@@ -92,6 +92,10 @@
                     </div>
                     <p class="text-xs font-medium text-white/70 mt-3">{{ __('messages.dashboard_today_sales') }}</p>
                     <p class="text-2xl font-bold mt-0.5" data-stat="today_sales_net" data-format="money"><span class="dash-skeleton dash-skeleton--light"></span></p>
+                    <div class="mt-2 pt-2 border-t border-white/15 flex items-center justify-between text-xs">
+                        <span class="text-white/70">{{ __('reports.profit') }}:</span>
+                        <span class="font-bold text-white" data-stat="today_sales_profit" data-format="money"><span class="dash-skeleton dash-skeleton--light"></span></span>
+                    </div>
                 </div>
 
                 <div class="dash-anim dash-hero rounded-2xl p-5 text-white shadow-lg" style="--dash-delay: 100ms; background: linear-gradient(135deg,#F5811E,#C9600C); box-shadow: 0 12px 24px -10px #F5811E55;">
@@ -194,6 +198,9 @@
                 <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 260ms">
                     <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_month_sales') }}</p>
                     <p class="text-lg font-bold text-[#0F1B4C] mt-1" data-stat="month_sales_net" data-format="money"><span class="dash-skeleton"></span></p>
+                    <p class="text-[11px] text-emerald-600 font-semibold mt-0.5">
+                        {{ __('reports.net_profit') }}: <span data-stat="month_sales_profit" data-format="money"><span class="dash-skeleton"></span></span>
+                    </p>
                 </div>
                 <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 280ms">
                     <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_month_purchases') }}</p>
@@ -243,14 +250,24 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
                 <div class="dash-anim bg-white rounded-2xl border border-gray-100 shadow-sm p-5" style="--dash-delay: 380ms">
-                    <h3 class="font-bold text-[#0F1B4C] text-sm mb-4">{{ __('messages.dashboard_top_employees') }}</h3>
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-[#0F1B4C] text-sm">{{ __('messages.dashboard_top_employees') }}</h3>
+                        @can('reports_sales.employee_profits')
+                            <a href="{{ route('reports.sales.employee-profits') }}" class="text-xs text-[#1456E8] font-medium hover:underline">{{ __('reports.sales.employee_profits') }} &larr;</a>
+                        @endcan
+                    </div>
                     <div id="dashboard-top-employees" class="space-y-3">
                         <p class="dash-empty text-sm text-gray-400 text-center py-6">{{ __('messages.dashboard_no_data_today') }}</p>
                     </div>
                 </div>
 
                 <div class="dash-anim bg-white rounded-2xl border border-gray-100 shadow-sm p-5" style="--dash-delay: 400ms">
-                    <h3 class="font-bold text-[#0F1B4C] text-sm mb-4" id="dashboard-top-branches-title">{{ __('messages.dashboard_top_branches') }}</h3>
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-[#0F1B4C] text-sm" id="dashboard-top-branches-title">{{ __('messages.dashboard_top_branches') }}</h3>
+                        @can('reports_sales.top_products')
+                            <a href="{{ route('reports.sales.top-products') }}" class="text-xs text-[#1456E8] font-medium hover:underline">{{ __('reports.sales.top_products') }} &larr;</a>
+                        @endcan
+                    </div>
                     <div id="dashboard-top-branches" class="space-y-3">
                         <p class="dash-empty text-sm text-gray-400 text-center py-6">{{ __('messages.dashboard_no_data_today') }}</p>
                     </div>
@@ -264,9 +281,14 @@
                 <div class="dash-anim bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" style="--dash-delay: 420ms">
                     <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                         <h3 class="font-bold text-[#0F1B4C] text-sm">{{ __('messages.dashboard_recent_sales') }}</h3>
-                        @can('invoices.view')
-                            <a href="{{ route('invoices.index') }}" class="text-xs text-[#1456E8] font-medium hover:underline">{{ __('messages.dashboard_view_all') }}</a>
-                        @endcan
+                        <div class="flex items-center gap-3">
+                            @can('reports_sales.profits')
+                                <a href="{{ route('reports.sales.profits') }}" class="text-xs text-emerald-600 font-medium hover:underline">{{ __('reports.sales.profits') }}</a>
+                            @endcan
+                            @can('invoices.view')
+                                <a href="{{ route('invoices.index') }}" class="text-xs text-[#1456E8] font-medium hover:underline">{{ __('messages.dashboard_view_all') }}</a>
+                            @endcan
+                        </div>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">

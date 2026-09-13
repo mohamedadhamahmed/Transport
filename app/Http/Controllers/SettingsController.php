@@ -29,6 +29,7 @@ class SettingsController extends Controller
     'branchs_id'         => 'required|exists:branches,id',
     'name_ar'            => 'required|string|max:255',
     'name_en'            => 'required|string|max:255',
+            'currency'           => 'nullable|string|in:SAR,EGP,AED,KWD,OMR,QAR',
     'SR'                 => 'required|string|max:255',
     'Tax'                => 'required|string|max:255',
     'address_ar'         => 'required|string|max:255',

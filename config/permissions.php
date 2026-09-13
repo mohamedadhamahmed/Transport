@@ -147,6 +147,7 @@ return [
             'reports_accounting.expenses' => ['label' => 'تقرير المصروفات', 'label_en' => 'Expenses report'],
             'reports_accounting.customer_supplier_accounts' => ['label' => 'قائمة حسابات العملاء والموردين', 'label_en' => 'Customer & supplier accounts list'],
             'reports_accounting.daily_closing' => ['label' => 'التقرير الختامي اليومي', 'label_en' => 'Daily closing report'],
+            'reports_accounting.tax_report' => ['label' => 'تقرير الإقرار الضريبي', 'label_en' => 'Tax declaration report'],
         ],
     ],
 
@@ -155,6 +156,9 @@ return [
         'label_en' => 'Sales Reports',
         'permissions' => [
             'reports_sales.summary' => ['label' => 'ملخص المبيعات', 'label_en' => 'Sales summary'],
+            'reports_sales.profits' => ['label' => 'أرباح المبيعات', 'label_en' => 'Sales profits'],
+            'reports_sales.employee_profits' => ['label' => 'أرباح مبيعات الموظفين', 'label_en' => 'Employee sales profits'],
+            'reports_sales.top_products' => ['label' => 'المنتجات الأكثر مبيعاً', 'label_en' => 'Top selling products'],
             'reports_sales.by_customer' => ['label' => 'المبيعات حسب العميل', 'label_en' => 'Sales by customer'],
             'reports_sales.by_employee' => ['label' => 'المبيعات حسب الموظف', 'label_en' => 'Sales by employee'],
             'reports_sales.by_product' => ['label' => 'المبيعات حسب المنتج', 'label_en' => 'Sales by product'],
@@ -170,6 +174,7 @@ return [
             'reports_purchases.by_supplier' => ['label' => 'المشتريات حسب المورد', 'label_en' => 'Purchases by supplier'],
             'reports_purchases.by_employee' => ['label' => 'المشتريات حسب الموظف', 'label_en' => 'Purchases by employee'],
             'reports_purchases.by_product' => ['label' => 'المشتريات حسب المنتج', 'label_en' => 'Purchases by product'],
+            'reports_purchases.purchases_vs_sales' => ['label' => 'مشتريات ومبيعات الأصناف', 'label_en' => 'Purchases vs sales by product'],
             'reports_purchases.returns' => ['label' => 'مرتجعات المشتريات', 'label_en' => 'Purchases returns'],
         ],
     ],
