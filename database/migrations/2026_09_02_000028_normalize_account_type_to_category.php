@@ -44,7 +44,7 @@ return new class extends Migration
         $now = now();
 
         // الخطوة 1: نسخ مباشر لأي حساب معاه تصنيف بالفعل.
-        DB::table('financialaccount')
+        DB::table('financial_accounts')
             ->whereNotNull('account_category_id')
             ->update([
                 'account_type' => DB::raw('account_category_id'),
@@ -55,7 +55,7 @@ return new class extends Migration
         // تصنيف ونطبّقه على العمودين مع بعض.
         $unresolved = [];
 
-        $accountsWithoutCategory = DB::table('financialaccount')
+        $accountsWithoutCategory = DB::table('financial_accounts')
             ->whereNull('account_category_id')
             ->get(['id', 'parent_account_number']);
 
@@ -68,7 +68,7 @@ return new class extends Migration
                 continue;
             }
 
-            DB::table('financialaccount')->where('id', $account->id)->update([
+            DB::table('financial_accounts')->where('id', $account->id)->update([
                 'account_category_id' => $categoryId,
                 'account_type' => $categoryId,
                 'updated_at' => $now,
@@ -94,7 +94,7 @@ return new class extends Migration
         $guard = 0;
 
         while ($parentId !== null && $guard < 50) {
-            $parent = DB::table('financialaccount')->where('id', $parentId)->first();
+            $parent = DB::table('financial_accounts')->where('id', $parentId)->first();
             if (!$parent) {
                 return null;
             }

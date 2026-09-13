@@ -83,7 +83,7 @@ return new class extends Migration
      */
     private function reparentDuesAccountsToRealParent($now): void
     {
-        $duplicateId = DB::table('financialaccount')
+        $duplicateId = DB::table('financial_accounts')
             ->where('name', self::DUES_DUPLICATE_NAME)
             ->whereNull('orginal_id')
             ->value('id');
@@ -92,7 +92,7 @@ return new class extends Migration
             return;
         }
 
-        $realParentExists = DB::table('financialaccount')->where('id', self::DUES_REAL_PARENT_ID)->exists();
+        $realParentExists = DB::table('financial_accounts')->where('id', self::DUES_REAL_PARENT_ID)->exists();
         if (!$realParentExists) {
             // الحساب الحقيقي id=82 مش موجود في قاعدة البيانات دي أصلاً -
             // ملهاش داعي نكمل، نسيب المكرر زي ما هو عشان منضيعش الحسابات
@@ -102,7 +102,7 @@ return new class extends Migration
             return;
         }
 
-        DB::table('financialaccount')
+        DB::table('financial_accounts')
             ->where('parent_account_number', $duplicateId)
             ->where('orginal_type', self::EMPLOYEE_ORGINAL_TYPE)
             ->update(['parent_account_number' => self::DUES_REAL_PARENT_ID, 'updated_at' => $now]);
@@ -113,7 +113,7 @@ return new class extends Migration
     private function deleteObsoletePooledAccounts(): void
     {
         foreach (self::OBSOLETE_POOLED_ACCOUNT_NAMES as $name) {
-            $id = DB::table('financialaccount')->where('name', $name)->whereNull('orginal_id')->value('id');
+            $id = DB::table('financial_accounts')->where('name', $name)->whereNull('orginal_id')->value('id');
             if ($id) {
                 $this->deleteAccountIfEmptyAndUnused((int) $id, $name);
             }
@@ -122,7 +122,7 @@ return new class extends Migration
 
     private function deleteHrExpensesGroupIfEmpty(): void
     {
-        $id = DB::table('financialaccount')->where('name', self::HR_EXPENSES_GROUP_NAME)->whereNull('orginal_id')->value('id');
+        $id = DB::table('financial_accounts')->where('name', self::HR_EXPENSES_GROUP_NAME)->whereNull('orginal_id')->value('id');
         if ($id) {
             $this->deleteAccountIfEmptyAndUnused((int) $id, self::HR_EXPENSES_GROUP_NAME);
         }
@@ -136,8 +136,8 @@ return new class extends Migration
      */
     private function deleteAccountIfEmptyAndUnused(int $accountId, string $name): void
     {
-        $hasChildren = DB::table('financialaccount')->where('parent_account_number', $accountId)->exists();
-        $hasTransactions = DB::table('credittransaction')->where('customer_id', $accountId)->exists();
+        $hasChildren = DB::table('financial_accounts')->where('parent_account_number', $accountId)->exists();
+        $hasTransactions = DB::table('credittransactions')->where('customer_id', $accountId)->exists();
 
         if ($hasChildren || $hasTransactions) {
             Log::warning("HR fix migration: duplicate account '{$name}' (id={$accountId}) left in place because it still has " . ($hasChildren ? 'child accounts' : 'transaction history') . ' - review manually from the accounts tree screen.');
@@ -145,7 +145,7 @@ return new class extends Migration
             return;
         }
 
-        DB::table('financialaccount')->where('id', $accountId)->delete();
+        DB::table('financial_accounts')->where('id', $accountId)->delete();
     }
 
     /**
@@ -156,14 +156,14 @@ return new class extends Migration
     private function backfillAccountCategoryForRealParents($now): void
     {
         foreach (self::REAL_PARENT_IDS as $accountId) {
-            $account = DB::table('financialaccount')->where('id', $accountId)->first();
+            $account = DB::table('financial_accounts')->where('id', $accountId)->first();
             if (!$account || $account->account_category_id !== null) {
                 continue;
             }
 
             $categoryId = $this->resolveNearestAncestorCategoryId($account->parent_account_number);
             if ($categoryId !== null) {
-                DB::table('financialaccount')->where('id', $accountId)->update([
+                DB::table('financial_accounts')->where('id', $accountId)->update([
                     'account_category_id' => $categoryId,
                     'updated_at' => $now,
                 ]);
@@ -176,7 +176,7 @@ return new class extends Migration
         $guard = 0;
 
         while ($parentId !== null && $guard < 50) {
-            $parent = DB::table('financialaccount')->where('id', $parentId)->first();
+            $parent = DB::table('financial_accounts')->where('id', $parentId)->first();
             if (!$parent) {
                 return null;
             }

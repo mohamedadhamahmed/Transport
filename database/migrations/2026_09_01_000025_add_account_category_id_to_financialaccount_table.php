@@ -41,8 +41,8 @@ return new class extends Migration
 
     public function up(): void
     {
-        if (!Schema::hasColumn('financialaccount', 'account_category_id')) {
-            Schema::table('financialaccount', function (Blueprint $table) {
+        if (!Schema::hasColumn('financial_accounts', 'account_category_id')) {
+            Schema::table('financial_accounts', function (Blueprint $table) {
                 $table->unsignedBigInteger('account_category_id')->nullable()->after('account_type');
                 $table->index('account_category_id');
             });
@@ -51,7 +51,7 @@ return new class extends Migration
         $now = now();
 
         // الفروع الرئيسية الخمسة بالاسم، وهي لسه جذر (parent فاضي).
-        $roots = DB::table('financialaccount')
+        $roots = DB::table('financial_accounts')
             ->whereNull('parent_account_number')
             ->whereIn('name', array_keys(self::CATEGORY_TYPE_IDS))
             ->get(['id', 'name']);
@@ -59,7 +59,7 @@ return new class extends Migration
         $queue = [];
         foreach ($roots as $root) {
             $typeId = self::CATEGORY_TYPE_IDS[$root->name];
-            DB::table('financialaccount')->where('id', $root->id)->update([
+            DB::table('financial_accounts')->where('id', $root->id)->update([
                 'account_category_id' => $typeId,
                 'updated_at' => $now,
             ]);
@@ -70,12 +70,12 @@ return new class extends Migration
         while (!empty($queue)) {
             $current = array_shift($queue);
 
-            $children = DB::table('financialaccount')
+            $children = DB::table('financial_accounts')
                 ->where('parent_account_number', $current['id'])
                 ->get(['id']);
 
             foreach ($children as $child) {
-                DB::table('financialaccount')->where('id', $child->id)->update([
+                DB::table('financial_accounts')->where('id', $child->id)->update([
                     'account_category_id' => $current['type'],
                     'updated_at' => $now,
                 ]);
@@ -86,8 +86,8 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (Schema::hasColumn('financialaccount', 'account_category_id')) {
-            Schema::table('financialaccount', function (Blueprint $table) {
+        if (Schema::hasColumn('financial_accounts', 'account_category_id')) {
+            Schema::table('financial_accounts', function (Blueprint $table) {
                 $table->dropIndex(['account_category_id']);
                 $table->dropColumn('account_category_id');
             });
