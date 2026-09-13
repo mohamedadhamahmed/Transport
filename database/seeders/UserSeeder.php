@@ -22,7 +22,7 @@ class UserSeeder extends Seeder
                 'email_verified_at' => now(),
                 'roles_name' => json_encode(['Admin']), // أو نص عادي حسب نوع العمود في قاعدة البيانات
                 'active' => 1,
-                'branchs_id' => 1,
+                'branch_id' => 1,
                 'discount_allow_limit' => 10,
                 'name_en' => 'System Admin',
             ]
