@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class FinancialAccount extends Model
 {
-    protected $table = 'financialaccount';
+    protected $table = 'financialaccounts';
 
     // السماح لكل الحقول بالإدخال والتعديل دفعة واحدة
     protected $guarded = [];
