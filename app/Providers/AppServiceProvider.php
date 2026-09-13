@@ -6,6 +6,7 @@ use App\Models\Setting;
 use App\Models\SystemSetting;
 use App\Support\PermissionRegistry;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
 
@@ -37,12 +38,6 @@ class AppServiceProvider extends ServiceProvider
 
         Paginator::useBootstrap();
 
-        // نظام الصلاحيات: أي @can(...) / $this->authorize(...) / can:
-        // middleware في أي حتة في المشروع بيتحسم من هنا. المدير العام
-        // (role->is_super) بياخد true دايمًا. أي ability تاني مش من
-        // صلاحياتنا المعرّفة في config/permissions.php (يعني مش تابع
-        // لنظام الصلاحيات أصلًا) بنرجّع null عشان نسيب Laravel يتصرف
-        // بيه عادي (متأثرش على أي Gate/Policy تاني ممكن يتضاف مستقبلًا).
         Gate::before(function ($user, string $ability) {
             if (! $user) {
                 return null;
@@ -59,8 +54,13 @@ class AppServiceProvider extends ServiceProvider
             return $user->hasPermission($ability);
         });
 
-        $setting = Setting::find(1);
-        $systemSetting = SystemSetting::find(1);
+        $setting = null;
+        $systemSetting = null;
+
+        if (Schema::hasTable('settings') && Schema::hasTable('system_settings')) {
+            $setting = Setting::find(1);
+            $systemSetting = SystemSetting::find(1);
+        }
 
         if ($setting && $systemSetting) {
             define('postal_number', $setting->postal_number);
