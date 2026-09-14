@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -8,14 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('financial_accounts', function (Blueprint $table) {
+        Schema::table('financialaccount', function (Blueprint $table) {
             $table->string('name_en')->nullable()->after('name');
         });
     }
 
     public function down(): void
     {
-        Schema::table('financial_accounts', function (Blueprint $table) {
+        Schema::table('financialaccount', function (Blueprint $table) {
             $table->dropColumn('name_en');
         });
     }

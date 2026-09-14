@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Http\Controllers;
 
@@ -206,11 +206,11 @@ class PurchaseReturnController extends Controller
             // نفس ملحوظة PurchaseController@store بالظبط: اسم الجدول في
             // قاعدة بياناتك الفعلية "financialaccount" (موديل
             // FinancialAccount)، لكن قاعدة التحقق هنا بترجع لجدول
-            // financial_accounts زي ما هو مكتوب حرفيًا في
+            // financialaccount زي ما هو مكتوب حرفيًا في
             // PurchaseController الأصلي - سايباها زيها بالظبط عشان تفضل
             // متوافقة مع باقي الشاشة، فلو فشل التحقق ده عندك اتأكدي من
             // نفس النقطة في شاشة فاتورة المشتريات كمان.
-            'refund_account_id' => ['nullable', 'exists:financial_accounts,id'],
+            'refund_account_id' => ['nullable', 'exists:financialaccount,id'],
             'reason' => ['nullable', 'string'],
             'return_date' => ['nullable', 'date'],
             'items' => ['required', 'array', 'min:1'],

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
@@ -21,15 +21,15 @@ return new class extends Migration
     {
         $now = now();
 
-        $hrParentId = DB::table('financial_accounts')
+        $hrParentId = DB::table('financialaccount')
             ->where('name', self::HR_PARENT_ACCOUNT_NAME)
             ->whereNull('orginal_id')
             ->value('id');
 
         if (!$hrParentId) {
-            $nextAccountNumber = (int) (DB::table('financial_accounts')->max('account_number') ?? 0) + 1;
+            $nextAccountNumber = (int) (DB::table('financialaccount')->max('account_number') ?? 0) + 1;
 
-            $hrParentId = DB::table('financial_accounts')->insertGetId([
+            $hrParentId = DB::table('financialaccount')->insertGetId([
                 'name' => self::HR_PARENT_ACCOUNT_NAME,
                 'account_type' => 4,
                 'parent_account_number' => null,
@@ -49,7 +49,7 @@ return new class extends Migration
             ]);
         }
 
-        DB::table('financial_accounts')
+        DB::table('financialaccount')
             ->whereIn('name', self::HR_ACCOUNT_NAMES)
             ->whereNull('orginal_id')
             ->whereNull('parent_account_number')
@@ -58,13 +58,13 @@ return new class extends Migration
 
     public function down(): void
     {
-        $hrParentId = DB::table('financial_accounts')
+        $hrParentId = DB::table('financialaccount')
             ->where('name', self::HR_PARENT_ACCOUNT_NAME)
             ->whereNull('orginal_id')
             ->value('id');
 
         if ($hrParentId) {
-            DB::table('financial_accounts')
+            DB::table('financialaccount')
                 ->whereIn('name', self::HR_ACCOUNT_NAMES)
                 ->where('parent_account_number', $hrParentId)
                 ->update(['parent_account_number' => null]);

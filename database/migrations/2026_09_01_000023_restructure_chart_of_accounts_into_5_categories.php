@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
@@ -75,32 +75,32 @@ return new class extends Migration
         // حسابات الموارد البشرية السبعة - بنحطها في مكانها الصح بغض
         // النظر عن أبوها الحالي (يا إما جذر، يا إما تحت "الموارد
         // البشرية" القديم من الميجريشن اللي قبل دي).
-        DB::table('financial_accounts')->where('name', 'ذمم الموظفين')->whereNull('orginal_id')
+        DB::table('financialaccount')->where('name', 'ذمم الموظفين')->whereNull('orginal_id')
             ->update(['parent_account_number' => $assetsId, 'updated_at' => $now]);
-        DB::table('financial_accounts')->where('name', 'رواتب الموظفين')->whereNull('orginal_id')
+        DB::table('financialaccount')->where('name', 'رواتب الموظفين')->whereNull('orginal_id')
             ->update(['parent_account_number' => $hrExpensesGroupId, 'updated_at' => $now]);
-        DB::table('financial_accounts')->where('name', 'مكافآت الموظفين')->whereNull('orginal_id')
+        DB::table('financialaccount')->where('name', 'مكافآت الموظفين')->whereNull('orginal_id')
             ->update(['parent_account_number' => $hrExpensesGroupId, 'updated_at' => $now]);
-        DB::table('financial_accounts')->where('name', 'مصروف مكافأة نهاية الخدمة')->whereNull('orginal_id')
+        DB::table('financialaccount')->where('name', 'مصروف مكافأة نهاية الخدمة')->whereNull('orginal_id')
             ->update(['parent_account_number' => $hrExpensesGroupId, 'updated_at' => $now]);
-        DB::table('financial_accounts')->where('name', 'خصومات الموظفين')->whereNull('orginal_id')
+        DB::table('financialaccount')->where('name', 'خصومات الموظفين')->whereNull('orginal_id')
             ->update(['parent_account_number' => $revenueId, 'updated_at' => $now]);
-        DB::table('financial_accounts')->where('name', 'مستحقات رواتب الموظفين')->whereNull('orginal_id')
+        DB::table('financialaccount')->where('name', 'مستحقات رواتب الموظفين')->whereNull('orginal_id')
             ->update(['parent_account_number' => $hrLiabilitiesGroupId, 'updated_at' => $now]);
-        DB::table('financial_accounts')->where('name', 'مخصص مكافأة نهاية الخدمة')->whereNull('orginal_id')
+        DB::table('financialaccount')->where('name', 'مخصص مكافأة نهاية الخدمة')->whereNull('orginal_id')
             ->update(['parent_account_number' => $hrLiabilitiesGroupId, 'updated_at' => $now]);
 
         // "الموارد البشرية" (الحساب الوسيط القديم) بقى فاضي من غير أي
         // حساب تحته - نمسحه عشان منسيبش جذر يتيم في الشجرة.
-        $oldHrParentId = DB::table('financial_accounts')
+        $oldHrParentId = DB::table('financialaccount')
             ->where('name', self::OLD_HR_PARENT_NAME)
             ->whereNull('orginal_id')
             ->value('id');
 
         if ($oldHrParentId) {
-            $hasChildren = DB::table('financial_accounts')->where('parent_account_number', $oldHrParentId)->exists();
+            $hasChildren = DB::table('financialaccount')->where('parent_account_number', $oldHrParentId)->exists();
             if (!$hasChildren) {
-                DB::table('financial_accounts')->where('id', $oldHrParentId)->delete();
+                DB::table('financialaccount')->where('id', $oldHrParentId)->delete();
             }
         }
     }
@@ -121,14 +121,14 @@ return new class extends Migration
 
     private function findOrCreateGroup(string $name, ?int $parentId, $now): int
     {
-        $id = DB::table('financial_accounts')->where('name', $name)->whereNull('orginal_id')->value('id');
+        $id = DB::table('financialaccount')->where('name', $name)->whereNull('orginal_id')->value('id');
         if ($id) {
             return (int) $id;
         }
 
-        $nextAccountNumber = (int) (DB::table('financial_accounts')->max('account_number') ?? 0) + 1;
+        $nextAccountNumber = (int) (DB::table('financialaccount')->max('account_number') ?? 0) + 1;
 
-        return DB::table('financial_accounts')->insertGetId([
+        return DB::table('financialaccount')->insertGetId([
             'name' => $name,
             'account_type' => 4,
             'parent_account_number' => $parentId,
@@ -154,7 +154,7 @@ return new class extends Migration
      */
     private function resolveRevenueCategoryId($now): int
     {
-        $existing = DB::table('financial_accounts')->where('id', 112)->first();
+        $existing = DB::table('financialaccount')->where('id', 112)->first();
         if ($existing && $existing->parent_account_number === null) {
             return 112;
         }
@@ -164,7 +164,7 @@ return new class extends Migration
 
     private function moveIfRoot(int $accountId, int $newParentId, $now): void
     {
-        DB::table('financial_accounts')
+        DB::table('financialaccount')
             ->where('id', $accountId)
             ->whereNull('parent_account_number')
             ->update(['parent_account_number' => $newParentId, 'updated_at' => $now]);

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace Database\Seeders;
 
@@ -61,7 +61,7 @@ class ChartOfAccountsSeeder extends Seeder
      *
      * الترتيب هنا مش بالـ id تصاعديًا - ده ترتيب "طوبولوجي" (كل أب قبل ابنه)
      * عشان الـ foreign key اللي على parent_account_number ما يرفضش الإدراج
-     * (فيه فعلاً FK حقيقي عليه في قاعدة بياناتك - financial_accounts_parent_
+     * (فيه فعلاً FK حقيقي عليه في قاعدة بياناتك - financialaccount_parent_
      * account_number_foreign).
      */
     private const ACCOUNTS = [

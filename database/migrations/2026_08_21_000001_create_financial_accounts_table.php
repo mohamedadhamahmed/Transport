@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -15,7 +15,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('financial_accounts', function (Blueprint $table) {
+        Schema::create('financialaccount', function (Blueprint $table) {
             $table->id();
 
             $table->string('name');
@@ -83,13 +83,13 @@ return new class extends Migration
             $table->index('updated_by');
 
             $table->foreign('parent_account_number')
-                ->references('id')->on('financial_accounts')
+                ->references('id')->on('financialaccount')
                 ->nullOnDelete();
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('financial_accounts');
+        Schema::dropIfExists('financialaccount');
     }
 };

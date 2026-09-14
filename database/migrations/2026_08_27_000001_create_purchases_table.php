@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
 | بعتيهالي كانت بتخلي "طريقة الدفع" فعليًا هي اختيار حساب مالي محدد
 | (مثلاً "نقدي (الخزنة)") من شجرة الحسابات - يعني بندفع من حساب معيّن
 | بالظبط، مش نوع دفع عام. فحطينا عمود payment_account_id (رقم حساب من
-| جدول financial_accounts) - لو فاضي (null) يبقى معناها "آجل" (على
+| جدول financialaccount) - لو فاضي (null) يبقى معناها "آجل" (على
 | حساب المورد)، ولو فيه رقم حساب يبقى الفاتورة اتدفعت فورًا من الحساب
 | ده (نقدي/بنك/شبكة، حسب الحساب اللي هي عليه).
 */

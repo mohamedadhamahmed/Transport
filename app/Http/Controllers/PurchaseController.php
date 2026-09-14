@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Http\Controllers;
 
@@ -117,7 +117,7 @@ class PurchaseController extends Controller
 
     /**
      * استعلام حسابات الدفع الفوري (نقدي/بنك/شبكة) الخاصة بفرع معيّن -
-     * الفلترة بعمود branchs_id في financial_accounts، بنفس الاسم
+     * الفلترة بعمود branchs_id في financialaccount، بنفس الاسم
      * المستخدم في finalizePurchase تحت (حساب المخزون/الضريبة).
      */
     protected function paymentAccountsQuery($branchId)
@@ -314,7 +314,7 @@ class PurchaseController extends Controller
         $validated = Validator::make($request->all(), [
             'supplier_id' => ['required', 'exists:suppliers,id'],
             'branch_id' => ['required', 'exists:branches,id'],
-            'payment_account_id' => ['nullable', 'exists:financial_accounts,id'],
+            'payment_account_id' => ['nullable', 'exists:financialaccount,id'],
             'supplier_invoice_number' => ['nullable', 'string', 'max:255'],
             'warehouse_name' => ['nullable', 'string', 'max:255'],
             'cost_center_id' => ['nullable', 'exists:cost_centers,id'],
@@ -531,7 +531,7 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
             'supplier_id' => ['required', 'exists:suppliers,id'],
             'branch_id' => ['required', 'exists:branches,id'],
             // فاضي = آجل، غير كده لازم يكون ID حساب موجود فعلاً.
-            'payment_account_id' => ['nullable', 'exists:financial_accounts,id'],
+            'payment_account_id' => ['nullable', 'exists:financialaccount,id'],
             // موجود بس لو الفاتورة دي جاية من تحويل أمر شراء - مش إجباري.
             'purchase_order_id' => ['nullable', 'exists:purchase_orders,id'],
             'supplier_invoice_number' => ['nullable', 'string', 'max:255'],

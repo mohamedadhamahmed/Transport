@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -11,7 +11,7 @@ return new class extends Migration
      * بعتها، وبيتسجل عليه App\Models\CreditTransaction (اسم الجدول
      * الفعلي فضل "credittransactions" من غير underscore عشان
      * $table اتحددت صريحة في الموديل). كل عملية مالية (بيع، تحصيل،
-     * دفع...) بتسجل هنا سطر مرتبط بحساب في financial_accounts
+     * دفع...) بتسجل هنا سطر مرتبط بحساب في financialaccount
      * (App\Models\FinancialAccount).
      */
     public function up(): void
@@ -19,7 +19,7 @@ return new class extends Migration
         Schema::create('credittransactions', function (Blueprint $table) {
             $table->id();
 
-            // بيشاور على id في جدول financial_accounts (مش على جدول عملاء)
+            // بيشاور على id في جدول financialaccount (مش على جدول عملاء)
             $table->unsignedBigInteger('customer_id')->nullable();
 
             $table->unsignedBigInteger('user_id')->nullable();
@@ -73,8 +73,8 @@ return new class extends Migration
             $table->index(['orginal_id', 'orginal_type']);
             $table->index('type_decument');
 
-            // نفس ملحوظة financial_accounts: سبنا foreign key فعلي بس على
-            // customer_id (بيرجع لـ financial_accounts اللي أنا عامل
+            // نفس ملحوظة financialaccount: سبنا foreign key فعلي بس على
+            // customer_id (بيرجع لـ financialaccount اللي أنا عامل
             // الـ migration بتاعتها فمضمون تطابق النوع). branchs_id و
             // user_id بيرجعوا لجداول مش أنا عاملها (branches, users)
             // فسبناهم index عادي عشان منقعش في نفس مشكلة الـ FK.
@@ -82,7 +82,7 @@ return new class extends Migration
             $table->index('user_id');
 
             $table->foreign('customer_id')
-                ->references('id')->on('financial_accounts')
+                ->references('id')->on('financialaccount')
                 ->nullOnDelete();
         });
     }
