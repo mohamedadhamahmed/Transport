@@ -40,7 +40,7 @@ class TransportReportController extends Controller
             ->whereDate('v.voucher_date', '>=', $from)
             ->whereDate('v.voucher_date', '<=', $to)
             ->groupBy('v.truck_id', 'v.expense_category')
-            ->selectRaw('v.truck_id, v.expense_category, COUNT(DISTINCT v.id) as vouchers, SUM(l.amount) as total')
+            ->selectRaw('v.truck_id, v.expense_category, COUNT(DISTINCT v.id) as vouchers, SUM(COALESCE(l.net_amount, l.amount)) as total')
             ->get();
 
         $expByTruck = $expenseRows->groupBy('truck_id')->map(fn ($g) => [
@@ -503,9 +503,11 @@ class TransportReportController extends Controller
             });
 
             $revenue = (float) $items->sum('line_total');
-            $expenses = (float) $vouchers->sum(fn ($v) => $v->total_amount);
+            // المصروف = الصافي من غير ضريبة القيمة المضافة (الضريبة بتروح لحساب الضريبة مش مصروف)
+            $net = fn ($v) => (float) $v->lines->sum(fn ($l) => $l->net_amount ?? $l->amount);
+            $expenses = (float) $vouchers->sum($net);
             $byCategory = $vouchers->groupBy(fn ($v) => $v->expenseCategoryLabel() ?: __('transport.other'))
-                ->map(fn ($g, $label) => ['label' => $label, 'count' => $g->count(), 'total' => (float) $g->sum(fn ($v) => $v->total_amount)])
+                ->map(fn ($g, $label) => ['label' => $label, 'count' => $g->count(), 'total' => (float) $g->sum($net)])
                 ->sortByDesc('total')->values();
 
             $data = [
@@ -518,7 +520,7 @@ class TransportReportController extends Controller
                     'weight' => (float) $loads->sum('weight'),
                     'revenue' => $revenue,
                     'expenses' => $expenses,
-                    'maintenance' => (float) $vouchers->whereIn('expense_category', ['maintenance', 'spare_parts', 'tires', 'oil'])->sum(fn ($v) => $v->total_amount),
+                    'maintenance' => (float) $vouchers->whereIn('expense_category', ['maintenance', 'spare_parts', 'tires', 'oil'])->sum($net),
                     'net' => $revenue - $expenses,
                     'utilization' => round(min(100, $loadedHours * 100 / $periodHours)),
                     'late' => $loads->filter->wasLate()->count(),

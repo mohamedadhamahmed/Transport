@@ -53,7 +53,7 @@
                                 @php
                                     $allDocs = collect($truck->documentsStatus());
                                     $docs = $allDocs->filter(fn ($d) => in_array($d['status'], ['expired', 'soon'], true));
-                                    $hasDocDates = $allDocs->contains(fn ($d) => $d['status'] !== 'none');
+                                    $hasDocDates = $allDocs->contains(fn ($d) => $d['status'] === 'ok');
                                     $stClass = ['active' => 'tr-badge-green', 'maintenance' => 'tr-badge-amber', 'inactive' => 'tr-badge-gray'][$truck->status] ?? 'tr-badge-gray';
                                 @endphp
                                 <tr class="hover:bg-[#1456E8]/5 transition">
@@ -84,6 +84,8 @@
                                         @empty
                                             @if ($hasDocDates)
                                                 <span class="tr-badge tr-badge-green">✓ {{ __('transport.docs_ok') }}</span>
+                                            @elseif (!$truck->isOwned())
+                                                <span class="tr-badge tr-badge-gray" title="{{ __('transport.docs_optional_external_hint') }}">{{ __('transport.docs_optional_external') }}</span>
                                             @else
                                                 <span class="text-gray-400">-</span>
                                             @endif

@@ -69,7 +69,7 @@ class DashboardController extends Controller
             ->when($branchId, fn ($q) => $q->where('account_vouchers.branch_id', $branchId))
             ->whereDate('account_vouchers.voucher_date', '>=', $from)
             ->whereDate('account_vouchers.voucher_date', '<=', $to)
-            ->sum('account_voucher_lines.amount');
+            ->sum(DB::raw('COALESCE(account_voucher_lines.net_amount, account_voucher_lines.amount)'));
 
         $loadsCount = fn ($from, $to) => TruckLoad::where('status', '!=', 'cancelled')
             ->whereDate('loaded_at', '>=', $from)->whereDate('loaded_at', '<=', $to)->count();
@@ -125,7 +125,7 @@ class DashboardController extends Controller
             ->whereNotNull('account_vouchers.truck_id')->where('account_vouchers.type', AccountVoucher::TYPE_PAYMENT)
             ->when($branchId, fn ($q) => $q->where('account_vouchers.branch_id', $branchId))
             ->whereDate('account_vouchers.voucher_date', '>=', $months->first()->toDateString())
-            ->selectRaw("DATE_FORMAT(account_vouchers.voucher_date, '%Y-%m') as m, SUM(account_voucher_lines.amount) as v")
+            ->selectRaw("DATE_FORMAT(account_vouchers.voucher_date, '%Y-%m') as m, SUM(COALESCE(account_voucher_lines.net_amount, account_voucher_lines.amount)) as v")
             ->groupBy('m')->pluck('v', 'm');
         $finance = $months->map(fn ($d) => [
             'label' => $d->translatedFormat('M Y'),
@@ -167,7 +167,8 @@ class DashboardController extends Controller
             ->where('status', '!=', 'cancelled')->latest('id')->limit(6)->get()
             ->map(fn ($l) => [
                 'type' => $l->status === 'unloaded' ? 'unloaded' : 'loaded',
-                'title' => ($l->truck?->plate_number ?? '-') . ' · ' . $l->from_label . ' ← ' . $l->to_label,
+                'title' => ($l->truck?->plate_number ?? '-'),
+                'route' => SaudiRegions::name($l->from_region) . ' ← ' . SaudiRegions::name($l->to_region),
                 'sub' => trim(($l->customer?->name ?? '') . ' ' . ($l->load_type ? '· ' . $l->load_type : ''), ' ·'),
                 'at' => $l->status === 'unloaded' ? ($l->unload_recorded_at ?? $l->unloaded_at) : $l->created_at,
                 'url' => route('transport.loads.board'),
@@ -175,7 +176,8 @@ class DashboardController extends Controller
             ->concat($inv()->with('customer:id,name')->latest('id')->limit(6)->get(['id', 'invoice_number', 'customer_id', 'total', 'created_at'])
                 ->map(fn ($i) => [
                     'type' => 'invoice',
-                    'title' => $i->invoice_number . ' · ' . number_format((float) $i->total, 2),
+                    'title' => $i->invoice_number,
+                    'route' => number_format((float) $i->total, 2) . ' ' . __('transport.sar'),
                     'sub' => $i->customer?->name,
                     'at' => $i->created_at,
                     'url' => route('transport.invoices.show', $i->id),
@@ -554,7 +556,7 @@ class DashboardController extends Controller
             ->when($branchId, fn ($q) => $q->where('account_vouchers.branch_id', $branchId))
             ->whereDate('account_vouchers.voucher_date', '>=', $from)
             ->whereDate('account_vouchers.voucher_date', '<=', $to)
-            ->sum('account_voucher_lines.amount');
+            ->sum(DB::raw('COALESCE(account_voucher_lines.net_amount, account_voucher_lines.amount)'));
 
         return round($revenue - $expenses, 2);
     }

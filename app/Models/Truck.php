@@ -26,6 +26,18 @@ class Truck extends Model
         'inspection_expiry' => 'doc_inspection',
     ];
 
+    /**
+     * وثائق مش إلزامية للشاحنة الخارجية (مش ملك الشركة): الاستمارة والتأمين
+     * وكرت التشغيل - ممكن تتسجل عادي، بس مش بيطلع عليها أي تنبيه.
+     */
+    public const OPTIONAL_FOR_EXTERNAL = ['registration_expiry', 'insurance_expiry', 'operating_card_expiry'];
+
+    /** الوثيقة دي إلزامية للشاحنة دي؟ */
+    public function isDocumentRequired(string $column): bool
+    {
+        return $this->isOwned() || !in_array($column, self::OPTIONAL_FOR_EXTERNAL, true);
+    }
+
     protected $casts = [
         'capacity' => 'decimal:2',
         'default_trip_price' => 'decimal:2',
@@ -86,7 +98,10 @@ class Truck extends Model
                 'label' => __('transport.' . $key),
                 'date' => $d,
                 'days' => $days,
-                'status' => $d === null ? 'none' : ($days < 0 ? 'expired' : ($days <= self::EXPIRY_ALERT_DAYS ? 'soon' : 'ok')),
+                // وثيقة اختيارية (شاحنة خارجية): بتتعرض بس من غير تنبيه
+                'status' => $d === null ? 'none'
+                    : (!$this->isDocumentRequired($col) ? 'optional'
+                    : ($days < 0 ? 'expired' : ($days <= self::EXPIRY_ALERT_DAYS ? 'soon' : 'ok'))),
             ];
         }
 
@@ -104,6 +119,10 @@ class Truck extends Model
             foreach ($cols as $c) {
                 $q->orWhere(function ($qq) use ($c, $limit, $today, $mode) {
                     $qq->whereNotNull($c);
+                    // الاستمارة/التأمين/كرت التشغيل مش إلزامية للشاحنات الخارجية
+                    if (in_array($c, self::OPTIONAL_FOR_EXTERNAL, true)) {
+                        $qq->where(fn ($o) => $o->where('ownership', '!=', 'external')->orWhereNull('ownership'));
+                    }
                     if ($mode === 'expired') {
                         $qq->whereDate($c, '<', $today);
                     } else {

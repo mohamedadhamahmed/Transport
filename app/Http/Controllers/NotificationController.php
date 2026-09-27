@@ -106,6 +106,8 @@ class NotificationController extends Controller
             foreach (Truck::DOCUMENTS as $col => $key) {
                 $row = Truck::query()
                     ->where('status', '!=', 'inactive')
+                    // الوثائق الاختيارية للشاحنات الخارجية مالهاش تنبيه
+                    ->when(in_array($col, Truck::OPTIONAL_FOR_EXTERNAL, true), fn ($q) => $q->where(fn ($o) => $o->where('ownership', '!=', 'external')->orWhereNull('ownership')))
                     ->whereNotNull($col)
                     ->whereDate($col, '<=', $limit)
                     ->selectRaw('COUNT(*) as total, SUM(CASE WHEN ' . $col . ' < ? THEN 1 ELSE 0 END) as expired', [$today])

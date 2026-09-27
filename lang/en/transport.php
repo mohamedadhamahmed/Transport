@@ -600,4 +600,10 @@ return [
     'db_truck_unit' => 'trucks',
     'db_unbilled_hint' => 'Unloaded and ready to invoice',
     'db_vs_last_month' => 'vs. same period last month',
+
+    // ===== وثائق الشاحنات الخارجية =====
+    'optional' => 'optional',
+    'docs_external_note' => 'External truck: registration, insurance and operating card are optional - record them if available; no expiry alerts will be raised.',
+    'docs_optional_external' => 'Optional documents',
+    'docs_optional_external_hint' => 'External truck - registration, insurance and operating card are optional',
 ];

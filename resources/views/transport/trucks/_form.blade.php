@@ -35,9 +35,14 @@
         const v = (document.querySelector('input[name=ownership]:checked') || {}).value;
         document.getElementById('own-owned').style.display = v === 'owned' ? '' : 'none';
         document.getElementById('own-external').style.display = v === 'external' ? '' : 'none';
+        // الاستمارة والتأمين وكرت التشغيل اختيارية للشاحنة الخارجية
+        const note = document.getElementById('docs-ext-note');
+        if (note) note.style.display = v === 'external' ? '' : 'none';
+        document.querySelectorAll('.ext-opt').forEach(el => el.style.display = v === 'external' ? '' : 'none');
     }
     document.querySelectorAll('input[name=ownership]').forEach(r => r.addEventListener('change', sync));
     sync();
+    document.addEventListener("DOMContentLoaded", sync);
 })();
 </script>
 
@@ -46,7 +51,7 @@
     $dateVal = fn ($col) => old($col, optional($truck?->{$col})->format('Y-m-d'));
     $badge = function ($col) use ($docStatus) {
         $d = $docStatus[$col] ?? null;
-        if (!$d || $d['status'] === 'none') return '';
+        if (!$d || in_array($d['status'], ['none', 'optional'], true)) return '';
         $cls = ['expired' => 'tr-badge-red', 'soon' => 'tr-badge-amber', 'ok' => 'tr-badge-green'][$d['status']];
         $txt = $d['status'] === 'expired' ? __('transport.doc_expired_since', ['days' => abs($d['days'])])
             : ($d['status'] === 'soon' ? __('transport.doc_expires_in', ['days' => $d['days']]) : __('transport.doc_valid'));
@@ -107,36 +112,39 @@
 {{-- الوثائق: الاستمارة / التأمين / كرت التشغيل / الفحص الدوري --}}
 <div class="trk-sec">
     <h3>📄 {{ __('transport.truck_documents') }} <span class="text-xs text-gray-400 font-normal">— {{ __('transport.truck_documents_hint', ['days' => \App\Models\Truck::EXPIRY_ALERT_DAYS]) }}</span></h3>
+    <div id="docs-ext-note" class="rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2" style="margin:-.3rem 0 .9rem;{{ $own !== 'external' ? 'display:none' : '' }}">
+        🤝 {{ __('transport.docs_external_note') }}
+    </div>
     <div class="tr-grid tr-grid-3">
         <div>
-            <label class="tr-label">{{ __('transport.registration_number') }}</label>
+            <label class="tr-label">{{ __('transport.registration_number') }} <span class="ext-opt text-xs text-amber-600 font-normal" @if ($own !== 'external') style="display:none" @endif>({{ __('transport.optional') }})</span></label>
             <input type="text" name="registration_number" value="{{ old('registration_number', $truck->registration_number ?? '') }}" class="tr-input">
         </div>
         <div>
-            <label class="tr-label">{{ __('transport.registration_expiry') }}</label>
+            <label class="tr-label">{{ __('transport.registration_expiry') }} <span class="ext-opt text-xs text-amber-600 font-normal" @if ($own !== 'external') style="display:none" @endif>({{ __('transport.optional') }})</span></label>
             <input type="date" name="registration_expiry" value="{{ $dateVal('registration_expiry') }}" class="tr-input">
             {!! $badge('registration_expiry') !!}
         </div>
         <div></div>
         <div>
-            <label class="tr-label">{{ __('transport.insurance_company') }}</label>
+            <label class="tr-label">{{ __('transport.insurance_company') }} <span class="ext-opt text-xs text-amber-600 font-normal" @if ($own !== 'external') style="display:none" @endif>({{ __('transport.optional') }})</span></label>
             <input type="text" name="insurance_company" value="{{ old('insurance_company', $truck->insurance_company ?? '') }}" class="tr-input">
         </div>
         <div>
-            <label class="tr-label">{{ __('transport.insurance_policy_number') }}</label>
+            <label class="tr-label">{{ __('transport.insurance_policy_number') }} <span class="ext-opt text-xs text-amber-600 font-normal" @if ($own !== 'external') style="display:none" @endif>({{ __('transport.optional') }})</span></label>
             <input type="text" name="insurance_policy_number" value="{{ old('insurance_policy_number', $truck->insurance_policy_number ?? '') }}" class="tr-input">
         </div>
         <div>
-            <label class="tr-label">{{ __('transport.insurance_expiry') }}</label>
+            <label class="tr-label">{{ __('transport.insurance_expiry') }} <span class="ext-opt text-xs text-amber-600 font-normal" @if ($own !== 'external') style="display:none" @endif>({{ __('transport.optional') }})</span></label>
             <input type="date" name="insurance_expiry" value="{{ $dateVal('insurance_expiry') }}" class="tr-input">
             {!! $badge('insurance_expiry') !!}
         </div>
         <div>
-            <label class="tr-label">{{ __('transport.operating_card_number') }}</label>
+            <label class="tr-label">{{ __('transport.operating_card_number') }} <span class="ext-opt text-xs text-amber-600 font-normal" @if ($own !== 'external') style="display:none" @endif>({{ __('transport.optional') }})</span></label>
             <input type="text" name="operating_card_number" value="{{ old('operating_card_number', $truck->operating_card_number ?? '') }}" class="tr-input">
         </div>
         <div>
-            <label class="tr-label">{{ __('transport.operating_card_expiry') }}</label>
+            <label class="tr-label">{{ __('transport.operating_card_expiry') }} <span class="ext-opt text-xs text-amber-600 font-normal" @if ($own !== 'external') style="display:none" @endif>({{ __('transport.optional') }})</span></label>
             <input type="date" name="operating_card_expiry" value="{{ $dateVal('operating_card_expiry') }}" class="tr-input">
             {!! $badge('operating_card_expiry') !!}
         </div>
