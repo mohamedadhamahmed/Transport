@@ -34,6 +34,7 @@ namespace App\Support;
  *   13 = قيد مكافأة نهاية الخدمة
  *   14 = ترحيل رواتب شهرية (PayrollController@postMonth)
  *   15 = فاتورة نقليات (TransportInvoiceController)
+ *   16 = إشعار دائن نقليات (TransportCreditNoteController)
  */
 class OperationType
 {
@@ -63,6 +64,8 @@ class OperationType
 
     public const TRANSPORT_INVOICE = 15;
 
+    public const TRANSPORT_CREDIT_NOTE = 16;
+
     public const LABELS = [
         self::SALE_INVOICE => 'فاتورة مبيعات',
         self::SALE_RETURN => 'مرتجع مبيعات',
@@ -77,6 +80,7 @@ class OperationType
         self::END_OF_SERVICE => 'مكافأة نهاية الخدمة',
         self::PAYROLL => 'ترحيل رواتب شهرية',
         self::TRANSPORT_INVOICE => 'فاتورة نقليات',
+        self::TRANSPORT_CREDIT_NOTE => 'إشعار دائن نقليات',
     ];
 
     public static function label(?int $type): ?string

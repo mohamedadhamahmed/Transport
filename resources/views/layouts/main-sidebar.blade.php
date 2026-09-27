@@ -118,6 +118,7 @@
             $u?->hasPermission('transport_invoices.create') ? ['label' => __('transport.new_invoice'), 'url' => route('transport.invoices.create')] : null,
             $u?->hasPermission('transport_invoices.view') ? ['label' => __('transport.invoices'), 'url' => route('transport.invoices.index')] : null,
             $u?->hasPermission('transport_invoices.view') ? ['label' => __('transport.unbilled_loads'), 'url' => route('transport.reports.unbilled')] : null,
+            $u?->hasPermission('transport_invoices.view') ? ['label' => __('transport.cn_list'), 'url' => route('transport.credit-notes.index')] : null,
             $u?->hasPermission('transport_invoices.view') ? ['label' => __('transport.drafts'), 'url' => route('transport.invoices.index', ['status' => 'draft'])] : null,
             $u?->hasPermission('zatca.view') ? ['label' => __('transport.zatca_title'), 'url' => route('transport.zatca.index')] : null,
         ])),

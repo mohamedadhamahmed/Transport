@@ -153,10 +153,15 @@
                                             @endcan
                                         @else
                                             <a href="{{ route('transport.invoices.show', $inv) }}" class="tr-btn tr-btn-green">{{ __('transport.print') }}</a>
-                                            @if (!$inv->is_sent_to_zatca)
+                                            @if ($inv->isEditable())
                                                 @can('transport_invoices.edit')
                                                     <a href="{{ route('transport.invoices.edit', $inv) }}" class="tr-btn tr-btn-blue">{{ __('transport.edit') }}</a>
                                                 @endcan
+                                            @endif
+                                            @can('transport_invoices.edit')
+                                                <a href="{{ route('transport.credit-notes.create', $inv) }}" class="tr-btn tr-btn-red" title="{{ __('transport.cn_new') }}">↩ {{ __('transport.cn_short') }}</a>
+                                            @endcan
+                                            @if (!$inv->is_sent_to_zatca)
                                                 @can('zatca.send')
                                                     <form method="POST" action="{{ route('transport.zatca.send', $inv) }}" onsubmit="return confirm('{{ __('transport.confirm_zatca_send') }}')">
                                                         @csrf
@@ -165,7 +170,7 @@
                                                 @endcan
                                             @endif
                                         @endif
-                                        @if (!$inv->is_sent_to_zatca)
+                                        @if ($inv->isEditable())
                                             @can('transport_invoices.delete')
                                                 <form method="POST" action="{{ route('transport.invoices.destroy', $inv) }}" onsubmit="return confirm('{{ __('transport.confirm_delete_invoice') }}')">
                                                     @csrf

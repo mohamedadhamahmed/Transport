@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceReturn;
 use App\Models\Setting;
 use App\Models\TransportInvoice;
+use App\Models\TransportCreditNote;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Ramsey\Uuid\Uuid;
@@ -864,6 +865,253 @@ $delivery = (new Delivery())->setDeliveryDateTime(\Carbon\Carbon::parse($invoice
             ->setInvoiceUuid($myUuid)
             ->setInvoiceIssueDate(now()->toDateString())
             ->setInvoiceIssueTime(now()->toTimeString())
+            ->setInvoiceType($documentType === 'simplified' ? '0200000' : '0100000', '381')
+            ->setInvoiceCurrencyCode('SAR')
+            ->setInvoiceTaxCurrencyCode('SAR')
+            ->setInvoiceAdditionalDocumentReference($additionalDocumentReference)
+            ->setInvoiceBillingReference($billingReference)
+            ->setInvoiceReturnReason($returnReason)
+            ->setInvoicePIH($previousHashObj)
+            ->setInvoiceSupplier($supplier)
+            ->setInvoiceDelivery($delivery)
+            ->setInvoicePaymentType($paymentType)
+            ->setInvoiceLegalMonetaryTotal($legalMonetaryTotal)
+            ->setInvoiceTaxesTotal($taxesTotal)
+            ->setInvoiceTaxSubTotal($taxSubtotal)
+            ->setInvoiceAllowanceCharges($allowanceCharge)
+            ->setInvoiceLines(...$invoiceLines)
+            ->setCertificateEncoded($setting->production_certificate)
+            ->setPrivateKeyEncoded($setting->private_key)
+            ->setCertificateSecret($setting->production_secret);
+
+        if ($documentType === 'standard') {
+            $generator->setInvoiceClient($client);
+        }
+
+        return $generator->sendDocument(true);
+    }
+
+    // ==================================================================
+    // إشعار دائن فاتورة نقليات (381) - نفس هيكل performSendReturn بالظبط
+    // ==================================================================
+
+    /**
+     * إرسال إشعار دائن نقليات للزكاة: مستند 381 مرجعه (BillingReference) رقم
+     * الفاتورة الأصلية، وسببه (ReturnReason) السبب المكتوب في الإشعار. بيدخل
+     * في نفس سلسلة الهاش والعدّاد بتوع الفواتير.
+     */
+    public function sendTransportCreditNote(TransportCreditNote $note, Setting $setting): array
+    {
+        if ($note->is_sent_to_zatca) {
+            return ['success' => false, 'message' => __('zatca.already_sent')];
+        }
+
+        $note->loadMissing(['items', 'customer', 'invoice']);
+        $invoice = $note->invoice;
+
+        if (!$invoice || !$invoice->is_sent_to_zatca) {
+            return ['success' => false, 'message' => __('transport.cn_invoice_not_sent')];
+        }
+
+        $customer = $note->customer ?? $invoice->customer;
+        $isFullTaxNumber = !empty($customer?->tax_number) && strlen((string) $customer->tax_number) === 15;
+        $documentType = $isFullTaxNumber ? 'standard' : 'simplified';
+
+        if ($documentType === 'standard') {
+            if (
+                empty($customer->name) || empty($customer->postal_code) || empty($customer->district) ||
+                empty($customer->plot_identification) || empty($customer->building_number) ||
+                empty($customer->street_name)
+            ) {
+                return ['success' => false, 'message' => __('zatca.missing_customer_address')];
+            }
+        }
+
+        try {
+            $response = $this->buildAndSendTransportCreditNote($note, $invoice, $setting, $customer, $documentType);
+        } catch (Throwable $e) {
+            Log::error('ZATCA send (transport credit note) failed', [
+                'credit_note_id' => $note->id,
+                'exception_class' => get_class($e),
+                'exception' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            $note->update(['zatca_status' => 'FAIL', 'zatca_message' => $this->zatcaFriendlyErrorMessage($e)]);
+
+            return ['success' => false, 'message' => $this->zatcaFriendlyErrorMessage($e)];
+        }
+
+        if ($response['success'] ?? false) {
+            $setting->update([
+                'previous_hash_invoice' => $response['hash'],
+                'invoices_count' => ($setting->invoices_count ?? 0) + 1,
+            ]);
+
+            $note->update([
+                'is_sent_to_zatca' => true,
+                'zatca_status' => 'PASS',
+                'zatca_signed_at' => now(),
+                'zatca_hash' => $response['hash'],
+                'zatca_invoice_xml' => $response['xml'],
+                'zatca_cleared_invoice_xml' => $documentType === 'simplified' ? null : ($response['response']->clearedInvoice ?? null),
+                'zatca_message' => null,
+            ]);
+
+            return ['success' => true];
+        }
+
+        $rawResponse = $response['response'] ?? null;
+        $statusCode = $response['status_code'] ?? null;
+        $rawBody = $response['raw_body'] ?? null;
+
+        $message = $rawResponse->validationResults->errorMessages[0]->message
+            ?? $rawResponse->message
+            ?? (is_string($rawResponse) ? $rawResponse : null)
+            ?? ($statusCode ? $this->zatcaHttpFailureMessage($statusCode, $rawBody) : null)
+            ?? __('zatca.send_failed');
+
+        Log::error('ZATCA send (transport credit note) rejected', [
+            'credit_note_id' => $note->id,
+            'status_code' => $statusCode,
+            'raw_response' => $rawResponse,
+            'raw_body' => $rawBody,
+        ]);
+
+        $note->update(['zatca_status' => 'FAIL', 'zatca_message' => $message]);
+
+        return ['success' => false, 'message' => $message];
+    }
+
+    protected function buildAndSendTransportCreditNote(TransportCreditNote $note, TransportInvoice $invoice, Setting $setting, $customer, string $documentType)
+    {
+        $myUuid = Uuid::uuid4()->toString();
+        $previousHash = $setting->previous_hash_invoice ?: 'X+zrZv/IbzjZUnhsbWlsecLbwjndTpG0ZynXOif7V+k=';
+
+        $note->update(['zatca_invoice_uuid' => $myUuid, 'zatca_document_type' => $documentType]);
+
+        $rate = (float) $note->tax_rate;
+        $ratTax = number_format($rate * 100, 2, '.', '');
+        $lineCategory = ($rate > 0) ? 'S' : 'Z';
+
+        // الضريبة بتتوزع على السطور بالنسبة، وآخر سطر بياخد فرق التقريب عشان المجموع = ضريبة الإشعار
+        $items = $note->items->filter(fn ($i) => (float) $i->amount > 0)->values();
+        $taxLeft = round((float) $note->tax_amount, 2);
+
+        $totalWithoutTaxSum = 0;
+        $taxSum = 0;
+        $totalWithTaxSum = 0;
+        $invoiceLines = [];
+
+        foreach ($items as $idx => $row) {
+            $lineSubtotalF = round((float) $row->amount, 2);
+            $lineTaxF = $idx === $items->count() - 1 ? $taxLeft : round($lineSubtotalF * $rate, 2);
+            $taxLeft = round($taxLeft - $lineTaxF, 2);
+
+            $lineSubtotal = number_format($lineSubtotalF, 2, '.', '');
+            $lineTax = number_format($lineTaxF, 2, '.', '');
+            $lineTotal = number_format($lineSubtotalF + $lineTaxF, 2, '.', '');
+
+            $totalWithoutTaxSum += $lineSubtotalF;
+            $taxSum += $lineTaxF;
+            $totalWithTaxSum += $lineSubtotalF + $lineTaxF;
+
+            $itemTaxCategory = (new LineTaxCategory())
+                ->setTaxCategory($lineCategory)
+                ->setTaxPercentage($ratTax)
+                ->getElement();
+
+            $invoiceLines[] = (new InvoiceLine())
+                ->setLineID($idx + 1)
+                ->setLineName(mb_substr((string) $row->description, 0, 250))
+                ->setLineCurrency('SAR')
+                ->setLinePrice($lineSubtotal)
+                ->setLineQuantity(1)
+                ->setLineSubTotal($lineSubtotal)
+                ->setLineTaxTotal($lineTax)
+                ->setLineNetTotal($lineTotal)
+                ->setLineTaxCategories($itemTaxCategory)
+                ->setLineDiscountReason('Credit note')
+                ->setLineDiscountAmount(0)
+                ->getElement();
+        }
+
+        $totalWithoutTaxSum = number_format($totalWithoutTaxSum, 2, '.', '');
+        $taxSum = number_format($taxSum, 2, '.', '');
+        $totalWithTaxSum = number_format($totalWithTaxSum, 2, '.', '');
+
+        $client = (new Client())
+            ->setVatNumber($customer->tax_number)
+            ->setStreetName($customer->street_name)
+            ->setBuildingNumber($customer->building_number)
+            ->setPlotIdentification($customer->plot_identification)
+            ->setSubDivisionName($customer->district)
+            ->setCityName($customer->district)
+            ->setPostalNumber($customer->postal_code)
+            ->setCountryName('SA')
+            ->setClientName($customer->name);
+
+        $supplier = (new Supplier())
+            ->setCrn($setting->crn)
+            ->setStreetName($setting->street_name)
+            ->setBuildingNumber($setting->building_number)
+            ->setPlotIdentification($setting->plot_identification)
+            ->setSubDivisionName($setting->region)
+            ->setCityName($setting->city)
+            ->setPostalNumber($setting->postal_number)
+            ->setCountryName('SA')
+            ->setVatNumber($setting->trn)
+            ->setVatName($setting->name);
+
+        $delivery = (new Delivery())->setDeliveryDateTime(\Carbon\Carbon::parse($invoice->issue_date)->toDateString());
+        $paymentType = (new PaymentType())->setPaymentType('10');
+        $previousHashObj = (new PIH())->setPIH($previousHash);
+        $additionalDocumentReference = (new AdditionalDocumentReference())
+            ->setInvoiceID(($setting->invoices_count ?? 0) + 1);
+
+        $billingReference = (new BillingReference())
+            ->setBillingReference((string) $invoice->invoice_number);
+        $returnReason = (new ReturnReason())
+            ->setReturnReason(mb_substr($note->reason ?: ('Credit note for invoice ' . $invoice->invoice_number), 0, 250));
+
+        $legalMonetaryTotal = (new LegalMonetaryTotal())
+            ->setTotalCurrency('SAR')
+            ->setLineExtensionAmount($totalWithoutTaxSum)
+            ->setTaxExclusiveAmount($totalWithoutTaxSum)
+            ->setTaxInclusiveAmount($totalWithTaxSum)
+            ->setAllowanceTotalAmount(0)
+            ->setPrepaidAmount(0)
+            ->setPayableAmount($totalWithTaxSum);
+
+        $taxesTotal = (new TaxesTotal())->setTaxCurrencyCode('SAR')->setTaxTotal($taxSum);
+
+        $taxSubtotalObj = (new TaxSubtotal())
+            ->setTaxCurrencyCode('SAR')
+            ->setTaxableAmount($totalWithoutTaxSum)
+            ->setTaxAmount($taxSum)
+            ->setTaxCategory($lineCategory)
+            ->setTaxPercentage($ratTax);
+        if ($lineCategory === 'Z') {
+            $taxSubtotalObj->setTaxExemptionReasonCode('VATEX-SA-34-1')
+                ->setTaxExemptionReason('The international transport of Goods');
+        }
+        $taxSubtotal = $taxSubtotalObj->getElement();
+
+        $allowanceCharge = (new AllowanceCharge())
+            ->setAllowanceChargeCurrency('SAR')
+            ->setAllowanceChargeIndex('1')
+            ->setAllowanceChargeAmount(0)
+            ->setAllowanceChargeTaxCategory($lineCategory)
+            ->setAllowanceChargeTaxPercentage($ratTax)
+            ->getElement();
+
+        $generator = (new InvoiceGenerator())
+            ->setZatcaEnv($setting->is_production ? 'core' : 'simulation')
+            ->setZatcaLang('en')
+            ->setInvoiceNumber($note->credit_note_number)
+            ->setInvoiceUuid($myUuid)
+            ->setInvoiceIssueDate(\Carbon\Carbon::parse($note->issue_date)->toDateString())
+            ->setInvoiceIssueTime((string) ($note->issue_time ?: now('Asia/Riyadh')->toTimeString()))
             ->setInvoiceType($documentType === 'simplified' ? '0200000' : '0100000', '381')
             ->setInvoiceCurrencyCode('SAR')
             ->setInvoiceTaxCurrencyCode('SAR')

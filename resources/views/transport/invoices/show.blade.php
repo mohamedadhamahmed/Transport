@@ -55,6 +55,15 @@
     <div class="alert" style="background:#fff7ed;color:#c2410c;border-color:#fed7aa">📝 {{ __('transport.draft_banner') }}</div>
 @endif
 
+@if ($invoice->creditNotes->isNotEmpty())
+    <div class="alert" style="background:#fff1f2;color:#9f1239;border-color:#fecdd3">
+        ↩ {{ __('transport.cn_on_invoice') }}:
+        @foreach ($invoice->creditNotes as $cn)
+            <a href="{{ route('transport.credit-notes.show', $cn) }}" style="color:#9f1239;font-weight:800;margin-inline-start:.4rem">{{ $cn->credit_note_number }} ({{ number_format((float) $cn->total, 2) }})</a>
+        @endforeach
+    </div>
+@endif
+
 <div class="toolbar">
     <button type="button" onclick="window.print()">{{ __('transport.print') }}</button>
     @if ($invoice->is_draft)
@@ -65,7 +74,7 @@
             </form>
         @endcan
     @endif
-    @if (!$invoice->is_sent_to_zatca)
+    @if ($invoice->isEditable())
         @can('transport_invoices.edit')
             <a class="light" href="{{ route('transport.invoices.edit', $invoice) }}">{{ __('transport.edit') }}</a>
         @endcan
@@ -88,6 +97,11 @@
             @endif
         @endif
     @endif
+    @if (!$invoice->is_draft)
+        @can('transport_invoices.edit')
+            <a class="light" href="{{ route('transport.credit-notes.create', $invoice) }}" style="color:#be123c;border-color:#fecdd3">↩ {{ __('transport.cn_new') }}</a>
+        @endcan
+    @endif
     @can('transport_invoices.create')
         <a class="light" href="{{ route('transport.invoices.create') }}">{{ __('transport.new_invoice') }}</a>
     @endcan
@@ -101,8 +115,9 @@
         <div style="text-align:center;padding:6px;background:#fed7aa;color:#9a3412;font-weight:800;letter-spacing:2px">مسودة - DRAFT (غير معتمدة)</div>
     @endif
     <div class="title">
-        {{ (float) $invoice->tax_amount > 0 ? 'فاتورة ضريبية - نقليات' : 'فاتورة نقليات' }}
-        &nbsp;|&nbsp; {{ (float) $invoice->tax_amount > 0 ? 'TAX INVOICE - TRANSPORTATION' : 'TRANSPORTATION INVOICE' }}
+        {{-- الفاتورة ضريبية حتى لو نسبتها صفر (شحن خارج المملكة) - مبسطة لو العميل من غير رقم ضريبي --}}
+        {{ $invoice->isSimplified() ? 'فاتورة ضريبية مبسطة - نقليات' : 'فاتورة ضريبية - نقليات' }}
+        &nbsp;|&nbsp; {{ $invoice->isSimplified() ? 'SIMPLIFIED TAX INVOICE - TRANSPORTATION' : 'TAX INVOICE - TRANSPORTATION' }}
     </div>
 
     <div class="meta">

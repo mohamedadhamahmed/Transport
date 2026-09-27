@@ -49,6 +49,7 @@ use App\Http\Controllers\WaybillController;
 use App\Http\Controllers\TransportReportController;
 use App\Http\Controllers\TransportZatcaController;
 use App\Http\Controllers\RegionController;
+use App\Http\Controllers\TransportCreditNoteController;
 
 
 Route::get('/', function () {
@@ -430,6 +431,15 @@ Route::middleware(['auth'])->prefix('transport')->name('transport.')->group(func
     Route::resource('drivers', DriverController::class)->except(['show']);
     Route::post('invoices/{invoice}/approve', [TransportInvoiceController::class, 'approve'])->name('invoices.approve');
     Route::resource('invoices', TransportInvoiceController::class);
+
+    // الإشعارات الدائنة على فواتير النقليات (+ إرسالها للزكاة 381)
+    Route::get('credit-notes', [TransportCreditNoteController::class, 'index'])->name('credit-notes.index');
+    Route::get('invoices/{invoice}/credit-notes/create', [TransportCreditNoteController::class, 'create'])->name('credit-notes.create');
+    Route::post('invoices/{invoice}/credit-notes', [TransportCreditNoteController::class, 'store'])->name('credit-notes.store');
+    Route::get('credit-notes/{creditNote}', [TransportCreditNoteController::class, 'show'])->name('credit-notes.show');
+    Route::delete('credit-notes/{creditNote}', [TransportCreditNoteController::class, 'destroy'])->name('credit-notes.destroy');
+    Route::post('credit-notes/{creditNote}/zatca', [TransportCreditNoteController::class, 'sendZatca'])->name('credit-notes.zatca');
+    Route::get('credit-notes/{creditNote}/xml', [TransportCreditNoteController::class, 'downloadXml'])->name('credit-notes.xml');
 
     // إرسال فواتير النقليات للزكاة (بنفس كود إرسال فواتير المبيعات)
     Route::get('zatca', [TransportZatcaController::class, 'index'])->name('zatca.index');

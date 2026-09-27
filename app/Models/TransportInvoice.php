@@ -57,6 +57,12 @@ class TransportInvoice extends Model
         return $this->hasMany(TransportInvoiceItem::class);
     }
 
+    /** الإشعارات الدائنة على الفاتورة */
+    public function creditNotes()
+    {
+        return $this->hasMany(TransportCreditNote::class, 'transport_invoice_id');
+    }
+
     /** الأحمال (حركة الشاحنات) اللي اتفوترت في الفاتورة دي */
     public function loads()
     {
@@ -98,6 +104,37 @@ class TransportInvoice extends Model
         }
 
         return null;
+    }
+
+    private static ?bool $zatcaLinked = null;
+
+    /** النظام مربوط بالزكاة (فيه إعدادات فيها شهادة) */
+    public static function zatcaLinked(): bool
+    {
+        if (self::$zatcaLinked === null) {
+            try {
+                self::$zatcaLinked = Setting::query()
+                    ->where(fn ($q) => $q->whereNotNull('production_certificate')->where('production_certificate', '!=', ''))
+                    ->exists();
+            } catch (\Throwable $e) {
+                self::$zatcaLinked = false;
+            }
+        }
+
+        return self::$zatcaLinked;
+    }
+
+    /**
+     * ينفع تتعدّل/تتحذف؟ المسودة دايمًا آه. الفاتورة المعتمدة: لأ لو النظام
+     * مربوط بالزكاة أو اتبعتت أو عليها إشعار دائن - التصحيح بإشعار دائن.
+     */
+    public function isEditable(): bool
+    {
+        if ($this->is_draft) {
+            return true;
+        }
+
+        return !self::zatcaLinked() && !$this->is_sent_to_zatca && !$this->creditNotes()->exists();
     }
 
     /** فاتورة اتبعتت لزاتكا بنجاح - مينفعش تتعدّل أو تتحذف */

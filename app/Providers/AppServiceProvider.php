@@ -57,20 +57,35 @@ class AppServiceProvider extends ServiceProvider
         $setting = null;
         $systemSetting = null;
 
-        if (Schema::hasTable('settings') && Schema::hasTable('system_settings')) {
-            $setting = Setting::find(1);
-            $systemSetting = SystemSetting::find(1);
+        // بيانات الشركة (هيدر الفواتير/الـ QR) من system_settings، وبيانات الزكاة
+        // والعنوان الوطني من settings - كل واحدة لوحدها. قبل كده الثوابت كلها
+        // كانت بتتعرّف بس لو الجدولين فيهم بيانات مع بعض، فعلى أي قاعدة جديدة
+        // من غير إعدادات زكاة كان هيدر الفاتورة بيختفي والـ QR يطلع غلط.
+        try {
+            if (Schema::hasTable('settings')) {
+                $setting = Setting::find(1) ?? Setting::query()->orderBy('id')->first();
+            }
+            if (Schema::hasTable('system_settings')) {
+                $systemSetting = SystemSetting::find(1) ?? SystemSetting::query()->orderBy('id')->first();
+            }
+        } catch (\Throwable $e) {
+            // قاعدة البيانات مش جاهزة (أثناء التثبيت/الـ migrate)
         }
 
-        if ($setting && $systemSetting) {
+        if (!defined('PAGINATION_COUNT')) {
+            define('PAGINATION_COUNT', 20);
+        }
+
+        if ($setting) {
             define('postal_number', $setting->postal_number);
             define('street_name', $setting->street_name);
             define('building_number', $setting->building_number);
             define('plot_identification', $setting->plot_identification);
             define('region', $setting->region);
             define('city', $setting->city);
-            define('PAGINATION_COUNT', 20);
+        }
 
+        if ($systemSetting) {
             define('serviceCost', $systemSetting->serviceCost);
             define('bank_acount_iban', $systemSetting->bank_acount_iban);
             define('bank_acount_number', $systemSetting->bank_acount_number);
@@ -88,6 +103,14 @@ class AppServiceProvider extends ServiceProvider
             define('addressar', $systemSetting->address_ar);
             define('addressen', $systemSetting->address_en);
             define('camplogo', $systemSetting->logo);
+        } elseif ($setting) {
+            // مفيش إعدادات نظام: نستخدم بيانات الزكاة على الأقل في الهيدر والـ QR
+            define('Namear', $setting->name);
+            define('STar', ' س . ت  :' . $setting->crn);
+            define('Taxar', '  الرقم الضريبي : ' . $setting->trn);
+            define('TaxQrCode', (string) $setting->trn);
+            define('sallerQrCode', $setting->name);
+            define('addressar', trim($setting->city . ' - ' . $setting->region . ' - ' . $setting->street_name, ' -'));
         }
     }
 }

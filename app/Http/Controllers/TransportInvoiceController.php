@@ -218,7 +218,7 @@ class TransportInvoiceController extends Controller
     {
         $this->authorize('transport_invoices.view');
 
-        $invoice->load(['customer', 'branch', 'creator', 'items.truck.driver']);
+        $invoice->load(['customer', 'branch', 'creator', 'items.truck.driver', 'creditNotes']);
 
         return view('transport.invoices.show', [
             'invoice' => $invoice,
@@ -230,6 +230,11 @@ class TransportInvoiceController extends Controller
     public function edit(Request $request, TransportInvoice $invoice)
     {
         $this->authorize('transport_invoices.edit');
+
+        // مربوط بالزكاة / اتبعتت / عليها إشعار دائن: التصحيح بإشعار دائن مش بتعديل أو حذف
+        if (!$invoice->isEditable()) {
+            return redirect()->route('transport.invoices.show', $invoice)->with('error', __('transport.cn_invoice_locked'));
+        }
 
         if ($invoice->is_sent_to_zatca) {
             return redirect()->route('transport.invoices.show', $invoice)->with('error', __('transport.zatca_locked'));
@@ -247,6 +252,11 @@ class TransportInvoiceController extends Controller
     public function update(Request $request, TransportInvoice $invoice)
     {
         $this->authorize('transport_invoices.edit');
+
+        // مربوط بالزكاة / اتبعتت / عليها إشعار دائن: التصحيح بإشعار دائن مش بتعديل أو حذف
+        if (!$invoice->isEditable()) {
+            return redirect()->route('transport.invoices.show', $invoice)->with('error', __('transport.cn_invoice_locked'));
+        }
 
         if ($invoice->is_sent_to_zatca) {
             return redirect()->route('transport.invoices.show', $invoice)->with('error', __('transport.zatca_locked'));
@@ -288,6 +298,11 @@ class TransportInvoiceController extends Controller
     public function destroy(TransportInvoice $invoice)
     {
         $this->authorize('transport_invoices.delete');
+
+        // مربوط بالزكاة / اتبعتت / عليها إشعار دائن: التصحيح بإشعار دائن مش بتعديل أو حذف
+        if (!$invoice->isEditable()) {
+            return redirect()->route('transport.invoices.show', $invoice)->with('error', __('transport.cn_invoice_locked'));
+        }
 
         if ($invoice->is_sent_to_zatca) {
             return back()->with('error', __('transport.zatca_locked'));
@@ -886,21 +901,27 @@ class TransportInvoiceController extends Controller
      */
     private function zatcaQrData(TransportInvoice $invoice): string
     {
-        $seller = defined('sallerQrCode') ? (string) constant('sallerQrCode') : (string) config('app.name');
-        $vatNo = defined('TaxQrCode') ? (string) constant('TaxQrCode') : '';
-        $time = $invoice->issue_date->format('Y-m-d') . 'T' . ($invoice->issue_time ?: '00:00:00');
+        // بيانات البائع: من إعدادات النظام (نفس اللي بتتطبع في هيدر الفاتورة)، ولو
+        // مش موجودة من إعدادات الزكاة للفرع - مش من ثوابت ممكن متكونش متعرّفة
+        // (كانت بترجع "اسم التطبيق" ورقم ضريبي فاضي فالـ QR يطلع غلط).
+        $system = \App\Models\SystemSetting::find(1);
+        $zatca = \App\Models\Setting::where('branchs_id', $invoice->branch_id)->first() ?? \App\Models\Setting::query()->first();
 
-        $tlv = '';
-        foreach ([
-            1 => $seller,
-            2 => $vatNo,
-            3 => $time,
-            4 => number_format((float) $invoice->total, 2, '.', ''),
-            5 => number_format((float) $invoice->tax_amount, 2, '.', ''),
-        ] as $tag => $value) {
-            $tlv .= chr($tag) . chr(strlen($value)) . $value;
-        }
+        $seller = trim((string) ($system?->name_ar ?: $zatca?->organization_name ?: $zatca?->name ?: config('app.name')));
+        $vatNo = preg_replace('/\D/', '', (string) ($system?->Tax ?: $zatca?->trn ?: ''));
 
-        return base64_encode($tlv);
+        // وقت إصدار الفاتورة نفسها (مش وقت الطباعة) بصيغة ISO 8601 بتوقيت UTC
+        $issuedAt = \Carbon\Carbon::parse(
+            $invoice->issue_date->format('Y-m-d') . ' ' . ($invoice->issue_time ?: '00:00:00'),
+            'Asia/Riyadh'
+        )->utc()->format('Y-m-d\TH:i:s\Z');
+
+        return \App\Support\ZatcaQr::phaseOne(
+            $seller,
+            $vatNo,
+            $issuedAt,
+            (float) $invoice->total,
+            (float) $invoice->tax_amount
+        );
     }
 }
