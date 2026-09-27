@@ -37,24 +37,52 @@ class TransportDemoSeeder extends Seeder
         mt_srand(20260927); // نفس البيانات كل مرة
 
         $userId = DB::table('users')->orderBy('id')->value('id');
+        $this->say('بدء إنشاء بيانات النقليات التجريبية...');
 
-        DB::transaction(function () use ($userId) {
-            $customers = $this->customers($userId);
-            $drivers = $this->drivers($userId);
-            $trucks = $this->trucks($drivers, $userId);
+        $customers = $this->step('العملاء', fn () => $this->customers($userId));
+        $drivers = $this->step('السائقين', fn () => $this->drivers($userId));
+        $trucks = $this->step('الشاحنات', fn () => $this->trucks($drivers, $userId));
 
-            if (TruckLoad::where('notes', 'like', self::TAG . '%')->exists()) {
-                $this->command?->warn('الأحمال التجريبية موجودة بالفعل - اتعمل بس العملاء/السائقين/الشاحنات الناقصين.');
-                return;
-            }
+        if (!$customers || !$drivers || !$trucks) {
+            $this->say('وقفت: فيه خطوة فشلت فوق - ابعت رسالة الخطأ.', 'error');
+            return;
+        }
 
-            $this->loads($trucks, $drivers, $customers, $userId);
-        });
+        if (TruckLoad::where('notes', 'like', self::TAG . '%')->exists()) {
+            $this->say('الأحمال التجريبية موجودة بالفعل - لو عايز تعيدها شغّل TransportDemoCleanupSeeder الأول.', 'warn');
+        } else {
+            $this->step('الأحمال والبوالص', fn () => DB::transaction(fn () => $this->loads($trucks, $drivers, $customers, $userId)) ?? true);
+        }
 
-        $this->command?->info('تم: ' . Customer::where('notes', 'like', self::TAG . '%')->count() . ' عميل، '
+        $this->say('النتيجة: ' . Customer::where('notes', 'like', self::TAG . '%')->count() . ' عميل، '
             . Driver::where('notes', 'like', self::TAG . '%')->count() . ' سائق، '
             . Truck::where('notes', 'like', self::TAG . '%')->count() . ' شاحنة، '
-            . TruckLoad::where('notes', 'like', self::TAG . '%')->count() . ' حمل.');
+            . TruckLoad::where('notes', 'like', self::TAG . '%')->count() . ' حمل، '
+            . DB::table('waybills')->where('notes', 'like', self::TAG . '%')->count() . ' بوليصة شحن.');
+    }
+
+    /** بيشغّل خطوة ويطبع نتيجتها أو الخطأ بالتفصيل (بدل ما كل حاجة ترجع لورا بصمت) */
+    private function step(string $label, callable $fn)
+    {
+        try {
+            $result = $fn();
+            $this->say('✓ ' . $label . (is_array($result) ? ' (' . count($result) . ')' : ''));
+
+            return $result;
+        } catch (\Throwable $e) {
+            $this->say('✗ ' . $label . ': ' . $e->getMessage() . ' [' . basename($e->getFile()) . ':' . $e->getLine() . ']', 'error');
+
+            return null;
+        }
+    }
+
+    private function say(string $msg, string $level = 'info'): void
+    {
+        if ($this->command) {
+            $this->command->{$level}($msg);
+        } else {
+            echo $msg . PHP_EOL;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -373,6 +401,39 @@ class TransportDemoSeeder extends Seeder
         $load->updated_at = $unloadedLocal && !$today ? $appTime($unloadedLocal) : now();
         $load->timestamps = false;
         $load->save();
+
+        // بوليصة شحن (شحنة) مربوطة بالحمل لـ ~75% من الأحمال
+        if (Schema::hasTable('waybills') && mt_rand(1, 100) <= 75) {
+            DB::table('waybills')->insert([
+                'waybill_number' => $data['waybill_number'],
+                'issue_date' => $loadedLocal->toDateString(),
+                'truck_id' => $truck->id,
+                'driver_id' => $driver?->id,
+                'customer_id' => $customer->id,
+                'shipper_name' => $customer->name,
+                'shipper_phone' => $customer->phone,
+                'consignee_name' => ['مستودع العميل', 'موقع المشروع', 'فرع الشركة', 'مصنع الاستلام'][mt_rand(0, 3)] . ' - ' . $r[3],
+                'consignee_phone' => '05' . mt_rand(50000000, 59999999),
+                'from_region' => $r[0],
+                'from_city' => $r[2],
+                'to_region' => $r[1],
+                'to_city' => $r[3],
+                'goods_description' => $data['load_type'],
+                'packages_count' => mt_rand(1, 40),
+                'weight' => $data['weight'],
+                'loaded_at' => $data['loaded_at'],
+                'expected_unload_at' => $data['expected_unload_at'],
+                'delivered_at' => $data['unloaded_at'],
+                'freight_amount' => $price ?? 0,
+                'freight_payer' => 'customer',
+                'status' => $unloadedLocal ? 'delivered' : 'open',
+                'truck_load_id' => $load->id,
+                'notes' => self::TAG . ' بوليصة تجريبية',
+                'created_by' => $userId,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
+        }
 
         return $load;
     }

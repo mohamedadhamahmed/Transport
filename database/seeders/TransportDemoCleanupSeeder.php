@@ -25,6 +25,8 @@ class TransportDemoCleanupSeeder extends Seeder
         DB::transaction(function () use ($tag) {
             // الأحمال (غير المفوترة بس)
             $loads = TruckLoad::where('notes', 'like', $tag)->whereNull('transport_invoice_id')->pluck('id');
+            // البوالص التجريبية (غير المفوترة) تتمسح، وأي بوليصة تانية تتفك من الحمل
+            DB::table('waybills')->where('notes', 'like', $tag)->whereNull('transport_invoice_id')->delete();
             DB::table('waybills')->whereIn('truck_load_id', $loads)->update(['truck_load_id' => null]);
             $deletedLoads = TruckLoad::whereIn('id', $loads)->delete();
 
