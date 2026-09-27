@@ -14,6 +14,9 @@ use App\Models\PurchaseReturn;
 use App\Models\Supplier;
 use App\Models\TransportInvoice;
 use App\Models\TransportInvoiceItem;
+use App\Models\Truck;
+use App\Models\TruckLoad;
+use App\Support\SaudiRegions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -31,11 +34,177 @@ class DashboardController extends Controller
      * وكل الأرقام الفعلية بتتحمل بعد كده بطلب Ajax واحد (stats()) عشان
      * الصفحة متتقلش أو تستنى استعلامات قاعدة البيانات قبل ما تظهر.
      */
-    public function index()
+    public function index(Request $request)
     {
         $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $branchId = $request->integer('branch_id') ?: null;
 
-        return view('dashboard', compact('branches'));
+        return view('dashboard', ['branches' => $branches, 'branchId' => $branchId] + $this->transportOverview($branchId));
+    }
+
+    /**
+     * كل أرقام الشاشة الرئيسية الجديدة (نشاط النقل): الإيراد والربح مقارنة
+     * بنفس الفترة من الشهر اللي فات، الأحمال، حالة الأسطول، الرسوم،
+     * أكثر العملاء/الوجهات/الشاحنات، التنبيهات، وآخر الحركات.
+     * كل حاجة استعلامات تجميعية (SUM/COUNT/GROUP BY).
+     */
+    private function transportOverview(?int $branchId): array
+    {
+        $today = now()->toDateString();
+        $monthStart = now()->startOfMonth()->toDateString();
+        // نفس عدد الأيام من الشهر اللي فات (مقارنة عادلة)
+        $prevStart = now()->subMonthNoOverflow()->startOfMonth()->toDateString();
+        $prevEnd = now()->subMonthNoOverflow()->startOfMonth()->addDays(now()->day - 1)->toDateString();
+
+        $inv = fn () => TransportInvoice::query()->where('is_draft', false)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
+
+        $sumInv = fn ($from, $to) => $inv()->whereDate('issue_date', '>=', $from)->whereDate('issue_date', '<=', $to)
+            ->selectRaw('COUNT(*) as cnt, COALESCE(SUM(subtotal),0) as net, COALESCE(SUM(total),0) as total')->first();
+
+        $expenses = fn ($from, $to) => (float) DB::table('account_vouchers')
+            ->join('account_voucher_lines', 'account_voucher_lines.account_voucher_id', '=', 'account_vouchers.id')
+            ->whereNotNull('account_vouchers.truck_id')
+            ->where('account_vouchers.type', AccountVoucher::TYPE_PAYMENT)
+            ->when($branchId, fn ($q) => $q->where('account_vouchers.branch_id', $branchId))
+            ->whereDate('account_vouchers.voucher_date', '>=', $from)
+            ->whereDate('account_vouchers.voucher_date', '<=', $to)
+            ->sum('account_voucher_lines.amount');
+
+        $loadsCount = fn ($from, $to) => TruckLoad::where('status', '!=', 'cancelled')
+            ->whereDate('loaded_at', '>=', $from)->whereDate('loaded_at', '<=', $to)->count();
+
+        $m = $sumInv($monthStart, $today);
+        $p = $sumInv($prevStart, $prevEnd);
+        $mExp = $expenses($monthStart, $today);
+        $pExp = $expenses($prevStart, $prevEnd);
+        $mLoads = $loadsCount($monthStart, $today);
+        $pLoads = $loadsCount($prevStart, $prevEnd);
+        $change = fn ($now, $before) => $before > 0 ? round(($now - $before) * 100 / $before) : null;
+
+        $todayInv = $sumInv($today, $today);
+
+        // غير مفوتر
+        $unbilled = TruckLoad::unbilled()->with('waybill:id,truck_load_id,freight_amount')
+            ->where('status', 'unloaded')->get(['id', 'price', 'customer_id']);
+
+        // الرصيد النقدي (خزينة + بنوك) ومستحقات العملاء
+        $cash = (float) FinancialAccount::query()->where('is_parent', false)
+            ->whereIn('parent_account_number', [self::BANK_PARENT_ACCOUNT_NUMBER, self::CASH_PARENT_ACCOUNT_NUMBER])
+            ->when($branchId, fn ($q) => $q->where(fn ($w) => $w->where('branchs_id', $branchId)->orWhereNull('branchs_id')))
+            ->selectRaw('COALESCE(SUM(debtor_current - creditor_current), 0) as b')->value('b');
+        $receivables = (float) Customer::where('balance', '>', 0)->sum('balance');
+
+        // حالة الأسطول
+        $trucks = Truck::with(['activeLoad.truck:id,plate_number', 'activeLoad.customer:id,name', 'activeLoad.driver:id,name,phone'])
+            ->where('status', '!=', 'inactive')->get(['id', 'plate_number', 'name', 'status', 'current_region', 'driver_id']);
+        $loadedTrucks = $trucks->filter(fn ($t) => $t->activeLoad);
+        $overdue = $loadedTrucks->filter(fn ($t) => $t->activeLoad->isOverdue())
+            ->sortBy(fn ($t) => $t->activeLoad->expected_unload_at)->values();
+        $fleet = [
+            'total' => $trucks->count(),
+            'loaded' => $loadedTrucks->count() - $overdue->count(),
+            'overdue' => $overdue->count(),
+            'empty' => $trucks->filter(fn ($t) => !$t->activeLoad && $t->status === 'active')->count(),
+            'maintenance' => $trucks->filter(fn ($t) => !$t->activeLoad && $t->status === 'maintenance')->count(),
+        ];
+        $fleet['utilization'] = $fleet['total'] ? round(($fleet['loaded'] + $fleet['overdue']) * 100 / $fleet['total']) : 0;
+        $emptyByRegion = $trucks->filter(fn ($t) => !$t->activeLoad && $t->status === 'active')
+            ->groupBy(fn ($t) => $t->current_region ?: '_none')
+            ->map(fn ($g, $r) => ['label' => $r === '_none' ? __('transport.location_unknown') : SaudiRegions::name($r), 'count' => $g->count(), 'key' => $r])
+            ->sortByDesc('count')->values();
+        $upcoming = $loadedTrucks->filter(fn ($t) => !$t->activeLoad->isOverdue())
+            ->sortBy(fn ($t) => $t->activeLoad->expected_unload_at)->take(5)->values();
+
+        // رسم: الإيراد مقابل المصروفات آخر 6 شهور
+        $months = collect(range(5, 0))->map(fn ($i) => now()->subMonthsNoOverflow($i)->startOfMonth());
+        $revByMonth = $inv()->whereDate('issue_date', '>=', $months->first()->toDateString())
+            ->selectRaw("DATE_FORMAT(issue_date, '%Y-%m') as m, SUM(subtotal) as v")->groupBy('m')->pluck('v', 'm');
+        $expByMonth = DB::table('account_vouchers')
+            ->join('account_voucher_lines', 'account_voucher_lines.account_voucher_id', '=', 'account_vouchers.id')
+            ->whereNotNull('account_vouchers.truck_id')->where('account_vouchers.type', AccountVoucher::TYPE_PAYMENT)
+            ->when($branchId, fn ($q) => $q->where('account_vouchers.branch_id', $branchId))
+            ->whereDate('account_vouchers.voucher_date', '>=', $months->first()->toDateString())
+            ->selectRaw("DATE_FORMAT(account_vouchers.voucher_date, '%Y-%m') as m, SUM(account_voucher_lines.amount) as v")
+            ->groupBy('m')->pluck('v', 'm');
+        $finance = $months->map(fn ($d) => [
+            'label' => $d->translatedFormat('M Y'),
+            'revenue' => round((float) ($revByMonth[$d->format('Y-m')] ?? 0), 2),
+            'expenses' => round((float) ($expByMonth[$d->format('Y-m')] ?? 0), 2),
+        ])->map(fn ($r) => $r + ['net' => round($r['revenue'] - $r['expenses'], 2)])->values();
+
+        // رسم: الأحمال يوم بيوم آخر 14 يوم
+        $days = collect(range(13, 0))->map(fn ($i) => now()->subDays($i));
+        $loadsByDay = TruckLoad::where('status', '!=', 'cancelled')
+            ->whereDate('loaded_at', '>=', $days->first()->toDateString())
+            ->selectRaw('DATE(loaded_at) as d, COUNT(*) as c')->groupBy('d')->pluck('c', 'd');
+        $loadsTrend = $days->map(fn ($d) => ['label' => $d->format('m/d'), 'count' => (int) ($loadsByDay[$d->toDateString()] ?? 0)])->values();
+
+        // الأكثر (الشهر ده)
+        $monthLoads = TruckLoad::with(['truck:id,plate_number', 'customer:id,name'])->where('status', '!=', 'cancelled')
+            ->whereDate('loaded_at', '>=', $monthStart)->get(['id', 'truck_id', 'customer_id', 'to_region', 'weight']);
+        $topCustomers = $inv()->whereDate('issue_date', '>=', $monthStart)->with('customer:id,name')
+            ->selectRaw('customer_id, COUNT(*) as cnt, SUM(subtotal) as net')->groupBy('customer_id')
+            ->orderByDesc('net')->limit(5)->get()
+            ->map(fn ($r) => ['label' => $r->customer?->name ?? '-', 'value' => (float) $r->net, 'sub' => $r->cnt]);
+        $topDestinations = $monthLoads->groupBy('to_region')
+            ->map(fn ($g, $r) => ['label' => SaudiRegions::name($r), 'value' => $g->count()])
+            ->sortByDesc('value')->take(5)->values();
+        $topTrucks = $monthLoads->groupBy('truck_id')
+            ->map(fn ($g) => ['label' => $g->first()->truck?->plate_number ?? '-', 'value' => $g->count(), 'sub' => (float) $g->sum('weight'), 'id' => $g->first()->truck_id])
+            ->sortByDesc('value')->take(5)->values();
+
+        // تنبيهات
+        $docsLimit = now()->addDays(Truck::EXPIRY_ALERT_DAYS)->toDateString();
+        $docsAlert = Truck::where('status', '!=', 'inactive')->documentsAlert()->count();
+        $docsExpired = Truck::where('status', '!=', 'inactive')->documentsAlert(null, 'expired')->count();
+        $zatcaFailed = TransportInvoice::where('is_draft', false)->where('is_sent_to_zatca', false)->where('zatca_status', 'FAIL')->count();
+        $zatcaPending = TransportInvoice::where('is_draft', false)->where('is_sent_to_zatca', false)->count();
+        $noPrice = $unbilled->filter(fn ($l) => $l->billing_price === null)->count();
+
+        // آخر الحركات
+        $activity = TruckLoad::with(['truck:id,plate_number', 'customer:id,name'])
+            ->where('status', '!=', 'cancelled')->latest('id')->limit(6)->get()
+            ->map(fn ($l) => [
+                'type' => $l->status === 'unloaded' ? 'unloaded' : 'loaded',
+                'title' => ($l->truck?->plate_number ?? '-') . ' · ' . $l->from_label . ' ← ' . $l->to_label,
+                'sub' => trim(($l->customer?->name ?? '') . ' ' . ($l->load_type ? '· ' . $l->load_type : ''), ' ·'),
+                'at' => $l->status === 'unloaded' ? ($l->unload_recorded_at ?? $l->unloaded_at) : $l->created_at,
+                'url' => route('transport.loads.board'),
+            ])
+            ->concat($inv()->with('customer:id,name')->latest('id')->limit(6)->get(['id', 'invoice_number', 'customer_id', 'total', 'created_at'])
+                ->map(fn ($i) => [
+                    'type' => 'invoice',
+                    'title' => $i->invoice_number . ' · ' . number_format((float) $i->total, 2),
+                    'sub' => $i->customer?->name,
+                    'at' => $i->created_at,
+                    'url' => route('transport.invoices.show', $i->id),
+                ]))
+            ->sortByDesc(fn ($a) => $a['at']?->getTimestamp() ?? 0)->take(8)->values();
+
+        return [
+            'kpi' => [
+                'revenue' => (float) $m->net, 'revenue_change' => $change((float) $m->net, (float) $p->net),
+                'invoices' => (int) $m->cnt, 'total_incl' => (float) $m->total,
+                'profit' => (float) $m->net - $mExp, 'profit_change' => $change((float) $m->net - $mExp, (float) $p->net - $pExp),
+                'expenses' => $mExp,
+                'loads' => $mLoads, 'loads_change' => $change($mLoads, $pLoads),
+                'today_revenue' => (float) $todayInv->total, 'today_invoices' => (int) $todayInv->cnt,
+                'unbilled_count' => $unbilled->count(), 'unbilled_value' => (float) $unbilled->sum(fn ($l) => $l->billing_price ?? 0),
+                'cash' => $cash, 'receivables' => $receivables,
+            ],
+            'fleet' => $fleet,
+            'overdue' => $overdue->take(5),
+            'upcoming' => $upcoming,
+            'emptyByRegion' => $emptyByRegion,
+            'finance' => $finance,
+            'loadsTrend' => $loadsTrend,
+            'topCustomers' => $topCustomers,
+            'topDestinations' => $topDestinations,
+            'topTrucks' => $topTrucks,
+            'alerts' => compact('docsAlert', 'docsExpired', 'zatcaFailed', 'zatcaPending', 'noPrice'),
+            'activity' => $activity,
+        ];
     }
 
     /**

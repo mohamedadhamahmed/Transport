@@ -455,6 +455,14 @@ Route::middleware(['auth'])->prefix('transport')->name('transport.')->group(func
     // الأحمال غير المفوترة (جاهزة للفوترة)
     Route::get('reports/unbilled', [TransportReportController::class, 'unbilled'])->name('reports.unbilled');
 
+    // مركز تقارير النقليات + تقارير الفواتير/العملاء/المسارات/السائقين/كشف حساب شاحنة
+    Route::get('reports', [TransportReportController::class, 'index'])->name('reports.index');
+    Route::get('reports/sales', [TransportReportController::class, 'sales'])->name('reports.sales');
+    Route::get('reports/customers', [TransportReportController::class, 'customers'])->name('reports.customers');
+    Route::get('reports/routes', [TransportReportController::class, 'routes'])->name('reports.routes');
+    Route::get('reports/drivers', [TransportReportController::class, 'drivers'])->name('reports.drivers');
+    Route::get('reports/truck', [TransportReportController::class, 'truck'])->name('reports.truck');
+
     // المناطق (مناطق المملكة الأساسية + مناطق مضافة)
     Route::get('regions', [RegionController::class, 'index'])->name('regions.index');
     Route::post('regions', [RegionController::class, 'store'])->name('regions.store');

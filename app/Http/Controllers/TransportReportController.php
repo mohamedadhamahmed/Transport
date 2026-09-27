@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\AccountVoucher;
 use App\Models\Customer;
+use App\Models\Driver;
+use App\Models\TransportInvoice;
 use App\Models\Employee;
 use App\Models\EmployeeLoan;
 use App\Models\FinancialAccount;
@@ -226,5 +228,304 @@ class TransportReportController extends Controller
             }
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    // ==================================================================
+    // مركز تقارير النقليات + تقارير الشحنات/الفواتير/العملاء/المسارات/السائقين/الشاحنة
+    // ==================================================================
+
+    /** صلاحيات تقارير النقليات - أي واحدة منها تفتح مركز التقارير */
+    public const HUB_PERMISSIONS = [
+        'truck_loads.report', 'transport_reports.fleet', 'transport_invoices.view', 'employee_custody.view',
+    ];
+
+    /** مركز تقارير النقليات والشاحنات */
+    public function index()
+    {
+        $user = auth()->user();
+        abort_unless($user && collect(self::HUB_PERMISSIONS)->contains(fn ($p) => $user->hasPermission($p)), 403);
+
+        return view('transport.reports.index');
+    }
+
+    /** الفترة من الطلب (الافتراضي: من أول السنة لحد النهارده) */
+    private function period(Request $request, string $defaultFrom = 'year'): array
+    {
+        $from = $request->input('date_from') ?: ($defaultFrom === 'month'
+            ? now()->startOfMonth()->toDateString()
+            : now()->startOfYear()->toDateString());
+        $to = $request->input('date_to') ?: now()->toDateString();
+
+        return [$from, $to];
+    }
+
+    /** CSV بيفتح في Excel بالعربي */
+    private function csv(string $name, array $head, iterable $rows)
+    {
+        return response()->streamDownload(function () use ($head, $rows) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, $head);
+            foreach ($rows as $r) {
+                fputcsv($out, $r);
+            }
+            fclose($out);
+        }, $name . '-' . now()->format('Y-m-d') . '.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /**
+     * تقرير فواتير النقل (المبيعات): الإجماليات، شهر بشهر، حسب العميل،
+     * وقايمة الفواتير.
+     */
+    public function sales(Request $request)
+    {
+        $this->authorize('transport_invoices.view');
+        [$from, $to] = $this->period($request, 'month');
+
+        $invoices = TransportInvoice::with('customer:id,name,tax_number')
+            ->where('is_draft', false)
+            ->whereDate('issue_date', '>=', $from)
+            ->whereDate('issue_date', '<=', $to)
+            ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->input('customer_id')))
+            ->orderByDesc('issue_date')->orderByDesc('id')
+            ->get(['id', 'invoice_number', 'customer_id', 'issue_date', 'trips_count', 'subtotal', 'tax_amount', 'total',
+                'credit_amount', 'payment_method', 'is_sent_to_zatca', 'zatca_status']);
+
+        if ($request->input('export') === 'excel') {
+            return $this->csv('transport-sales', [
+                __('transport.invoice_number'), __('transport.date'), __('transport.customer'), __('transport.vat_number'),
+                __('transport.trips_count'), __('transport.before_tax'), __('transport.tax_amount'), __('transport.grand_total'),
+            ], $invoices->map(fn ($i) => [
+                $i->invoice_number, $i->issue_date?->format('Y-m-d'), $i->customer?->name, $i->customer?->tax_number,
+                $i->trips_count, $i->subtotal, $i->tax_amount, $i->total,
+            ]));
+        }
+
+        $count = $invoices->count();
+        $summary = [
+            'count' => $count,
+            'subtotal' => (float) $invoices->sum('subtotal'),
+            'tax' => (float) $invoices->sum('tax_amount'),
+            'total' => (float) $invoices->sum('total'),
+            'credit' => (float) $invoices->sum('credit_amount'),
+            'trips' => (int) $invoices->sum('trips_count'),
+            'avg' => $count ? (float) $invoices->avg('total') : 0,
+            'zatca_pending' => $invoices->where('is_sent_to_zatca', false)->count(),
+        ];
+
+        $monthly = $invoices->groupBy(fn ($i) => $i->issue_date->format('Y-m'))
+            ->map(fn ($g, $m) => ['month' => $m, 'count' => $g->count(), 'subtotal' => (float) $g->sum('subtotal'),
+                'tax' => (float) $g->sum('tax_amount'), 'total' => (float) $g->sum('total')])
+            ->sortKeys()->values();
+
+        $byCustomer = $invoices->groupBy('customer_id')
+            ->map(fn ($g) => ['customer' => $g->first()->customer, 'count' => $g->count(), 'trips' => (int) $g->sum('trips_count'),
+                'subtotal' => (float) $g->sum('subtotal'), 'tax' => (float) $g->sum('tax_amount'), 'total' => (float) $g->sum('total')])
+            ->sortByDesc('total')->values();
+
+        return view('transport.reports.sales', [
+            'from' => $from, 'to' => $to,
+            'summary' => $summary, 'monthly' => $monthly, 'byCustomer' => $byCustomer,
+            'invoices' => $invoices->take(300),
+            'customers' => Customer::orderBy('name')->pluck('name', 'id'),
+        ]);
+    }
+
+    /** أكثر العملاء شحنًا: أحمال + وزن + إيراد مفوتر + أحمال لسه متفوترتش */
+    public function customers(Request $request)
+    {
+        $this->authorize('transport_invoices.view');
+        [$from, $to] = $this->period($request);
+
+        $loads = TruckLoad::where('status', '!=', 'cancelled')->whereNotNull('customer_id')
+            ->whereDate('loaded_at', '>=', $from)->whereDate('loaded_at', '<=', $to)
+            ->get(['id', 'customer_id', 'weight', 'status', 'loaded_at', 'to_region']);
+
+        $revenue = TransportInvoice::where('is_draft', false)
+            ->whereDate('issue_date', '>=', $from)->whereDate('issue_date', '<=', $to)
+            ->groupBy('customer_id')
+            ->selectRaw('customer_id, COUNT(*) as invoices, SUM(subtotal) as subtotal, SUM(total) as total')
+            ->get()->keyBy('customer_id');
+
+        $unbilled = TruckLoad::unbilled()->with('waybill:id,truck_load_id,freight_amount')
+            ->whereNotNull('customer_id')->get(['id', 'customer_id', 'price', 'status'])
+            ->groupBy('customer_id')
+            ->map(fn ($g) => ['count' => $g->count(), 'value' => (float) $g->sum(fn ($l) => $l->billing_price ?? 0)]);
+
+        $ids = $loads->pluck('customer_id')->merge($revenue->keys())->merge($unbilled->keys())->unique()->filter();
+        $names = Customer::whereIn('id', $ids)->pluck('name', 'id');
+
+        $rows = $ids->map(function ($id) use ($loads, $revenue, $unbilled, $names) {
+            $l = $loads->where('customer_id', $id);
+            $topDest = $l->groupBy('to_region')->sortByDesc(fn ($g) => $g->count())->keys()->first();
+
+            return [
+                'id' => $id,
+                'name' => $names[$id] ?? ('#' . $id),
+                'loads' => $l->count(),
+                'weight' => (float) $l->sum('weight'),
+                'last' => $l->max('loaded_at'),
+                'top_dest' => $topDest ? SaudiRegions::name($topDest) : '-',
+                'invoices' => (int) ($revenue[$id]->invoices ?? 0),
+                'subtotal' => (float) ($revenue[$id]->subtotal ?? 0),
+                'total' => (float) ($revenue[$id]->total ?? 0),
+                'unbilled_count' => $unbilled[$id]['count'] ?? 0,
+                'unbilled_value' => $unbilled[$id]['value'] ?? 0,
+            ];
+        });
+
+        $sort = in_array($request->input('sort'), ['loads', 'total', 'weight', 'unbilled_value'], true) ? $request->input('sort') : 'loads';
+        $rows = $rows->sortByDesc($sort)->values();
+
+        if ($request->input('export') === 'excel') {
+            return $this->csv('top-customers', [
+                __('transport.customer'), __('transport.loads_count'), __('transport.total_weight'), __('transport.top_destination'),
+                __('transport.invoices_count'), __('transport.before_tax'), __('transport.grand_total'), __('transport.unbilled_count'), __('transport.unbilled_value'),
+            ], $rows->map(fn ($r) => [$r['name'], $r['loads'], $r['weight'], $r['top_dest'], $r['invoices'], $r['subtotal'], $r['total'], $r['unbilled_count'], $r['unbilled_value']]));
+        }
+
+        return view('transport.reports.customers', compact('from', 'to', 'rows', 'sort'));
+    }
+
+    /** أكثر مناطق التحميل والتنزيل والمسارات (عدد + وزن + متوسط المدة + التأخير + الإيراد) */
+    public function routes(Request $request)
+    {
+        $this->authorize('truck_loads.report');
+        [$from, $to] = $this->period($request);
+
+        $loads = TruckLoad::where('status', '!=', 'cancelled')
+            ->whereDate('loaded_at', '>=', $from)->whereDate('loaded_at', '<=', $to)
+            ->get(['id', 'from_region', 'to_region', 'from_city', 'to_city', 'weight', 'status', 'loaded_at', 'expected_unload_at', 'unloaded_at']);
+
+        $revByLoad = TransportInvoiceItem::whereIn('truck_load_id', $loads->pluck('id'))
+            ->whereHas('invoice', fn ($q) => $q->where('is_draft', false))
+            ->pluck('line_total', 'truck_load_id');
+
+        $stats = function ($g) use ($revByLoad) {
+            $done = $g->where('status', 'unloaded')->filter(fn ($l) => $l->unloaded_at);
+            $mins = $done->map(fn ($l) => $l->loaded_at->diffInMinutes($l->unloaded_at))->filter(fn ($m) => $m > 0);
+
+            return [
+                'count' => $g->count(),
+                'weight' => (float) $g->sum('weight'),
+                'avg_hours' => $mins->count() ? round($mins->avg() / 60, 1) : null,
+                'late' => $done->filter->wasLate()->count() + $g->filter->isOverdue()->count(),
+                'revenue' => (float) $g->sum(fn ($l) => $revByLoad[$l->id] ?? 0),
+            ];
+        };
+
+        $origins = $loads->groupBy('from_region')->map(fn ($g, $r) => ['label' => SaudiRegions::name($r)] + $stats($g))->sortByDesc('count')->values();
+        $destinations = $loads->groupBy('to_region')->map(fn ($g, $r) => ['label' => SaudiRegions::name($r)] + $stats($g))->sortByDesc('count')->values();
+        $routes = $loads->groupBy(fn ($l) => $l->from_region . '|' . $l->to_region)
+            ->map(fn ($g) => ['label' => SaudiRegions::name($g->first()->from_region) . ' ← ' . SaudiRegions::name($g->first()->to_region)] + $stats($g))
+            ->sortByDesc('count')->values();
+        $cities = $loads->filter(fn ($l) => $l->to_city)->groupBy(fn ($l) => trim($l->to_city))
+            ->map(fn ($g, $c) => ['label' => $c . ' (' . SaudiRegions::name($g->first()->to_region) . ')', 'count' => $g->count()])
+            ->sortByDesc('count')->take(15)->values();
+
+        return view('transport.reports.routes', [
+            'from' => $from, 'to' => $to,
+            'total' => $loads->count(),
+            'origins' => $origins, 'destinations' => $destinations, 'routes' => $routes, 'cities' => $cities,
+        ]);
+    }
+
+    /** أداء السائقين: عدد الأحمال، الالتزام بالمواعيد، متوسط مدة الرحلة */
+    public function drivers(Request $request)
+    {
+        $this->authorize('truck_loads.report');
+        [$from, $to] = $this->period($request);
+
+        $loads = TruckLoad::where('status', '!=', 'cancelled')->whereNotNull('driver_id')
+            ->whereDate('loaded_at', '>=', $from)->whereDate('loaded_at', '<=', $to)
+            ->get(['id', 'driver_id', 'truck_id', 'weight', 'status', 'loaded_at', 'expected_unload_at', 'unloaded_at']);
+
+        $drivers = Driver::whereIn('id', $loads->pluck('driver_id')->unique())->get(['id', 'name', 'phone'])->keyBy('id');
+
+        $rows = $loads->groupBy('driver_id')->map(function ($g, $id) use ($drivers) {
+            $done = $g->where('status', 'unloaded')->filter(fn ($l) => $l->unloaded_at);
+            $late = $done->filter->wasLate()->count();
+            $mins = $done->map(fn ($l) => $l->loaded_at->diffInMinutes($l->unloaded_at))->filter(fn ($m) => $m > 0);
+
+            return [
+                'driver' => $drivers[$id] ?? null,
+                'loads' => $g->count(),
+                'done' => $done->count(),
+                'on_road' => $g->where('status', 'loaded')->count(),
+                'overdue' => $g->filter->isOverdue()->count(),
+                'late' => $late,
+                'on_time_pct' => $done->count() ? round(($done->count() - $late) * 100 / $done->count()) : null,
+                'avg_hours' => $mins->count() ? round($mins->avg() / 60, 1) : null,
+                'weight' => (float) $g->sum('weight'),
+                'trucks' => $g->pluck('truck_id')->unique()->count(),
+            ];
+        })->sortByDesc('loads')->values();
+
+        return view('transport.reports.drivers', compact('from', 'to', 'rows'));
+    }
+
+    /** كشف حساب شاحنة: أحمالها + إيرادها + مصروفاتها وصيانتها + صافي الربح + نسبة التشغيل */
+    public function truck(Request $request)
+    {
+        $this->authorize('transport_reports.fleet');
+        [$from, $to] = $this->period($request);
+
+        $trucks = Truck::orderBy('plate_number')->get(['id', 'plate_number', 'name', 'type', 'ownership', 'status']);
+        $truck = $request->filled('truck_id') ? Truck::with('driver:id,name,phone')->find($request->input('truck_id')) : null;
+
+        $data = null;
+        if ($truck) {
+            $loads = TruckLoad::with(['customer:id,name', 'driver:id,name'])
+                ->where('truck_id', $truck->id)->where('status', '!=', 'cancelled')
+                ->whereDate('loaded_at', '>=', $from)->whereDate('loaded_at', '<=', $to)
+                ->orderByDesc('loaded_at')->get();
+
+            $items = TransportInvoiceItem::with('invoice:id,invoice_number,customer_id,issue_date,is_draft', 'invoice.customer:id,name')
+                ->where('truck_id', $truck->id)
+                ->whereHas('invoice', fn ($q) => $q->where('is_draft', false)
+                    ->whereDate('issue_date', '>=', $from)->whereDate('issue_date', '<=', $to))
+                ->get();
+
+            $vouchers = AccountVoucher::with('lines')
+                ->where('truck_id', $truck->id)->where('type', AccountVoucher::TYPE_PAYMENT)
+                ->whereDate('voucher_date', '>=', $from)->whereDate('voucher_date', '<=', $to)
+                ->orderByDesc('voucher_date')->get();
+
+            // نسبة التشغيل = ساعات الشاحنة وهي محمّلة ÷ ساعات الفترة
+            $periodStart = \Carbon\Carbon::parse($from)->startOfDay();
+            $periodEnd = \Carbon\Carbon::parse($to)->endOfDay()->min(now());
+            $periodHours = max(1, $periodStart->diffInHours($periodEnd));
+            $loadedHours = $loads->sum(function ($l) use ($periodStart, $periodEnd) {
+                $s = $l->loaded_at->copy()->max($periodStart);
+                $e = ($l->unloaded_at ?? now())->copy()->min($periodEnd);
+
+                return $e->gt($s) ? $s->diffInMinutes($e) / 60 : 0;
+            });
+
+            $revenue = (float) $items->sum('line_total');
+            $expenses = (float) $vouchers->sum(fn ($v) => $v->total_amount);
+            $byCategory = $vouchers->groupBy(fn ($v) => $v->expenseCategoryLabel() ?: __('transport.other'))
+                ->map(fn ($g, $label) => ['label' => $label, 'count' => $g->count(), 'total' => (float) $g->sum(fn ($v) => $v->total_amount)])
+                ->sortByDesc('total')->values();
+
+            $data = [
+                'loads' => $loads,
+                'items' => $items,
+                'vouchers' => $vouchers,
+                'byCategory' => $byCategory,
+                'summary' => [
+                    'loads' => $loads->count(),
+                    'weight' => (float) $loads->sum('weight'),
+                    'revenue' => $revenue,
+                    'expenses' => $expenses,
+                    'maintenance' => (float) $vouchers->whereIn('expense_category', ['maintenance', 'spare_parts', 'tires', 'oil'])->sum(fn ($v) => $v->total_amount),
+                    'net' => $revenue - $expenses,
+                    'utilization' => round(min(100, $loadedHours * 100 / $periodHours)),
+                    'late' => $loads->filter->wasLate()->count(),
+                ],
+            ];
+        }
+
+        return view('transport.reports.truck', compact('from', 'to', 'trucks', 'truck', 'data'));
     }
 }

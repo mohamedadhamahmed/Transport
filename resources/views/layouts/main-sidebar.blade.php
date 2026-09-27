@@ -212,6 +212,7 @@
             $u?->hasPermission('maintenance.create') ? ['label' => __('transport.new_maintenance'), 'url' => route('vouchers.create', ['type' => 'payment', 'maintenance' => 1])] : null,
             $u?->hasPermission('maintenance.view') ? ['label' => __('transport.maintenance_vouchers'), 'url' => route('vouchers.index', ['type' => 'payment', 'maintenance' => 1])] : null,
             $u?->hasPermission('transport_reports.fleet') ? ['label' => __('transport.fleet_report'), 'url' => route('transport.reports.fleet')] : null,
+            $u?->hasPermission('transport_reports.fleet') ? ['label' => __('transport.truck_statement'), 'url' => route('transport.reports.truck')] : null,
         ])),
         ],
         ],
@@ -283,7 +284,10 @@
         'label' => __('reports.section_title'),
         'icon' => 'doc',
         'items' => array_values(array_filter([
-            ($u?->hasPermission('reports_accounting.trial_balance')
+            ($u?->hasPermission('truck_loads.report')
+                || $u?->hasPermission('transport_reports.fleet')
+                || $u?->hasPermission('transport_invoices.view')
+                || $u?->hasPermission('reports_accounting.trial_balance')
                 || $u?->hasPermission('reports_accounting.balance_sheet')
                 || $u?->hasPermission('reports_accounting.income_statement')
                 || $u?->hasPermission('reports_accounting.equity_changes')
@@ -304,6 +308,8 @@
                 || $u?->hasPermission('reports_hr.leaves')
 )
                 ? ['label' => __('reports.hub_title'), 'url' => route('reports.index')] : null,
+            ($u?->hasPermission('truck_loads.report') || $u?->hasPermission('transport_reports.fleet') || $u?->hasPermission('transport_invoices.view'))
+                ? ['label' => __('transport.transport_reports'), 'url' => route('transport.reports.index')] : null,
             $u?->hasPermission('reports_accounting.trial_balance') ? ['label' => __('reports.accounts.trial_balance'), 'url' => route('reports.accounts.trial-balance')] : null,
             $u?->hasPermission('reports_accounting.income_statement') ? ['label' => __('reports.accounts.income_statement'), 'url' => route('reports.accounts.income-statement')] : null,
             $u?->hasPermission('reports_accounting.balance_sheet') ? ['label' => __('reports.accounts.balance_sheet'), 'url' => route('reports.accounts.balance-sheet')] : null,

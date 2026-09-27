@@ -1,700 +1,469 @@
 <x-app-layout>
+    @include('transport.partials.tv-styles')
+    @php
+        $u = auth()->user();
+        $canMoney = $u?->can('transport_invoices.view');
+        $canFleet = $u?->can('truck_loads.view');
+        $canExp = $u?->can('transport_reports.fleet') || $u?->can('maintenance.view');
+        $canCash = $u?->can('accounts.view') || $u?->can('vouchers.view');
+        $hour = (int) now('Asia/Riyadh')->format('H');
+        $greet = $hour < 12 ? __('transport.db_good_morning') : __('transport.db_good_evening');
+        $money = fn ($v) => number_format((float) $v, 2);
+        $short = function ($v) {
+            $v = (float) $v; $a = abs($v);
+            if ($a >= 1000000) return rtrim(rtrim(number_format($v / 1000000, 2), '0'), '.') . ' ' . __('transport.db_million');
+            if ($a >= 10000) return rtrim(rtrim(number_format($v / 1000, 1), '0'), '.') . ' ' . __('transport.db_thousand');
+            return number_format($v, 0);
+        };
+        $trend = function ($pct, $inverse = false) {
+            if ($pct === null) return '';
+            $up = $pct >= 0; $good = $inverse ? !$up : $up;
+            return '<span class="db-trend ' . ($good ? 'up' : 'down') . '">' . ($up ? '▲' : '▼') . ' ' . abs($pct) . '%</span>';
+        };
+        $quick = collect([
+            $u?->can('truck_loads.manage') ? ['label' => __('transport.db_load_truck'), 'url' => route('transport.loads.board', ['status' => 'empty']), 'icon' => '📦'] : null,
+            $u?->can('transport_invoices.create') ? ['label' => __('transport.new_invoice'), 'url' => route('transport.invoices.create'), 'icon' => '🧾'] : null,
+            $u?->can('waybills.create') ? ['label' => __('transport.new_waybill'), 'url' => route('transport.waybills.create'), 'icon' => '📄'] : null,
+            $u?->can('maintenance.create') ? ['label' => __('transport.new_maintenance'), 'url' => route('vouchers.create', ['type' => 'payment', 'maintenance' => 1]), 'icon' => '🔧'] : null,
+            $u?->can('vouchers.create') ? ['label' => __('vouchers.new_receipt'), 'url' => route('vouchers.create', ['type' => 'receipt']), 'icon' => '💵'] : null,
+            $u?->can('customers.create') ? ['label' => __('customers.new_customer'), 'url' => route('customers.create'), 'icon' => '👤'] : null,
+        ])->filter()->values();
+        $f = $fleet;
+        $seg = fn ($n) => $f['total'] ? ($n * 100 / $f['total']) : 0;
+    @endphp
 
-    <div class="py-6">
-        <div class="dc-max-w-page mx-auto sm:px-6 lg:px-8 space-y-6">
+    <style>
+        .db { display: flex; flex-direction: column; gap: 1.25rem; max-width: 1680px; margin: 0 auto; }
+        .db-hero { position: relative; overflow: hidden; border-radius: 20px; padding: 1.5rem 1.75rem; color: #fff;
+            background: radial-gradient(1200px 300px at 10% -40%, rgba(20,86,232,.55), transparent 60%), linear-gradient(135deg, #0B1640 0%, #13235C 55%, #1B2C63 100%); box-shadow: 0 10px 30px rgba(15,27,76,.18); }
+        .db-hero::after { content: ''; position: absolute; inset-inline-end: -40px; bottom: -60px; width: 260px; height: 260px; border-radius: 50%; background: rgba(245,129,30,.12); }
+        .db-hero-top { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+        .db-hero h1 { font-size: 1.45rem; font-weight: 800; }
+        .db-hero p { color: rgba(255,255,255,.62); font-size: .85rem; margin-top: .25rem; }
+        .db-clock { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: .5rem .9rem; text-align: center; }
+        .db-clock b { font-size: 1.15rem; font-variant-numeric: tabular-nums; display: block; }
+        .db-clock span { font-size: .72rem; color: rgba(255,255,255,.6); }
+        .db-hero-stats { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: .75rem; margin-top: 1.25rem; }
+        @media (min-width: 900px) { .db-hero-stats { grid-template-columns: repeat(4, 1fr); } }
+        .db-hs { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); border-radius: 14px; padding: .8rem 1rem; }
+        .db-hs .l { font-size: .74rem; color: rgba(255,255,255,.6); }
+        .db-hs .v { font-size: 1.35rem; font-weight: 800; margin-top: .2rem; }
+        .db-hs .v small { font-size: .72rem; font-weight: 600; color: rgba(255,255,255,.55); }
+        .db-quick { position: relative; z-index: 1; display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1.1rem; }
+        .db-quick a { display: inline-flex; align-items: center; gap: .4rem; padding: .5rem .9rem; border-radius: 10px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15); font-size: .8rem; font-weight: 700; color: #fff; transition: .15s; }
+        .db-quick a:hover { background: #fff; color: #0F1B4C; }
+        .db-branch { position: relative; z-index: 1; }
+        .db-branch select { background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; padding: .35rem 2rem .35rem .75rem; font-size: .8rem; }
+        .db-branch option { color: #111; }
 
-            {{-- هيدر ترحيبي بلون البراند الكحلي: ترحيب + ساعة/تاريخ حي +
-                 فلتر الفرع (بارز في بلوك لوحده عشان يبان واضح إنه فلتر
-                 فعلي، مش مجرد تفصيلة صغيرة في الزاوية) --}}
-            <div class="dash-anim rounded-2xl bg-gradient-to-l from-[#0F1B4C] to-[#1B2C63] px-5 sm:px-6 py-5 shadow-lg shadow-[#0F1B4C]/15 flex items-center justify-between flex-wrap gap-4">
+        .db-kpis { display: grid; grid-template-columns: repeat(1, 1fr); gap: 1rem; }
+        @media (min-width: 640px) { .db-kpis { grid-template-columns: repeat(2, 1fr); } }
+        @media (min-width: 1200px) { .db-kpis { grid-template-columns: repeat(4, 1fr); } }
+        .db-kpi { background: #fff; border: 1px solid #eef0f5; border-radius: 16px; padding: 1.1rem 1.2rem; position: relative; overflow: hidden; transition: .15s; display: block; }
+        .db-kpi:hover { box-shadow: 0 8px 22px rgba(15,27,76,.07); transform: translateY(-2px); }
+        .db-kpi .ic { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+        .db-kpi .l { font-size: .78rem; font-weight: 700; color: #6b7280; margin-top: .8rem; }
+        .db-kpi .v { font-size: 1.6rem; font-weight: 800; color: #0F1B4C; margin-top: .15rem; line-height: 1.2; }
+        .db-kpi .v small { font-size: .75rem; color: #9ca3af; font-weight: 600; }
+        .db-kpi .s { font-size: .74rem; color: #9ca3af; margin-top: .35rem; display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+        .db-kpi .top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .db-trend { font-size: .72rem; font-weight: 800; padding: .15rem .5rem; border-radius: 99px; }
+        .db-trend.up { background: #ecfdf5; color: #047857; }
+        .db-trend.down { background: #fff1f2; color: #be123c; }
+
+        .db-grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+        @media (min-width: 1200px) { .db-grid-2-1 { grid-template-columns: 2fr 1fr; } .db-grid-3 { grid-template-columns: repeat(3, 1fr); } .db-grid-1-1 { grid-template-columns: 1fr 1fr; } }
+        .db-card { background: #fff; border: 1px solid #eef0f5; border-radius: 16px; padding: 1.2rem 1.3rem; min-width: 0; }
+        .db-card-h { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-bottom: 1rem; }
+        .db-card-h h3 { font-weight: 800; color: #0F1B4C; font-size: .98rem; display: flex; align-items: center; gap: .45rem; }
+        .db-card-h a { font-size: .75rem; font-weight: 700; color: #1456E8; }
+
+        .db-fleet-bar { display: flex; height: 14px; border-radius: 99px; overflow: hidden; background: #f1f5f9; gap: 2px; }
+        .db-fleet-bar span { display: block; height: 100%; }
+        .db-fleet-legend { display: grid; grid-template-columns: repeat(2, 1fr); gap: .6rem; margin-top: 1rem; }
+        @media (min-width: 700px) { .db-fleet-legend { grid-template-columns: repeat(4, 1fr); } }
+        .db-fl { border: 1px solid #eef0f5; border-radius: 12px; padding: .6rem .8rem; display: block; }
+        .db-fl:hover { border-color: #cddcfb; }
+        .db-fl .n { font-size: 1.4rem; font-weight: 800; }
+        .db-fl .t { font-size: .74rem; color: #6b7280; display: flex; align-items: center; gap: .35rem; }
+        .db-fl .t i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+        .db-ring { --p: 0; width: 92px; height: 92px; border-radius: 50%; background: conic-gradient(#1456E8 calc(var(--p) * 1%), #eef2ff 0); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .db-ring div { width: 72px; height: 72px; border-radius: 50%; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .db-ring b { font-size: 1.2rem; color: #0F1B4C; font-weight: 800; }
+        .db-ring small { font-size: .62rem; color: #6b7280; }
+
+        .db-list { display: flex; flex-direction: column; }
+        .db-li { display: flex; align-items: center; gap: .75rem; padding: .6rem 0; border-bottom: 1px dashed #eef0f5; }
+        .db-li:last-child { border-bottom: 0; }
+        .db-li .rk { width: 26px; height: 26px; border-radius: 8px; background: #f1f5f9; color: #475569; font-size: .75rem; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .db-li .nm { flex: 1; min-width: 0; font-size: .85rem; font-weight: 700; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .db-li .nm small { display: block; font-weight: 500; color: #9ca3af; font-size: .72rem; }
+        .db-li .vl { font-size: .85rem; font-weight: 800; color: #0F1B4C; white-space: nowrap; }
+        .db-li .bar { height: 5px; border-radius: 99px; background: #f1f5f9; margin-top: .3rem; overflow: hidden; }
+        .db-li .bar span { display: block; height: 100%; border-radius: 99px; }
+
+        .db-truck { display: flex; align-items: center; gap: .75rem; padding: .65rem .75rem; border-radius: 12px; border: 1px solid #eef0f5; border-inline-start: 4px solid #F5811E; }
+        .db-truck + .db-truck { margin-top: .5rem; }
+        .db-truck.late { border-inline-start-color: #e11d48; background: #fff8f8; }
+        .db-truck .p { font-weight: 800; color: #0F1B4C; font-size: .9rem; }
+        .db-truck .r { font-size: .76rem; color: #6b7280; }
+        .db-truck .tm { margin-inline-start: auto; font-size: .72rem; font-weight: 800; padding: .25rem .55rem; border-radius: 8px; background: #fff7ed; color: #c2410c; white-space: nowrap; }
+        .db-truck.late .tm { background: #ffe4e6; color: #be123c; }
+
+        .db-alert { display: flex; gap: .7rem; align-items: center; padding: .7rem .8rem; border-radius: 12px; font-size: .82rem; font-weight: 600; }
+        .db-alert + .db-alert { margin-top: .5rem; }
+        .db-alert .n { margin-inline-start: auto; font-weight: 800; font-size: .95rem; }
+        .db-alert.red { background: #fff1f2; color: #9f1239; }
+        .db-alert.amber { background: #fffbeb; color: #92400e; }
+        .db-alert.blue { background: #eef4ff; color: #1e3a8a; }
+        .db-alert.green { background: #ecfdf5; color: #065f46; }
+
+        .db-act { display: flex; gap: .75rem; padding: .55rem 0; align-items: flex-start; }
+        .db-act .dot { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: .85rem; flex-shrink: 0; }
+        .db-act .t { font-size: .82rem; font-weight: 700; color: #1f2937; }
+        .db-act .s { font-size: .72rem; color: #9ca3af; }
+        .db-regions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: 1rem; }
+        .db-regions a { font-size: .74rem; font-weight: 700; padding: .3rem .65rem; border-radius: 99px; background: #ecfdf5; color: #047857; }
+        .db-empty { text-align: center; color: #9ca3af; font-size: .82rem; padding: 1.5rem 0; }
+    </style>
+
+    <div class="db">
+        {{-- ===== الهيدر ===== --}}
+        <div class="db-hero">
+            <div class="db-hero-top">
                 <div>
-                    <h2 class="text-white font-bold text-lg">
-                        {{ __('messages.dashboard_welcome') }}{{ auth()->user()?->name ? '، ' . auth()->user()->name : '' }} 👋
-                    </h2>
-                    <p class="text-white/60 text-sm mt-1">{{ __('messages.dashboard_subtitle') }}</p>
+                    <h1>{{ $greet }}{{ $u?->name ? '، ' . $u->name : '' }} 👋</h1>
+                    <p>{{ __('transport.db_subtitle') }}</p>
                 </div>
-                <div class="flex flex-col items-end gap-1">
-                    <p class="text-white font-semibold text-sm tabular-nums bg-white/10 rounded-lg px-3 py-1 flex items-center gap-1.5" id="dashboard-clock">
-                        <svg class="w-3.5 h-3.5 text-white/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-                        <span id="dashboard-clock-time">--:--:--</span>
-                    </p>
-                    <p class="text-white/60 text-xs" id="dashboard-today-date"></p>
+                <div class="flex items-center gap-3">
+                    @if ($branches->count() > 1 && $canMoney)
+                        <form method="GET" class="db-branch">
+                            <select name="branch_id" onchange="this.form.submit()">
+                                <option value="">{{ __('messages.dashboard_all_branches') }}</option>
+                                @foreach ($branches as $b)
+                                    <option value="{{ $b->id }}" @selected($branchId === $b->id)>{{ $b->name }}</option>
+                                @endforeach
+                            </select>
+                        </form>
+                    @endif
+                    <div class="db-clock"><b id="db-time">--:--</b><span id="db-date"></span></div>
                 </div>
             </div>
 
-            {{-- حالة الشاحنات (قسم النقليات) - ظاهر لكل المستخدمين --}}
-            @include('transport.partials.dashboard-trucks')
-
-            {{-- شريط الفرع: select بارز + شارة واضحة تأكّد إن كل الشاشة
-                 تحتها فعلاً بتعرض بيانات الفرع المختار (أو كل الفروع) --}}
-            <div class="dash-anim bg-white rounded-xl border border-gray-100 shadow-sm px-4 sm:px-5 py-3 flex items-center justify-between flex-wrap gap-3" style="--dash-delay: 20ms">
-                <div class="flex items-center gap-2.5">
-                    <span class="w-8 h-8 rounded-lg bg-[#1456E8]/10 text-[#1456E8] flex items-center justify-center shrink-0">
-                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.4 7-11.5A7 7 0 0 0 5 9.5C5 14.6 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
-                    </span>
-                    <label for="dashboard-branch-filter" class="text-xs font-medium text-gray-500 shrink-0">{{ __('messages.dashboard_branch_filter') }}</label>
-                    <div class="relative">
-                        <select id="dashboard-branch-filter"
-                                class="appearance-none bg-gray-50 hover:bg-gray-100 text-[#0F1B4C] font-medium text-sm rounded-lg pe-8 ps-3 py-1.5 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1456E8]/30 transition cursor-pointer">
-                            <option value="">{{ __('messages.dashboard_all_branches') }}</option>
-                            @foreach ($branches as $branch)
-                                <option value="{{ $branch->id }}">{{ $branch->name }}</option>
-                            @endforeach
-                        </select>
-                        <svg class="w-3.5 h-3.5 text-gray-400 absolute top-1/2 -translate-y-1/2 start-2.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                    </div>
-                </div>
-                <span id="dashboard-viewing-chip" class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-full px-3 py-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-                    {{ __('messages.dashboard_viewing_all_branches') }}
-                </span>
+            <div class="db-hero-stats">
+                @if ($canMoney)
+                    <div class="db-hs"><div class="l">{{ __('transport.db_today_invoices') }}</div><div class="v">{{ $money($kpi['today_revenue']) }} <small>{{ __('transport.sar') }} · {{ $kpi['today_invoices'] }} {{ __('transport.db_invoice_unit') }}</small></div></div>
+                @endif
+                @if ($canFleet)
+                    <div class="db-hs"><div class="l">{{ __('transport.db_on_road_now') }}</div><div class="v">{{ $f['loaded'] + $f['overdue'] }} <small>/ {{ $f['total'] }} {{ __('transport.db_truck_unit') }}</small></div></div>
+                    <div class="db-hs"><div class="l">{{ __('transport.db_empty_ready') }}</div><div class="v">{{ $f['empty'] }} <small>{{ __('transport.db_truck_unit') }}</small></div></div>
+                    <div class="db-hs"><div class="l">{{ __('transport.db_overdue_now') }}</div><div class="v" style="color:{{ $f['overdue'] ? '#fda4af' : '#fff' }}">{{ $f['overdue'] }} <small>{{ __('transport.db_truck_unit') }}</small></div></div>
+                @endif
             </div>
 
-            {{-- إجراءات سريعة --}}
-            @php
-                $quickActions = collect([
-                    auth()->user()?->hasPermission('transport_invoices.create') ? ['label' => __('transport.new_invoice'), 'url' => route('transport.invoices.create'), 'color' => '#1456E8'] : null,
-                    auth()->user()?->hasPermission('purchases.create') ? ['label' => __('purchases.new_purchase'), 'url' => route('purchases.create'), 'color' => '#F5811E'] : null,
-                    auth()->user()?->hasPermission('customers.create') ? ['label' => __('customers.new_customer'), 'url' => route('customers.create'), 'color' => '#0F1B4C'] : null,
-                    auth()->user()?->hasPermission('suppliers.create') ? ['label' => __('suppliers.new_supplier'), 'url' => route('suppliers.create'), 'color' => '#6B2FD6'] : null,
-                    auth()->user()?->hasPermission('vouchers.create') ? ['label' => __('vouchers.new_receipt'), 'url' => route('vouchers.create', ['type' => 'receipt']), 'color' => '#0F9D58'] : null,
-                    auth()->user()?->hasPermission('vouchers.create') ? ['label' => __('vouchers.new_payment'), 'url' => route('vouchers.create', ['type' => 'payment']), 'color' => '#E11D48'] : null,
-                ])->filter()->values();
-            @endphp
-            @if ($quickActions->isNotEmpty())
-                <div class="dash-anim flex flex-wrap gap-2.5" style="--dash-delay: 40ms">
-                    @foreach ($quickActions as $action)
-                        <a href="{{ $action['url'] }}"
-                           style="border-color: {{ $action['color'] }}33; color: {{ $action['color'] }};"
-                           class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-white border shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
-                            <span class="text-lg leading-none">+</span> {{ $action['label'] }}
-                        </a>
+            @if ($quick->isNotEmpty())
+                <div class="db-quick">
+                    @foreach ($quick as $q)
+                        <a href="{{ $q['url'] }}"><span>{{ $q['icon'] }}</span>{{ $q['label'] }}</a>
                     @endforeach
                 </div>
             @endif
+        </div>
 
-            {{--
-                الشاشة بتظهر على طول بالكروت دي فاضية (skeleton)، وبعد ما
-                الصفحة تخلص تحميل بتاخد الأرقام الحقيقية من route('dashboard.stats')
-                بطلب Ajax واحد بس - بدل ما المستخدم يستنى كل استعلامات
-                قاعدة البيانات (مبيعات/مشتريات/مخزون...) قبل ما يشوف أي حاجة.
-                كل مرة يتغيّر فيها فلتر الفرع فوق، نفس الطلب ده بيتكرر تاني
-                بـ ?branch_id= وكل حاجة تحت (الكروت/الرسوم/الجداول) بتتحدّث.
-            --}}
-
-            {{-- الصف الأول: أرقام اليوم الأساسية (زي الكروت الملونة الكبيرة) --}}
-            <h4 class="dash-anim text-xs font-bold text-gray-400 uppercase tracking-wide -mb-2" style="--dash-delay: 50ms">{{ __('messages.dashboard_section_overview') }}</h4>
-            <div id="dashboard-stats-today" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-
-                <div class="dash-anim dash-hero rounded-2xl p-5 text-white shadow-lg" style="--dash-delay: 60ms; background: linear-gradient(135deg,#1456E8,#0F3FBE); box-shadow: 0 12px 24px -10px #1456E855;">
-                    <div class="flex items-center justify-between">
-                        <span class="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center">
-                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
-                        </span>
-                        <span class="text-[11px] bg-white/15 rounded-full px-2 py-0.5" data-stat="today_sales_count">…</span>
+        {{-- ===== مؤشرات الشهر ===== --}}
+        @if ($canMoney || $canFleet)
+            <div class="db-kpis">
+                @if ($canMoney)
+                    <a href="{{ route('transport.reports.sales') }}" class="db-kpi">
+                        <div class="top"><span class="ic" style="background:#eaf1ff">💵</span>{!! $trend($kpi['revenue_change']) !!}</div>
+                        <div class="l">{{ __('transport.db_month_revenue') }}</div>
+                        <div class="v">{{ $short($kpi['revenue']) }} <small>{{ __('transport.sar') }}</small></div>
+                        <div class="s">{{ $kpi['invoices'] }} {{ __('transport.db_invoice_unit') }} · {{ __('transport.db_incl_vat') }} {{ $money($kpi['total_incl']) }}</div>
+                    </a>
+                @endif
+                @if ($canMoney && $canExp)
+                    <a href="{{ route('transport.reports.fleet') }}" class="db-kpi">
+                        <div class="top"><span class="ic" style="background:#ecfdf5">📈</span>{!! $trend($kpi['profit_change']) !!}</div>
+                        <div class="l">{{ __('transport.db_month_profit') }}</div>
+                        <div class="v" style="color:{{ $kpi['profit'] >= 0 ? '#047857' : '#be123c' }}">{{ $short($kpi['profit']) }} <small>{{ __('transport.sar') }}</small></div>
+                        <div class="s">{{ __('transport.db_truck_expenses') }} {{ $money($kpi['expenses']) }}</div>
+                    </a>
+                @endif
+                @if ($canFleet)
+                    <a href="{{ route('transport.loads.report') }}" class="db-kpi">
+                        <div class="top"><span class="ic" style="background:#fff7ed">📦</span>{!! $trend($kpi['loads_change']) !!}</div>
+                        <div class="l">{{ __('transport.db_month_loads') }}</div>
+                        <div class="v">{{ number_format($kpi['loads']) }} <small>{{ __('transport.db_load_unit') }}</small></div>
+                        <div class="s">{{ __('transport.db_vs_last_month') }}</div>
+                    </a>
+                @endif
+                @if ($canMoney)
+                    <a href="{{ route('transport.reports.unbilled') }}" class="db-kpi">
+                        <div class="top"><span class="ic" style="background:#fff1f2">⏳</span>@if ($kpi['unbilled_count'])<span class="db-trend down">{{ __('transport.db_needs_billing') }}</span>@endif</div>
+                        <div class="l">{{ __('transport.unbilled_loads') }}</div>
+                        <div class="v">{{ $kpi['unbilled_count'] }} <small>· {{ $money($kpi['unbilled_value']) }} {{ __('transport.sar') }}</small></div>
+                        <div class="s">{{ __('transport.db_unbilled_hint') }}</div>
+                    </a>
+                @endif
+                @if ($canCash)
+                    <div class="db-kpi">
+                        <div class="top"><span class="ic" style="background:#f5f3ff">🏦</span></div>
+                        <div class="l">{{ __('transport.db_cash') }}</div>
+                        <div class="v">{{ $short($kpi['cash']) }} <small>{{ __('transport.sar') }}</small></div>
+                        <div class="s">{{ __('transport.db_cash_hint') }}</div>
                     </div>
-                    <p class="text-xs font-medium text-white/70 mt-3">{{ __('messages.dashboard_today_sales') }}</p>
-                    <p class="text-2xl font-bold mt-0.5" data-stat="today_sales_net" data-format="money"><span class="dash-skeleton dash-skeleton--light"></span></p>
-                    <div class="mt-2 pt-2 border-t border-white/15 flex items-center justify-between text-xs">
-                        <span class="text-white/70">{{ __('reports.profit') }}:</span>
-                        <span class="font-bold text-white" data-stat="today_sales_profit" data-format="money"><span class="dash-skeleton dash-skeleton--light"></span></span>
-                    </div>
-                </div>
-
-                <div class="dash-anim dash-hero rounded-2xl p-5 text-white shadow-lg" style="--dash-delay: 100ms; background: linear-gradient(135deg,#F5811E,#C9600C); box-shadow: 0 12px 24px -10px #F5811E55;">
-                    <div class="flex items-center justify-between">
-                        <span class="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center">
-                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/><path d="M3 4h2l2.4 12.4a1 1 0 0 0 1 .8h8.4a1 1 0 0 0 1-.8L20 8H6"/></svg>
-                        </span>
-                        <span class="text-[11px] bg-white/15 rounded-full px-2 py-0.5" data-stat="today_purchases_count">…</span>
-                    </div>
-                    <p class="text-xs font-medium text-white/70 mt-3">{{ __('messages.dashboard_today_purchases') }}</p>
-                    <p class="text-2xl font-bold mt-0.5" data-stat="today_purchases_net" data-format="money"><span class="dash-skeleton dash-skeleton--light"></span></p>
-                </div>
-
-                <div class="dash-anim dash-hero rounded-2xl p-5 text-white shadow-lg" style="--dash-delay: 140ms; background: linear-gradient(135deg,#10B981,#047857); box-shadow: 0 12px 24px -10px #10B98155;">
-                    <div class="flex items-center justify-between">
-                        <span class="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center">
-                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v8"/><rect x="2" y="14" width="20" height="6" rx="1.5"/><path d="M12 17h.01"/></svg>
-                        </span>
-                        <span class="text-[11px] bg-white/15 rounded-full px-2 py-0.5" data-stat="today_receipts_count">…</span>
-                    </div>
-                    <p class="text-xs font-medium text-white/70 mt-3">{{ __('messages.dashboard_today_receipts') }}</p>
-                    <p class="text-2xl font-bold mt-0.5" data-stat="today_receipts_net" data-format="money"><span class="dash-skeleton dash-skeleton--light"></span></p>
-                </div>
-
-                <div class="dash-anim dash-hero rounded-2xl p-5 text-white shadow-lg" style="--dash-delay: 180ms; background: linear-gradient(135deg,#E11D48,#9F1239); box-shadow: 0 12px 24px -10px #E11D4855;">
-                    <div class="flex items-center justify-between">
-                        <span class="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center">
-                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 10V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v4"/><rect x="2" y="10" width="20" height="10" rx="1.5"/><path d="M12 15h.01"/></svg>
-                        </span>
-                        <span class="text-[11px] bg-white/15 rounded-full px-2 py-0.5" data-stat="today_payments_count">…</span>
-                    </div>
-                    <p class="text-xs font-medium text-white/70 mt-3">{{ __('messages.dashboard_today_payments') }}</p>
-                    <p class="text-2xl font-bold mt-0.5" data-stat="today_payments_net" data-format="money"><span class="dash-skeleton dash-skeleton--light"></span></p>
-                </div>
+                @endif
+                @if ($canMoney)
+                    <a href="{{ route('transport.reports.customers', ['sort' => 'total']) }}" class="db-kpi">
+                        <div class="top"><span class="ic" style="background:#fffbeb">👥</span></div>
+                        <div class="l">{{ __('transport.db_receivables') }}</div>
+                        <div class="v">{{ $short($kpi['receivables']) }} <small>{{ __('transport.sar') }}</small></div>
+                        <div class="s">{{ __('transport.db_receivables_hint') }}</div>
+                    </a>
+                @endif
             </div>
+        @endif
 
-            {{-- بطاقة جديدة: الرصيد النقدي الحالي (خزينة + بنوك) - رقم
-                 "لحظي" مختلف عن باقي كروت "اليوم"، فمعمول له بانر مستقل
-                 بارز بدل ما يتلخبط جوه صفوف الإحصائيات التانية. --}}
-            <div class="dash-anim bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-between flex-wrap gap-4" style="--dash-delay: 200ms">
-                <div class="flex items-center gap-3">
-                    <span class="w-11 h-11 rounded-xl bg-[#0d9488]/10 text-[#0d9488] flex items-center justify-center shrink-0">
-                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
-                    </span>
-                    <div>
-                        <p class="text-xs font-medium text-gray-500">{{ __('messages.dashboard_current_cash_balance') }}</p>
-                        <p class="text-[11px] text-gray-400">{{ __('messages.dashboard_current_cash_balance_note') }}</p>
+        {{-- ===== الأسطول + التنبيهات ===== --}}
+        <div class="db-grid db-grid-2-1">
+            @if ($canFleet)
+                <div class="db-card">
+                    <div class="db-card-h">
+                        <h3>🚚 {{ __('transport.db_fleet_status') }}</h3>
+                        <a href="{{ route('transport.loads.board') }}">{{ __('transport.board_title') }} ←</a>
                     </div>
-                </div>
-                <p class="text-2xl font-bold text-[#0F1B4C]" id="dashboard-cash-balance" data-stat="current_cash_balance" data-format="money"><span class="dash-skeleton"></span></p>
-            </div>
-
-            {{-- ملخص الحسابات: سندات القبض والصرف والقيود اليومية/الافتتاحية
-                 لليوم الحالي بس - قسم مستقل عشان يبان واضح إن دي أرقام
-                 محاسبية منفصلة عن مبيعات/مشتريات اليوم فوق. --}}
-            <h4 class="dash-anim text-xs font-bold text-gray-400 uppercase tracking-wide -mb-2" style="--dash-delay: 205ms">{{ __('messages.dashboard_section_accounts') }}</h4>
-            <div id="dashboard-stats-accounts" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-
-                <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 210ms">
-                    <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_today_receipts') }}</p>
-                    <p class="text-lg font-bold text-emerald-600 mt-1" data-stat="today_receipts_net" data-format="money"><span class="dash-skeleton"></span></p>
-                    <p class="text-[10px] text-gray-400 mt-0.5"><span data-stat="today_receipts_count">-</span> {{ __('messages.dashboard_vouchers_suffix') }}</p>
-                </div>
-
-                <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 220ms">
-                    <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_today_payments') }}</p>
-                    <p class="text-lg font-bold text-rose-600 mt-1" data-stat="today_payments_net" data-format="money"><span class="dash-skeleton"></span></p>
-                    <p class="text-[10px] text-gray-400 mt-0.5"><span data-stat="today_payments_count">-</span> {{ __('messages.dashboard_vouchers_suffix') }}</p>
-                </div>
-
-                <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 230ms">
-                    <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_net_cash_movement_today') }}</p>
-                    <p class="text-lg font-bold text-[#0F1B4C] mt-1" id="dashboard-net-movement" data-stat="today_net_cash_movement" data-format="money"><span class="dash-skeleton"></span></p>
-                </div>
-
-                <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 240ms">
-                    <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_daily_entries_today') }}</p>
-                    <p class="text-lg font-bold text-[#0F1B4C] mt-1" data-stat="today_daily_entries_count"><span class="dash-skeleton"></span></p>
-                    <p class="text-[10px] text-gray-400 mt-0.5">{{ __('messages.dashboard_entries_suffix') }}</p>
-                </div>
-
-                <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 250ms">
-                    <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_opening_entries_today') }}</p>
-                    <p class="text-lg font-bold text-[#0F1B4C] mt-1" data-stat="today_opening_entries_count"><span class="dash-skeleton"></span></p>
-                    <p class="text-[10px] text-gray-400 mt-0.5">{{ __('messages.dashboard_entries_suffix') }}</p>
-                </div>
-            </div>
-
-            {{-- الصف الثاني: أرقام عامة/شهرية أصغر --}}
-            <div id="dashboard-stats-secondary" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-
-                <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 220ms">
-                    <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_customers_count') }}</p>
-                    <p class="text-lg font-bold text-[#0F1B4C] mt-1" data-stat="customers_count"><span class="dash-skeleton"></span></p>
-                </div>
-                <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 240ms">
-                    <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_suppliers_count') }}</p>
-                    <p class="text-lg font-bold text-[#0F1B4C] mt-1" data-stat="suppliers_count"><span class="dash-skeleton"></span></p>
-                </div>
-                <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 260ms">
-                    <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_month_sales') }}</p>
-                    <p class="text-lg font-bold text-[#0F1B4C] mt-1" data-stat="month_sales_net" data-format="money"><span class="dash-skeleton"></span></p>
-                    <p class="text-[11px] text-emerald-600 font-semibold mt-0.5">
-                        {{ __('reports.net_profit') }}: <span data-stat="month_sales_profit" data-format="money"><span class="dash-skeleton"></span></span>
-                    </p>
-                </div>
-                <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 280ms">
-                    <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_month_purchases') }}</p>
-                    <p class="text-lg font-bold text-[#0F1B4C] mt-1" data-stat="month_purchases_net" data-format="money"><span class="dash-skeleton"></span></p>
-                </div>
-                <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 300ms">
-                    <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_low_stock') }}</p>
-                    <p class="text-lg font-bold text-rose-600 mt-1" data-stat="low_stock_count"><span class="dash-skeleton"></span></p>
-                </div>
-                <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 320ms">
-                    <p class="text-[11px] font-medium text-gray-500">{{ __('transport.loaded_trucks') }}</p>
-                    <p class="text-lg font-bold text-sky-600 mt-1" data-stat="loaded_trucks_count"><span class="dash-skeleton"></span></p>
-                </div>
-            </div>
-
-            {{-- الرسوم البيانية --}}
-            <h4 class="dash-anim text-xs font-bold text-gray-400 uppercase tracking-wide -mb-2" style="--dash-delay: 330ms">{{ __('messages.dashboard_section_analytics') }}</h4>
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-                <div class="dash-anim lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5" style="--dash-delay: 340ms">
-                    <div class="flex items-center justify-between mb-3">
-                        <h3 class="font-bold text-[#0F1B4C] text-sm">{{ __('messages.dashboard_sales_purchases_trend') }}</h3>
-                        <div class="flex items-center gap-3 text-[11px] text-gray-500">
-                            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#1456E8"></span>{{ __('messages.dashboard_legend_sales') }}</span>
-                            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#F5811E"></span>{{ __('messages.dashboard_legend_purchases') }}</span>
+                    <div class="flex items-center gap-5 flex-wrap">
+                        <div class="db-ring" style="--p: {{ $f['utilization'] }}"><div><b>{{ $f['utilization'] }}%</b><small>{{ __('transport.utilization') }}</small></div></div>
+                        <div style="flex:1;min-width:240px">
+                            <div class="db-fleet-bar" role="img" aria-label="{{ __('transport.db_fleet_status') }}">
+                                @if ($f['loaded'])<span style="width:{{ $seg($f['loaded']) }}%;background:#F5811E" title="{{ __('transport.loaded_trucks') }}: {{ $f['loaded'] }}"></span>@endif
+                                @if ($f['overdue'])<span style="width:{{ $seg($f['overdue']) }}%;background:#e11d48" title="{{ __('transport.overdue_trucks') }}: {{ $f['overdue'] }}"></span>@endif
+                                @if ($f['empty'])<span style="width:{{ $seg($f['empty']) }}%;background:#10b981" title="{{ __('transport.empty_trucks') }}: {{ $f['empty'] }}"></span>@endif
+                                @if ($f['maintenance'])<span style="width:{{ $seg($f['maintenance']) }}%;background:#94a3b8" title="{{ __('transport.status_maintenance') }}: {{ $f['maintenance'] }}"></span>@endif
+                            </div>
+                            <div class="db-fleet-legend">
+                                <a href="{{ route('transport.loads.board', ['status' => 'loaded']) }}" class="db-fl"><div class="n" style="color:#c2410c">{{ $f['loaded'] }}</div><div class="t"><i style="background:#F5811E"></i>{{ __('transport.loaded_trucks') }}</div></a>
+                                <a href="{{ route('transport.loads.board', ['status' => 'overdue']) }}" class="db-fl"><div class="n" style="color:#be123c">{{ $f['overdue'] }}</div><div class="t"><i style="background:#e11d48"></i>{{ __('transport.overdue_trucks') }}</div></a>
+                                <a href="{{ route('transport.loads.board', ['status' => 'empty']) }}" class="db-fl"><div class="n" style="color:#047857">{{ $f['empty'] }}</div><div class="t"><i style="background:#10b981"></i>{{ __('transport.empty_trucks') }}</div></a>
+                                <a href="{{ route('transport.loads.board', ['status' => 'maintenance']) }}" class="db-fl"><div class="n" style="color:#475569">{{ $f['maintenance'] }}</div><div class="t"><i style="background:#94a3b8"></i>{{ __('transport.status_maintenance') }}</div></a>
+                            </div>
                         </div>
                     </div>
-                    <div class="relative h-64">
-                        <canvas id="dashboard-trend-chart"></canvas>
-                    </div>
-                </div>
 
-                <div class="dash-anim bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col" style="--dash-delay: 360ms">
-                    <h3 class="font-bold text-[#0F1B4C] text-sm mb-3">{{ __('messages.dashboard_customers_suppliers_ratio') }}</h3>
-                    <div class="relative flex-1 min-h-[180px]">
-                        <canvas id="dashboard-ratio-chart"></canvas>
-                    </div>
-                    <div class="flex items-center justify-center gap-4 text-[11px] text-gray-500 mt-3">
-                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#1456E8"></span>{{ __('messages.dashboard_legend_customers') }}: <b class="text-gray-700" data-stat="customers_count">-</b></span>
-                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#F5811E"></span>{{ __('messages.dashboard_legend_suppliers') }}: <b class="text-gray-700" data-stat="suppliers_count">-</b></span>
-                    </div>
-                </div>
-            </div>
+                    @if ($emptyByRegion->isNotEmpty())
+                        <div class="db-regions">
+                            <span class="text-xs text-gray-500 font-bold" style="align-self:center">{{ __('transport.db_empty_where') }}</span>
+                            @foreach ($emptyByRegion as $r)
+                                <a href="{{ route('transport.loads.board', ['status' => 'empty', 'region' => $r['key'] === '_none' ? null : $r['key']]) }}">📍 {{ $r['label'] }} · {{ $r['count'] }}</a>
+                            @endforeach
+                        </div>
+                    @endif
 
-            {{-- أكتر موظف وأكتر فرع/منتج بيعًا اليوم --}}
-            <h4 class="dash-anim text-xs font-bold text-gray-400 uppercase tracking-wide -mb-2" style="--dash-delay: 370ms">{{ __('messages.dashboard_section_leaders') }}</h4>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-                <div class="dash-anim bg-white rounded-2xl border border-gray-100 shadow-sm p-5" style="--dash-delay: 380ms">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-bold text-[#0F1B4C] text-sm">{{ __('messages.dashboard_top_employees') }}</h3>
-                    </div>
-                    <div id="dashboard-top-employees" class="space-y-3">
-                        <p class="dash-empty text-sm text-gray-400 text-center py-6">{{ __('messages.dashboard_no_data_today') }}</p>
-                    </div>
-                </div>
-
-                <div class="dash-anim bg-white rounded-2xl border border-gray-100 shadow-sm p-5" style="--dash-delay: 400ms">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-bold text-[#0F1B4C] text-sm" id="dashboard-top-branches-title">{{ __('messages.dashboard_top_branches') }}</h3>
-                    </div>
-                    <div id="dashboard-top-branches" class="space-y-3">
-                        <p class="dash-empty text-sm text-gray-400 text-center py-6">{{ __('messages.dashboard_no_data_today') }}</p>
-                    </div>
-                </div>
-            </div>
-
-            {{-- أحدث العمليات --}}
-            <h4 class="dash-anim text-xs font-bold text-gray-400 uppercase tracking-wide -mb-2" style="--dash-delay: 410ms">{{ __('messages.dashboard_section_recent') }}</h4>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-                <div class="dash-anim bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" style="--dash-delay: 420ms">
-                    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                        <h3 class="font-bold text-[#0F1B4C] text-sm">{{ __('messages.dashboard_recent_sales') }}</h3>
-                        <div class="flex items-center gap-3">
-                            @can('transport_invoices.view')
-                                <a href="{{ route('transport.invoices.index') }}" class="text-xs text-[#1456E8] font-medium hover:underline">{{ __('messages.dashboard_view_all') }}</a>
-                            @endcan
+                    <div class="db-grid db-grid-1-1" style="margin-top:1.1rem">
+                        <div>
+                            <div class="text-xs font-bold text-rose-700" style="margin-bottom:.5rem">🔴 {{ __('transport.db_overdue_list') }}</div>
+                            @forelse ($overdue as $t)
+                                <div class="db-truck late">
+                                    <div><div class="p">{{ $t->plate_number }}</div><div class="r">{{ $t->activeLoad->from_label }} ← {{ $t->activeLoad->to_label }}{{ $t->activeLoad->driver ? ' · ' . $t->activeLoad->driver->name : '' }}</div></div>
+                                    <span class="tm">{{ $t->activeLoad->remainingText() }}</span>
+                                </div>
+                            @empty
+                                <div class="db-alert green">✓ {{ __('transport.db_no_overdue') }}</div>
+                            @endforelse
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-orange-700" style="margin-bottom:.5rem">⏱ {{ __('transport.db_next_unloads') }}</div>
+                            @forelse ($upcoming as $t)
+                                <div class="db-truck">
+                                    <div><div class="p">{{ $t->plate_number }}</div><div class="r">{{ $t->activeLoad->from_label }} ← {{ $t->activeLoad->to_label }}{{ $t->activeLoad->customer ? ' · ' . $t->activeLoad->customer->name : '' }}</div></div>
+                                    <span class="tm">{{ $t->activeLoad->remainingText() }}</span>
+                                </div>
+                            @empty
+                                <div class="db-empty">{{ __('transport.db_no_loaded') }}</div>
+                            @endforelse
                         </div>
                     </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="text-[11px] text-gray-400 border-b border-gray-50">
-                                    <th class="text-start font-medium py-2 px-5">{{ __('messages.dashboard_table_invoice_no') }}</th>
-                                    <th class="text-start font-medium py-2 px-2">{{ __('messages.dashboard_table_customer') }}</th>
-                                    <th class="text-start font-medium py-2 px-2">{{ __('messages.dashboard_table_amount') }}</th>
-                                    <th class="text-start font-medium py-2 px-5">{{ __('messages.dashboard_table_time') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody id="dashboard-recent-sales">
-                                <tr><td colspan="4" class="dash-empty text-center text-gray-400 text-sm py-6">{{ __('messages.dashboard_no_data_today') }}</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
+            @endif
 
-                <div class="dash-anim bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" style="--dash-delay: 440ms">
-                    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                        <h3 class="font-bold text-[#0F1B4C] text-sm">{{ __('messages.dashboard_recent_purchases') }}</h3>
-                        @can('purchases.view')
-                            <a href="{{ route('purchases.index') }}" class="text-xs text-[#1456E8] font-medium hover:underline">{{ __('messages.dashboard_view_all') }}</a>
-                        @endcan
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="text-[11px] text-gray-400 border-b border-gray-50">
-                                    <th class="text-start font-medium py-2 px-5">{{ __('messages.dashboard_table_invoice_no') }}</th>
-                                    <th class="text-start font-medium py-2 px-2">{{ __('messages.dashboard_table_supplier') }}</th>
-                                    <th class="text-start font-medium py-2 px-2">{{ __('messages.dashboard_table_amount') }}</th>
-                                    <th class="text-start font-medium py-2 px-5">{{ __('messages.dashboard_table_time') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody id="dashboard-recent-purchases">
-                                <tr><td colspan="4" class="dash-empty text-center text-gray-400 text-sm py-6">{{ __('messages.dashboard_no_data_today') }}</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+            <div class="db-card">
+                <div class="db-card-h"><h3>🔔 {{ __('transport.db_attention') }}</h3></div>
+                @php $anyAlert = false; @endphp
+                @if ($canFleet && $f['overdue'])
+                    @php $anyAlert = true; @endphp
+                    <a href="{{ route('transport.loads.board', ['status' => 'overdue']) }}" class="db-alert red">⏰ {{ __('transport.db_alert_overdue') }}<span class="n">{{ $f['overdue'] }}</span></a>
+                @endif
+                @if ($u?->can('trucks.view') && $alerts['docsAlert'])
+                    @php $anyAlert = true; @endphp
+                    <a href="{{ route('transport.trucks.index', ['docs' => 'alert']) }}" class="db-alert {{ $alerts['docsExpired'] ? 'red' : 'amber' }}">🪪 {{ __('transport.db_alert_docs', ['expired' => $alerts['docsExpired']]) }}<span class="n">{{ $alerts['docsAlert'] }}</span></a>
+                @endif
+                @if ($canMoney && $kpi['unbilled_count'])
+                    @php $anyAlert = true; @endphp
+                    <a href="{{ route('transport.reports.unbilled') }}" class="db-alert amber">⏳ {{ __('transport.db_alert_unbilled') }}<span class="n">{{ $kpi['unbilled_count'] }}</span></a>
+                @endif
+                @if ($canMoney && $alerts['noPrice'])
+                    @php $anyAlert = true; @endphp
+                    <a href="{{ route('transport.reports.unbilled') }}" class="db-alert amber">🏷 {{ __('transport.db_alert_no_price') }}<span class="n">{{ $alerts['noPrice'] }}</span></a>
+                @endif
+                @if ($u?->can('zatca.view') && $alerts['zatcaFailed'])
+                    @php $anyAlert = true; @endphp
+                    <a href="{{ route('transport.zatca.index', ['sent' => 0, 'status' => 'FAIL']) }}" class="db-alert red">🏛 {{ __('transport.db_alert_zatca_failed') }}<span class="n">{{ $alerts['zatcaFailed'] }}</span></a>
+                @endif
+                @if ($u?->can('zatca.view') && $alerts['zatcaPending'])
+                    @php $anyAlert = true; @endphp
+                    <a href="{{ route('transport.zatca.index', ['sent' => 0]) }}" class="db-alert blue">🏛 {{ __('transport.db_alert_zatca_pending') }}<span class="n">{{ $alerts['zatcaPending'] }}</span></a>
+                @endif
+                @unless ($anyAlert)
+                    <div class="db-alert green">✓ {{ __('transport.db_all_good') }}</div>
+                @endunless
+
+                <div class="db-card-h" style="margin-top:1.3rem;margin-bottom:.4rem"><h3>🕘 {{ __('transport.db_recent_activity') }}</h3></div>
+                @forelse ($activity as $a)
+                    @continue($a['type'] === 'invoice' ? !$canMoney : !$canFleet)
+                    <a href="{{ $a['url'] }}" class="db-act">
+                        <span class="dot" style="background:{{ ['loaded' => '#fff7ed', 'unloaded' => '#ecfdf5', 'invoice' => '#eaf1ff'][$a['type']] }}">{{ ['loaded' => '📦', 'unloaded' => '✅', 'invoice' => '🧾'][$a['type']] }}</span>
+                        <div style="min-width:0">
+                            <div class="t">{{ __('transport.db_act_' . $a['type']) }} · {{ $a['title'] }}</div>
+                            <div class="s">{{ $a['sub'] ? $a['sub'] . ' · ' : '' }}{{ $a['at']?->diffForHumans() }}</div>
+                        </div>
+                    </a>
+                @empty
+                    <div class="db-empty">{{ __('transport.no_data') }}</div>
+                @endforelse
             </div>
+        </div>
 
-            <p id="dashboard-stats-error" class="hidden text-sm text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">
-                {{ __('messages.dashboard_loading_error') }}
-            </p>
+        {{-- ===== الرسوم ===== --}}
+        <div class="db-grid db-grid-2-1">
+            @if ($canMoney)
+                <div class="db-card">
+                    <div class="db-card-h">
+                        <h3>📊 {{ $canExp ? __('transport.db_revenue_vs_expenses') : __('transport.db_revenue_6m') }}</h3>
+                        <a href="{{ route('transport.reports.sales', ['date_from' => now()->subMonthsNoOverflow(5)->startOfMonth()->toDateString()]) }}">{{ __('transport.db_details') }} ←</a>
+                    </div>
+                    <div style="position:relative;height:280px"><canvas id="db-finance" aria-label="{{ __('transport.db_revenue_vs_expenses') }}"></canvas></div>
+                    <details style="margin-top:.6rem">
+                        <summary class="text-xs text-gray-500 cursor-pointer">{{ __('transport.db_show_table') }}</summary>
+                        <div class="tv-table-wrap" style="margin-top:.5rem">
+                            <table class="tv-table">
+                                <thead><tr><th>{{ __('transport.db_month') }}</th><th>{{ __('transport.db_revenue') }}</th>@if ($canExp)<th>{{ __('transport.total_expenses') }}</th><th>{{ __('transport.net') }}</th>@endif</tr></thead>
+                                <tbody>
+                                    @foreach ($finance as $r)
+                                        <tr><td>{{ $r['label'] }}</td><td>{{ $money($r['revenue']) }}</td>@if ($canExp)<td>{{ $money($r['expenses']) }}</td><td style="font-weight:800;color:{{ $r['net'] >= 0 ? '#047857' : '#be123c' }}">{{ $money($r['net']) }}</td>@endif</tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                </div>
+            @endif
+            @if ($canFleet)
+                <div class="db-card">
+                    <div class="db-card-h">
+                        <h3>📦 {{ __('transport.db_loads_14d') }}</h3>
+                        <a href="{{ route('transport.loads.report') }}">{{ __('transport.db_details') }} ←</a>
+                    </div>
+                    <div style="position:relative;height:280px"><canvas id="db-loads" aria-label="{{ __('transport.db_loads_14d') }}"></canvas></div>
+                </div>
+            @endif
+        </div>
+
+        {{-- ===== الأكثر (الشهر ده) ===== --}}
+        <div class="db-grid db-grid-3">
+            @php
+                $tops = array_filter([
+                    $canMoney ? ['title' => '🏆 ' . __('transport.db_top_customers'), 'rows' => $topCustomers, 'color' => '#1456E8', 'money' => true, 'url' => route('transport.reports.customers', ['sort' => 'total']), 'subLabel' => __('transport.db_invoice_unit')] : null,
+                    $canFleet ? ['title' => '📍 ' . __('transport.db_top_destinations'), 'rows' => $topDestinations, 'color' => '#F5811E', 'money' => false, 'url' => route('transport.reports.routes'), 'subLabel' => null] : null,
+                    $canFleet ? ['title' => '🚚 ' . __('transport.db_top_trucks'), 'rows' => $topTrucks, 'color' => '#6B2FD6', 'money' => false, 'url' => $u?->can('transport_reports.fleet') ? route('transport.reports.fleet') : route('transport.loads.report'), 'subLabel' => __('transport.ton')] : null,
+                ]);
+            @endphp
+            @foreach ($tops as $t)
+                @php $mx = collect($t['rows'])->max('value') ?: 0; @endphp
+                <div class="db-card">
+                    <div class="db-card-h"><h3>{{ $t['title'] }}</h3><a href="{{ $t['url'] }}">{{ __('transport.db_details') }} ←</a></div>
+                    <div class="db-list">
+                        @forelse ($t['rows'] as $i => $r)
+                            <div class="db-li">
+                                <span class="rk">{{ $i + 1 }}</span>
+                                <div class="nm">
+                                    {{ $r['label'] }}
+                                    @if ($t['subLabel'] && !empty($r['sub']))<small>{{ is_float($r['sub']) ? rtrim(rtrim(number_format($r['sub'], 2), '0'), '.') : $r['sub'] }} {{ $t['subLabel'] }}</small>@endif
+                                    <div class="bar"><span style="width:{{ $mx ? max(3, $r['value'] * 100 / $mx) : 0 }}%;background:{{ $t['color'] }}"></span></div>
+                                </div>
+                                <span class="vl">{{ $t['money'] ? $short($r['value']) : $r['value'] }}</span>
+                            </div>
+                        @empty
+                            <div class="db-empty">{{ __('transport.db_no_month_data') }}</div>
+                        @endforelse
+                    </div>
+                </div>
+            @endforeach
         </div>
     </div>
 
-    <style>
-        /* شكل شيمر بسيط لحد ما رقم الكارت الحقيقي يوصل من الـ Ajax،
-           بدل ما الكارت يفضل فاضي أو يظهر "0" مؤقت ممكن يلخبط المستخدم. */
-        .dash-skeleton {
-            display: inline-block;
-            width: 3.5rem;
-            height: 1.25rem;
-            border-radius: 0.375rem;
-            background: linear-gradient(90deg, #eef0f4 25%, #e2e5ea 37%, #eef0f4 63%);
-            background-size: 400% 100%;
-            animation: dash-shimmer 1.4s ease infinite;
-        }
-        .dash-skeleton--light {
-            background: linear-gradient(90deg, rgba(255,255,255,.25) 25%, rgba(255,255,255,.4) 37%, rgba(255,255,255,.25) 63%);
-            background-size: 400% 100%;
-        }
-        @keyframes dash-shimmer {
-            0% { background-position: 100% 50%; }
-            100% { background-position: 0 50%; }
-        }
-        .dash-card, .dash-hero { transition: box-shadow .15s ease, transform .15s ease; }
-        .dash-card:hover, .dash-hero:hover { transform: translateY(-2px); }
-        .dash-top-row { display: flex; align-items: center; gap: .75rem; }
-        .dash-top-bar-track { flex: 1; height: .5rem; border-radius: 999px; background: #F1F3F8; overflow: hidden; }
-        .dash-top-bar-fill { height: 100%; border-radius: 999px; width: 0%; transition: width 1s cubic-bezier(.22,.9,.3,1); }
-        .dash-top-row { opacity: 0; animation: dash-row-in .5s ease forwards; }
-
-        /* دخول متدرّج (staggered) للكروت والأقسام أول ما الصفحة تفتح -
-           كل عنصر عليه --dash-delay مختلف فوق. */
-        .dash-anim {
-            opacity: 0;
-            transform: translateY(10px);
-            animation: dash-fade-up .5s cubic-bezier(.22,.9,.3,1) forwards;
-            animation-delay: var(--dash-delay, 0ms);
-        }
-        @keyframes dash-fade-up {
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes dash-row-in {
-            to { opacity: 1; }
-        }
-        /* تأثير "عدّاد" بسيط على الأرقام لحظة وصولها من الـ Ajax */
-        .dash-value-pop { animation: dash-value-pop .4s ease; }
-        @keyframes dash-value-pop {
-            0% { transform: scale(.92); }
-            60% { transform: scale(1.04); }
-            100% { transform: scale(1); }
-        }
-        #dashboard-branch-filter option { background: #fff; }
-    </style>
-
+    @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            var locale = @json(app()->getLocale());
-            var moneyLocale = 'en-US';
-            var trendChart = null;
-            var ratioChart = null;
-
-            var dateEl = document.getElementById('dashboard-today-date');
-            if (dateEl) {
-                dateEl.textContent = new Date().toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', {
-                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-                });
+        (function () {
+            // الساعة والتاريخ
+            const loc = @json(app()->getLocale() === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB');
+            function tick() {
+                const n = new Date();
+                const t = document.getElementById('db-time'), d = document.getElementById('db-date');
+                if (t) t.textContent = n.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Riyadh' });
+                if (d) d.textContent = n.toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Riyadh' });
             }
+            tick(); setInterval(tick, 15000);
 
-            // ساعة حية بتتحدث كل ثانية - طلب صريح ("عوز تظهر الساعة والتاريخ
-            // في شاشة الرئيسية") بجانب التاريخ اللي كان موجود قبل كده.
-            var clockTimeEl = document.getElementById('dashboard-clock-time');
-            function tickClock() {
-                if (!clockTimeEl) { return; }
-                clockTimeEl.textContent = new Date().toLocaleTimeString(locale === 'ar' ? 'ar-SA' : 'en-US', {
-                    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: locale !== 'ar',
-                });
-            }
-            tickClock();
-            setInterval(tickClock, 1000);
+            if (typeof Chart === 'undefined') return;
+            Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+            Chart.defaults.color = '#6b7280';
+            const grid = { color: '#f1f5f9' };
+            const fmt = v => Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
-            function formatMoney(value) {
-                return Number(value || 0).toLocaleString(moneyLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            }
-
-            function formatNumber(value) {
-                return Number(value || 0).toLocaleString(moneyLocale);
-            }
-
-            /**
-             * عداد بسيط (count-up) من القيمة الحالية للعنصر لحد القيمة
-             * الجديدة - بيدي إحساس "شغل متقدم" بدل ما الرقم يتغيّر فجأة.
-             */
-            function animateValue(el, toValue, isMoney) {
-                var fromValue = parseFloat((el.textContent || '0').replace(/,/g, '')) || 0;
-                if (!isFinite(fromValue)) { fromValue = 0; }
-                var duration = 600;
-                var start = null;
-
-                function step(timestamp) {
-                    if (!start) { start = timestamp; }
-                    var progress = Math.min((timestamp - start) / duration, 1);
-                    var eased = 1 - Math.pow(1 - progress, 3);
-                    var current = fromValue + (toValue - fromValue) * eased;
-                    el.textContent = isMoney ? formatMoney(current) : formatNumber(Math.round(current));
-                    if (progress < 1) {
-                        requestAnimationFrame(step);
-                    } else {
-                        el.textContent = isMoney ? formatMoney(toValue) : formatNumber(toValue);
-                        el.classList.add('dash-value-pop');
-                        setTimeout(function () { el.classList.remove('dash-value-pop'); }, 400);
-                    }
-                }
-                requestAnimationFrame(step);
-            }
-
-            function renderTopList(containerId, rows, color) {
-                var container = document.getElementById(containerId);
-                if (!container) { return; }
-                if (!rows || !rows.length) {
-                    container.innerHTML = '<p class="dash-empty text-sm text-gray-400 text-center py-6">' + @json(__('messages.dashboard_no_data_today')) + '</p>';
-                    return;
-                }
-
-                var max = Math.max.apply(null, rows.map(function (r) { return r.net; })) || 1;
-                container.innerHTML = rows.map(function (r, i) {
-                    var pct = Math.max(4, Math.round((r.net / max) * 100));
-                    return '' +
-                        '<div class="dash-top-row" style="animation-delay:' + (i * 70) + 'ms">' +
-                        '  <span class="text-sm text-gray-700 w-28 shrink-0 truncate">' + (r.name || '-') + '</span>' +
-                        '  <span class="dash-top-bar-track"><span class="dash-top-bar-fill" data-target-width="' + pct + '" style="background:' + color + '"></span></span>' +
-                        '  <span class="text-xs font-semibold text-gray-600 w-20 shrink-0 text-end">' + formatMoney(r.net) + '</span>' +
-                        '</div>';
-                }).join('');
-
-                // بنأخّر تحديد العرض النهائي شوية عشان الـ transition يتفعّل
-                // فعليًا (من عرض 0% لحد العرض الحقيقي) بدل ما يظهر جاهز فجأة.
-                requestAnimationFrame(function () {
-                    requestAnimationFrame(function () {
-                        container.querySelectorAll('.dash-top-bar-fill').forEach(function (bar) {
-                            bar.style.width = bar.getAttribute('data-target-width') + '%';
-                        });
-                    });
-                });
-            }
-
-            function renderTable(containerId, rows, columns) {
-                var tbody = document.getElementById(containerId);
-                if (!tbody) { return; }
-                if (!rows || !rows.length) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="dash-empty text-center text-gray-400 text-sm py-6">' + @json(__('messages.dashboard_no_data_today')) + '</td></tr>';
-                    return;
-                }
-                tbody.innerHTML = rows.map(function (row, i) {
-                    return '<tr class="border-b border-gray-50 last:border-0 dash-top-row" style="animation-delay:' + (i * 50) + 'ms">' +
-                        '<td class="py-2.5 px-5 font-medium text-gray-700 whitespace-nowrap">' + (row.number || '-') + '</td>' +
-                        '<td class="py-2.5 px-2 text-gray-600 whitespace-nowrap">' + (row[columns.name] || '-') + '</td>' +
-                        '<td class="py-2.5 px-2 text-gray-700 font-semibold whitespace-nowrap">' + formatMoney(row.total) + '</td>' +
-                        '<td class="py-2.5 px-5 text-gray-400 text-xs whitespace-nowrap">' + (row.time || '-') + '</td>' +
-                        '</tr>';
-                }).join('');
-            }
-
-            function renderTrendChart(trend) {
-                var canvas = document.getElementById('dashboard-trend-chart');
-                if (!canvas || typeof Chart === 'undefined' || !trend) { return; }
-
-                var labels = trend.map(function (d) {
-                    return new Date(d.date + 'T00:00:00').toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', { weekday: 'short' });
-                });
-
-                var ctx = canvas.getContext('2d');
-                var salesGradient = ctx.createLinearGradient(0, 0, 0, 256);
-                salesGradient.addColorStop(0, 'rgba(20,86,232,.28)');
-                salesGradient.addColorStop(1, 'rgba(20,86,232,0)');
-                var purchasesGradient = ctx.createLinearGradient(0, 0, 0, 256);
-                purchasesGradient.addColorStop(0, 'rgba(245,129,30,.24)');
-                purchasesGradient.addColorStop(1, 'rgba(245,129,30,0)');
-
-                if (trendChart) { trendChart.destroy(); }
-                trendChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            {
-                                label: @json(__('messages.dashboard_legend_sales')),
-                                data: trend.map(function (d) { return d.sales; }),
-                                borderColor: '#1456E8',
-                                backgroundColor: salesGradient,
-                                pointBackgroundColor: '#1456E8',
-                                pointBorderColor: '#fff',
-                                pointBorderWidth: 2,
-                                pointRadius: 4,
-                                pointHoverRadius: 6,
-                                borderWidth: 2.5,
-                                tension: 0.4,
-                                fill: true,
-                            },
-                            {
-                                label: @json(__('messages.dashboard_legend_purchases')),
-                                data: trend.map(function (d) { return d.purchases; }),
-                                borderColor: '#F5811E',
-                                backgroundColor: purchasesGradient,
-                                pointBackgroundColor: '#F5811E',
-                                pointBorderColor: '#fff',
-                                pointBorderWidth: 2,
-                                pointRadius: 4,
-                                pointHoverRadius: 6,
-                                borderWidth: 2.5,
-                                tension: 0.4,
-                                fill: true,
-                            },
-                        ],
-                    },
+            const fin = document.getElementById('db-finance');
+            if (fin) {
+                const rows = @json($finance);
+                const sets = [{ label: @json(__('transport.db_revenue')), data: rows.map(r => r.revenue), backgroundColor: '#1456E8', borderRadius: 4, maxBarThickness: 28 }];
+                @if ($canExp)
+                    sets.push({ label: @json(__('transport.total_expenses')), data: rows.map(r => r.expenses), backgroundColor: '#F5811E', borderRadius: 4, maxBarThickness: 28 });
+                @endif
+                new Chart(fin, {
+                    type: 'bar',
+                    data: { labels: rows.map(r => r.label), datasets: sets },
                     options: {
-                        responsive: true,
                         maintainAspectRatio: false,
                         interaction: { mode: 'index', intersect: false },
-                        animation: { duration: 900, easing: 'easeOutQuart' },
                         plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                backgroundColor: '#0F1B4C',
-                                padding: 10,
-                                cornerRadius: 8,
-                                titleFont: { weight: 'bold' },
-                            },
+                            legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } },
+                            tooltip: { callbacks: {
+                                label: c => ' ' + c.dataset.label + ': ' + fmt(c.parsed.y),
+                                @if ($canExp)
+                                footer: items => @json(__('transport.net')) + ': ' + fmt(rows[items[0].dataIndex].net),
+                                @endif
+                            } },
                         },
-                        scales: {
-                            y: { beginAtZero: true, grid: { color: '#F1F3F8' } },
-                            x: { grid: { display: false } },
-                        },
+                        scales: { x: { grid: { display: false } }, y: { grid, ticks: { callback: fmt } } },
                     },
                 });
             }
 
-            function renderRatioChart(customers, suppliers) {
-                var canvas = document.getElementById('dashboard-ratio-chart');
-                if (!canvas || typeof Chart === 'undefined') { return; }
-
-                if (ratioChart) { ratioChart.destroy(); }
-                ratioChart = new Chart(canvas.getContext('2d'), {
-                    type: 'doughnut',
-                    data: {
-                        labels: [@json(__('messages.dashboard_legend_customers')), @json(__('messages.dashboard_legend_suppliers'))],
-                        datasets: [{
-                            data: [customers || 0, suppliers || 0],
-                            backgroundColor: ['#1456E8', '#F5811E'],
-                            hoverBackgroundColor: ['#0F3FBE', '#C9600C'],
-                            borderWidth: 3,
-                            borderColor: '#fff',
-                            hoverOffset: 8,
-                        }],
-                    },
+            const ld = document.getElementById('db-loads');
+            if (ld) {
+                const rows = @json($loadsTrend);
+                new Chart(ld, {
+                    type: 'line',
+                    data: { labels: rows.map(r => r.label), datasets: [{ label: @json(__('transport.loads_count')), data: rows.map(r => r.count),
+                        borderColor: '#F5811E', backgroundColor: 'rgba(245,129,30,.12)', fill: true, tension: .35, borderWidth: 2, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: '#F5811E' }] },
                     options: {
-                        responsive: true,
                         maintainAspectRatio: false,
-                        cutout: '68%',
-                        animation: { animateScale: true, animateRotate: true, duration: 900, easing: 'easeOutQuart' },
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: { backgroundColor: '#0F1B4C', padding: 10, cornerRadius: 8 },
-                        },
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: { legend: { display: false } },
+                        scales: { x: { grid: { display: false } }, y: { grid, beginAtZero: true, ticks: { precision: 0 } } },
                     },
                 });
             }
-
-            /**
-             * تحميل كل أرقام الشاشة (مع فلتر الفرع لو مختار) - بتتنادى مرة
-             * أول ما الصفحة تفتح، وبعدين كل مرة يتغيّر فيها فلتر الفرع فوق.
-             */
-            function loadStats(branchId) {
-                document.querySelectorAll('[data-stat]').forEach(function (el) {
-                    if (!el.classList.contains('dash-skeleton') && !el.classList.contains('dash-skeleton--light')) {
-                        el.dataset.prevValue = (el.textContent || '0').replace(/,/g, '');
-                    }
-                });
-
-                var url = @json(route('dashboard.stats'));
-                if (branchId) {
-                    url += '?branch_id=' + encodeURIComponent(branchId);
-                }
-
-                fetch(url, { headers: { 'Accept': 'application/json' } })
-                    .then(function (res) {
-                        if (!res.ok) { throw new Error('bad response'); }
-                        return res.json();
-                    })
-                    .then(function (data) {
-                        document.getElementById('dashboard-stats-error')?.classList.add('hidden');
-
-                        document.querySelectorAll('[data-stat]').forEach(function (el) {
-                            var key = el.getAttribute('data-stat');
-                            if (!(key in data)) { return; }
-                            var isMoney = el.getAttribute('data-format') === 'money';
-                            el.classList.remove('dash-skeleton', 'dash-skeleton--light');
-                            animateValue(el, Number(data[key] || 0), isMoney);
-                        });
-
-                        renderTrendChart(data.sales_purchases_trend);
-                        renderRatioChart(data.customers_count, data.suppliers_count);
-                        renderTopList('dashboard-top-employees', data.top_employees_today, '#1456E8');
-                        renderTopList('dashboard-top-branches', data.top_branches_today, '#6B2FD6');
-
-                        var branchesTitle = document.getElementById('dashboard-top-branches-title');
-                        if (branchesTitle) {
-                            branchesTitle.textContent = data.top_branches_mode === 'products'
-                                ? @json(__('transport.dash_top_trucks_today'))
-                                : @json(__('messages.dashboard_top_branches'));
-                        }
-
-                        renderTable('dashboard-recent-sales', data.recent_sales, { name: 'customer' });
-                        renderTable('dashboard-recent-purchases', data.recent_purchases, { name: 'supplier' });
-
-                        // شارة "بتعرض بيانات فرع كذا" - بتتأكد دايمًا (مش بس
-                        // لما يكون فيه فرع مختار) إن المستخدم واثق إن كل
-                        // الشاشة فعلاً بتتفلتر زي ما هو متوقع.
-                        var chip = document.getElementById('dashboard-viewing-chip');
-                        if (chip) {
-                            if (data.selected_branch_name) {
-                                chip.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-[#1456E8] inline-block"></span>' +
-                                    @json(__('messages.dashboard_viewing_branch')) + ': <b>' + data.selected_branch_name + '</b>';
-                                chip.className = 'inline-flex items-center gap-1.5 text-xs font-medium text-[#1456E8] bg-[#1456E8]/10 rounded-full px-3 py-1.5';
-                            } else {
-                                chip.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>' +
-                                    @json(__('messages.dashboard_viewing_all_branches'));
-                                chip.className = 'inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-full px-3 py-1.5';
-                            }
-                        }
-
-                        // لون الرصيد النقدي بيبان بلون مختلف لو سالب (نادر
-                        // لكن ممكن يحصل لو حساب خزينة اتسجل عليه أكتر مما فيه).
-                        var cashEl = document.getElementById('dashboard-cash-balance');
-                        if (cashEl) {
-                            cashEl.classList.toggle('text-rose-600', Number(data.current_cash_balance) < 0);
-                            cashEl.classList.toggle('text-[#0F1B4C]', Number(data.current_cash_balance) >= 0);
-                        }
-
-                        // صافي الحركة النقدية اليوم (سندات القبض - سندات
-                        // الصرف): أخضر لو موجب، أحمر لو سالب (يعني الصرف
-                        // اليوم كان أكتر من القبض).
-                        var netMovementEl = document.getElementById('dashboard-net-movement');
-                        if (netMovementEl) {
-                            netMovementEl.classList.toggle('text-rose-600', Number(data.today_net_cash_movement) < 0);
-                            netMovementEl.classList.toggle('text-emerald-600', Number(data.today_net_cash_movement) >= 0);
-                            netMovementEl.classList.toggle('text-[#0F1B4C]', false);
-                        }
-                    })
-                    .catch(function () {
-                        document.querySelectorAll('.dash-skeleton, .dash-skeleton--light').forEach(function (el) {
-                            el.textContent = '-';
-                            el.classList.remove('dash-skeleton', 'dash-skeleton--light');
-                        });
-                        document.getElementById('dashboard-stats-error')?.classList.remove('hidden');
-                    });
-            }
-
-            loadStats('');
-
-            var branchFilter = document.getElementById('dashboard-branch-filter');
-            if (branchFilter) {
-                branchFilter.addEventListener('change', function () {
-                    loadStats(branchFilter.value);
-                });
-            }
-        });
+        })();
     </script>
+    @endpush
 </x-app-layout>

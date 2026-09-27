@@ -89,7 +89,12 @@ class ReportController extends Controller
      */
     public function index()
     {
-        $this->authorizeAnyReport(...self::REPORT_MODULES);
+        // مركز التقارير بيفتح كمان لأي حد عنده صلاحية تقارير النقليات
+        $user = auth()->user();
+        $hasTransport = $user && collect(TransportReportController::HUB_PERMISSIONS)->contains(fn ($p) => $user->hasPermission($p));
+        if (!$hasTransport) {
+            $this->authorizeAnyReport(...self::REPORT_MODULES);
+        }
         return view('reports.index');
     }
 

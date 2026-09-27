@@ -1,5 +1,6 @@
 <x-app-layout>
     @include('transport.partials.styles')
+    @include('transport.partials.tv-styles')
     <style>
         .fr-cards { display:grid; grid-template-columns:repeat(2,1fr); gap:.75rem; }
         @media (min-width: 1000px) { .fr-cards { grid-template-columns:repeat(4,1fr); } }
@@ -22,6 +23,8 @@
                 </div>
                 <button type="button" onclick="window.print()" class="no-print inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-[#1456E8] to-[#6B2FD6]">🖨 {{ __('transport.print') }}</button>
             </div>
+
+            @include('transport.partials.report-tabs', ['active' => 'fleet'])
 
             <form method="GET" class="no-print bg-white shadow-sm border border-gray-100 sm:rounded-xl p-4 flex flex-wrap gap-3 items-end">
                 <div><label class="tr-label">{{ __('transport.date_from') }}</label><input type="date" name="date_from" value="{{ $from }}" class="tr-input"></div>
@@ -80,7 +83,7 @@
                                     <td>{{ number_format($r['maintenance'], 2) }}</td>
                                     <td style="color:#be123c;font-weight:700">{{ number_format($r['expenses'], 2) }}</td>
                                     <td style="font-weight:800;color:{{ $r['net'] >= 0 ? '#047857' : '#be123c' }}">{{ number_format($r['net'], 2) }}</td>
-                                    <td class="no-print"><a class="tr-btn tr-btn-gray" href="{{ route('vouchers.index', ['type' => 'payment', 'maintenance' => 1, 'truck_id' => $r['truck']->id, 'date_from' => $from, 'date_to' => $to]) }}">{{ __('transport.maintenance_vouchers') }}</a></td>
+                                    <td class="no-print"><a class="tr-btn tr-btn-blue" style="margin-inline-end:.3rem" href="{{ route('transport.reports.truck', ['truck_id' => $r['truck']->id, 'date_from' => $from, 'date_to' => $to]) }}">{{ __('transport.truck_statement') }}</a><a class="tr-btn tr-btn-gray" href="{{ route('vouchers.index', ['type' => 'payment', 'maintenance' => 1, 'truck_id' => $r['truck']->id, 'date_from' => $from, 'date_to' => $to]) }}">{{ __('transport.maintenance_vouchers') }}</a></td>
                                 </tr>
                             @endforeach
                         </tbody>
