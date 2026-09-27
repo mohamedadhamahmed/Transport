@@ -1,34 +1,12 @@
 @php
-    $brand = [
-        'name_ar' => defined('Namear') ? constant('Namear') : config('app.name'),
-        'name_en' => defined('Nameen') ? constant('Nameen') : null,
-        'desc_ar' => defined('describtionar') ? constant('describtionar') : null,
-        'desc_en' => defined('describtionen') ? constant('describtionen') : null,
-        'cr_ar' => defined('STar') ? constant('STar') : null,
-        'cr_en' => defined('STen') ? constant('STen') : null,
-        'tax_ar' => defined('Taxar') ? constant('Taxar') : null,
-        'tax_en' => defined('Taxen') ? constant('Taxen') : null,
-        'addr_ar' => defined('addressar') ? constant('addressar') : null,
-        'logo' => defined('camplogo') ? constant('camplogo') : null,
-        'bank' => defined('bankname') ? constant('bankname') : null,
-        'iban' => defined('bank_acount_iban') ? constant('bank_acount_iban') : null,
-        'acc' => defined('bank_acount_number') ? constant('bank_acount_number') : null,
-    ];
+    $co = \App\Support\CompanyInfo::get($invoice->branch_id);
+    $brand = ['bank' => $co['bank'], 'iban' => $co['iban'], 'acc' => $co['account']];
 
     $currency = function_exists('currency_name') ? currency_name() : 'ريال سعودي';
     $amountWords = class_exists(\App\Support\ArabicNumberWords::class)
         ? \App\Support\ArabicNumberWords::amountToWords((float) $invoice->total, $currency)
         : '';
 
-    $qrSvg = null;
-    if (class_exists(\SimpleSoftwareIO\QrCode\Facades\QrCode::class)) {
-        try {
-            $qrSvg = (string) \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(120)->margin(0)->generate($qrData);
-            $qrSvg = preg_replace('/^<\?xml[^>]*\?>\s*/', '', $qrSvg);
-        } catch (\Throwable $e) {
-            $qrSvg = null;
-        }
-    }
     $c = $invoice->customer;
     $hasTransfers = $invoice->items->contains('has_transfer', true);
 @endphp
@@ -109,7 +87,7 @@
 </div>
 
 <div class="doc">
-    @include('transport.partials.print-brand')
+    @include('transport.partials.print-brand', ['brandBranchId' => $invoice->branch_id])
 
     @if ($invoice->is_draft)
         <div style="text-align:center;padding:6px;background:#fed7aa;color:#9a3412;font-weight:800;letter-spacing:2px">مسودة - DRAFT (غير معتمدة)</div>
@@ -218,11 +196,7 @@
     <div class="bottom">
         <div>
             <div class="qr">
-                @if ($qrSvg)
-                    {!! $qrSvg !!}
-                @else
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ urlencode($qrData) }}" alt="QR">
-                @endif
+                @include('transport.partials.print-qr', ['qrData' => $qrData])
                 @if ($brand['bank'] || $brand['iban'])
                     <div class="bank">
                         @if ($brand['bank']){{ $brand['bank'] }}<br>@endif

@@ -1,35 +1,29 @@
+{{-- هيدر مستندات الطباعة: بيقرا بيانات المنشأة من قاعدة البيانات مباشرة (CompanyInfo) --}}
 @php
-    $brand = [
-        'name_ar' => defined('Namear') ? constant('Namear') : config('app.name'),
-        'name_en' => defined('Nameen') ? constant('Nameen') : null,
-        'desc_ar' => defined('describtionar') ? constant('describtionar') : null,
-        'desc_en' => defined('describtionen') ? constant('describtionen') : null,
-        'cr_ar' => defined('STar') ? constant('STar') : null,
-        'cr_en' => defined('STen') ? constant('STen') : null,
-        'tax_ar' => defined('Taxar') ? constant('Taxar') : null,
-        'tax_en' => defined('Taxen') ? constant('Taxen') : null,
-        'addr_ar' => defined('addressar') ? constant('addressar') : null,
-        'logo' => defined('camplogo') ? constant('camplogo') : null,
-    ];
+    $co = \App\Support\CompanyInfo::get($brandBranchId ?? null);
 @endphp
+@unless ($co['configured'])
+    <div class="alert no-print-hint" style="background:#fff7ed;color:#c2410c;border-color:#fed7aa;max-width:none;margin:0;border-radius:0">
+        ⚠ بيانات المنشأة (الاسم / الرقم الضريبي) مش متسجلة - كمّلها من الإعدادات أو شغّل: php artisan db:seed --class=CompanySettingsSeeder --force
+    </div>
+@endunless
     <div class="head">
         <div class="co">
-            <div class="name">{{ $brand['name_ar'] }}</div>
-            @if ($brand['desc_ar'])<p>{{ $brand['desc_ar'] }}</p>@endif
-            @if ($brand['cr_ar'])<p>{{ $brand['cr_ar'] }}</p>@endif
-            @if ($brand['tax_ar'])<p>{{ $brand['tax_ar'] }}</p>@endif
-            @if ($brand['addr_ar'])<p>{{ $brand['addr_ar'] }}</p>@endif
+            <div class="name">{{ $co['name_ar'] }}</div>
+            @if ($co['desc_ar'])<p>{{ $co['desc_ar'] }}</p>@endif
+            @if ($co['cr'])<p>السجل التجاري: {{ $co['cr'] }}</p>@endif
+            @if ($co['vat'])<p>الرقم الضريبي: {{ $co['vat'] }}</p>@endif
+            @if ($co['address_ar'])<p>{{ $co['address_ar'] }}</p>@endif
+            @if ($co['mobile'])<p>جوال: <span dir="ltr">{{ $co['mobile'] }}</span></p>@endif
         </div>
-        @if ($brand['logo'])
-            <img src="{{ asset('assets/img/brand/' . $brand['logo']) }}" alt="logo">
+        @if ($co['logo_url'])
+            <img src="{{ $co['logo_url'] }}" alt="logo">
         @endif
-        @if ($brand['name_en'])
-            <div class="co en">
-                <div class="name">{{ $brand['name_en'] }}</div>
-                @if ($brand['desc_en'])<p>{{ $brand['desc_en'] }}</p>@endif
-                @if ($brand['cr_en'])<p>{{ $brand['cr_en'] }}</p>@endif
-                @if ($brand['tax_en'])<p>{{ $brand['tax_en'] }}</p>@endif
-            </div>
-        @endif
+        <div class="co en">
+            <div class="name">{{ $co['name_en'] ?? $co['name_ar'] }}</div>
+            @if ($co['desc_en'])<p>{{ $co['desc_en'] }}</p>@endif
+            @if ($co['cr'])<p>C.R: {{ $co['cr'] }}</p>@endif
+            @if ($co['vat'])<p>VAT No: {{ $co['vat'] }}</p>@endif
+            @if ($co['address_en'])<p>{{ $co['address_en'] }}</p>@endif
+        </div>
     </div>
-

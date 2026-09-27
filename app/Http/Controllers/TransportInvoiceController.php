@@ -904,11 +904,9 @@ class TransportInvoiceController extends Controller
         // بيانات البائع: من إعدادات النظام (نفس اللي بتتطبع في هيدر الفاتورة)، ولو
         // مش موجودة من إعدادات الزكاة للفرع - مش من ثوابت ممكن متكونش متعرّفة
         // (كانت بترجع "اسم التطبيق" ورقم ضريبي فاضي فالـ QR يطلع غلط).
-        $system = \App\Models\SystemSetting::find(1);
-        $zatca = \App\Models\Setting::where('branchs_id', $invoice->branch_id)->first() ?? \App\Models\Setting::query()->first();
-
-        $seller = trim((string) ($system?->name_ar ?: $zatca?->organization_name ?: $zatca?->name ?: config('app.name')));
-        $vatNo = preg_replace('/\D/', '', (string) ($system?->Tax ?: $zatca?->trn ?: ''));
+        $co = \App\Support\CompanyInfo::get($invoice->branch_id);
+        $seller = $co['name_ar'];
+        $vatNo = $co['vat_digits'];
 
         // وقت إصدار الفاتورة نفسها (مش وقت الطباعة) بصيغة ISO 8601 بتوقيت UTC
         $issuedAt = \Carbon\Carbon::parse(

@@ -1,23 +1,11 @@
 @php
-    $brand = [
-        'bank' => defined('bankname') ? constant('bankname') : null,
-        'iban' => defined('bank_acount_iban') ? constant('bank_acount_iban') : null,
-        'acc' => defined('bank_acount_number') ? constant('bank_acount_number') : null,
-    ];
+    $co = \App\Support\CompanyInfo::get($note->branch_id);
+    $brand = ['bank' => $co['bank'], 'iban' => $co['iban'], 'acc' => $co['account']];
     $currency = function_exists('currency_name') ? currency_name() : 'ريال سعودي';
     $amountWords = class_exists(\App\Support\ArabicNumberWords::class)
         ? \App\Support\ArabicNumberWords::amountToWords((float) $note->total, $currency)
         : '';
 
-    $qrSvg = null;
-    if (class_exists(\SimpleSoftwareIO\QrCode\Facades\QrCode::class)) {
-        try {
-            $qrSvg = (string) \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(120)->margin(0)->generate($qrData);
-            $qrSvg = preg_replace('/^<\?xml[^>]*\?>\s*/', '', $qrSvg);
-        } catch (\Throwable $e) {
-            $qrSvg = null;
-        }
-    }
     $c = $note->customer;
     $inv = $note->invoice;
 @endphp
@@ -77,7 +65,7 @@
 </div>
 
 <div class="doc">
-    @include('transport.partials.print-brand')
+    @include('transport.partials.print-brand', ['brandBranchId' => $note->branch_id])
 
     <div class="title cn">
         {{ $note->isSimplified() ? 'إشعار دائن ضريبي مبسط' : 'إشعار دائن ضريبي' }}
@@ -137,11 +125,7 @@
     <div class="bottom">
         <div>
             <div class="qr">
-                @if ($qrSvg)
-                    {!! $qrSvg !!}
-                @else
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ urlencode($qrData) }}" alt="QR">
-                @endif
+                @include('transport.partials.print-qr', ['qrData' => $qrData])
             </div>
         </div>
         <div class="totals">

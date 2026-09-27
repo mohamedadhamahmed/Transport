@@ -397,14 +397,13 @@ class TransportCreditNoteController extends Controller
     /** QR المرحلة الأولى للإشعار */
     private function qrData(TransportCreditNote $note): string
     {
-        $system = \App\Models\SystemSetting::find(1) ?? \App\Models\SystemSetting::query()->first();
-        $zatca = Setting::where('branchs_id', $note->branch_id)->first() ?? Setting::query()->first();
+        $co = \App\Support\CompanyInfo::get($note->branch_id);
         $issuedAt = Carbon::parse($note->issue_date->format('Y-m-d') . ' ' . ($note->issue_time ?: '00:00:00'), 'Asia/Riyadh')
             ->utc()->format('Y-m-d\TH:i:s\Z');
 
         return ZatcaQr::phaseOne(
-            trim((string) ($system?->name_ar ?: $zatca?->name ?: config('app.name'))),
-            preg_replace('/\D/', '', (string) ($system?->Tax ?: $zatca?->trn ?: '')),
+            $co['name_ar'],
+            $co['vat_digits'],
             $issuedAt,
             (float) $note->total,
             (float) $note->tax_amount
