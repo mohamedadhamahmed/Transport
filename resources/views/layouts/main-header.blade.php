@@ -7,7 +7,7 @@
     // الفرع لعرض المنتجات. كانت الأربعة روابط دي href="#" (مؤقتة ومحدش
     // كملها) فمكنتش شغالة خالص - ده الإصلاح.
     $quickLinks = [
-        ['label' => __('messages.sales'), 'url' => route('invoices.index'), 'icon' => 'bag', 'tint' => 'text-[#1456E8] bg-[#1456E8]/10'],
+        ['label' => __('transport.invoices'), 'url' => route('transport.invoices.index'), 'icon' => 'bag', 'tint' => 'text-[#1456E8] bg-[#1456E8]/10'],
         ['label' => __('messages.purchases'), 'url' => route('purchases.index'), 'icon' => 'cart', 'tint' => 'text-[#F5811E] bg-[#F5811E]/10'],
         ['label' => __('messages.accounting_invoices'), 'url' => route('accounts.index'), 'icon' => 'doc', 'tint' => 'text-violet-600 bg-violet-500/10'],
         ['label' => __('messages.inventory'), 'url' => route('products.choose_branch'), 'icon' => 'box', 'tint' => 'text-emerald-600 bg-emerald-500/10'],
@@ -59,17 +59,65 @@
                 count: 0,
                 items: [],
                 recent: [],
+                notifPerm: ('Notification' in window) ? Notification.permission : 'unsupported',
+                seenKey: 'tr_notif_seen_{{ auth()->id() }}',
                 init() {
+                    this.refresh(true);
+                    // تحديث كل 30 ثانية + أول ما ترجع للتاب - ولو إشعارات المتصفح مفعّلة بيطلع إشعار بالجديد حتى لو على تاب تاني
+                    setInterval(() => this.refresh(false), 30000);
+                    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.refresh(false); });
+                    // فتح الجرس = الجديد اتشاف (الرقم الأحمر يرجع للتنبيهات بس)
+                    this.$watch('open', v => { if (v) this.markSeen(); });
+                },
+                newCount: 0,
+                markSeen() {
+                    if (!this.newCount) return;
+                    fetch('{{ route('notifications.seen') }}', { method: 'POST', headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content } })
+                        .then(() => { this.count = Math.max(0, this.count - this.newCount); this.newCount = 0; })
+                        .catch(() => {});
+                },
+                refresh(first) {
                     fetch('{{ route('notifications.summary') }}', { headers: { 'Accept': 'application/json' } })
                         .then(res => res.ok ? res.json() : { count: 0, items: [], recent: [], has_more: false })
                         .then(data => {
                             this.count = data.count || 0;
+                            this.newCount = data.new_count || 0;
                             this.items = data.items || [];
-                            this.recent = data.recent || [];
-                            this.hasMore = data.has_more || false;
+                            if (first || !this.open) {
+                                this.recent = data.recent || [];
+                                this.hasMore = data.has_more || false;
+                            }
                             this.loading = false;
+                            this.pushNew(data);
                         })
                         .catch(() => { this.loading = false; });
+                },
+                enableBrowserNotif() {
+                    if (!('Notification' in window)) { this.notifPerm = 'unsupported'; return; }
+                    Notification.requestPermission().then(p => {
+                        this.notifPerm = p;
+                        if (p === 'granted') {
+                            try { new Notification(@js(__('transport.browser_notif_title')), { body: @js(__('transport.browser_notif_enabled_msg')), tag: 'tr-enabled' }); } catch (e) {}
+                        }
+                    });
+                },
+                // إشعار متصفح لأي تنبيه/عملية جديدة (مقارنة باللي اتشاف قبل كده - مشترك بين التابات)
+                pushNew(data) {
+                    const list = [];
+                    (data.items || []).forEach(i => list.push({ key: 'i|' + i.type + '|' + i.count + '|' + i.message, title: @js(__('transport.browser_notif_title')), body: i.message, url: i.url }));
+                    (data.latest || data.recent || []).forEach(o => list.push({ key: 'r|' + (o.key || (o.type + '|' + o.number)), title: o.label + ' ' + o.number, body: (o.party || '') + (o.total !== null && o.total !== undefined ? ' · ' + Number(o.total).toFixed(2) : ''), url: o.url }));
+                    let seen = null;
+                    try { seen = JSON.parse(localStorage.getItem(this.seenKey) || 'null'); } catch (e) {}
+                    const keys = list.map(n => n.key);
+                    const fresh = seen ? list.filter(n => !seen.includes(n.key)) : [];
+                    try { localStorage.setItem(this.seenKey, JSON.stringify(keys.concat((seen || []).filter(k => !keys.includes(k))).slice(0, 400))); } catch (e) {}
+                    if (this.notifPerm !== 'granted' || !fresh.length) return;
+                    fresh.slice(0, 5).forEach(n => {
+                        try {
+                            const nt = new Notification(n.title, { body: n.body, tag: n.key, icon: @js(defined('camplogo') && constant('camplogo') ? asset('assets/img/brand/' . constant('camplogo')) : asset('favicon.ico')) });
+                            nt.onclick = () => { window.focus(); if (n.url) window.location.href = n.url; nt.close(); };
+                        } catch (e) {}
+                    });
                 },
                 loadMore() {
                     if (this.loadingMore || !this.hasMore) return;
@@ -102,6 +150,16 @@
                 <div class="px-4 py-3 text-sm font-bold text-gray-700 border-b border-gray-100 bg-gray-50/60">
                     {{ __('messages.notifications') }}
                 </div>
+                <!-- إشعارات المتصفح -->
+                <div class="px-4 py-2 border-b border-gray-100 text-xs">
+                    <button type="button" x-show="notifPerm === 'default'" @click="enableBrowserNotif()"
+                            class="w-full px-3 py-2 rounded-lg bg-[#1456E8]/10 text-[#1456E8] font-bold hover:bg-[#1456E8]/15 transition">
+                        🔔 {{ __('transport.browser_notif_enable') }}
+                    </button>
+                    <p x-show="notifPerm === 'granted'" x-cloak class="text-emerald-600 font-semibold text-center">✓ {{ __('transport.browser_notif_on') }}</p>
+                    <p x-show="notifPerm === 'denied'" x-cloak class="text-amber-600 text-center">{{ __('transport.browser_notif_denied') }}</p>
+                    <p x-show="notifPerm === 'unsupported'" x-cloak class="text-gray-400 text-center">{{ __('transport.browser_notif_unsupported') }}</p>
+                </div>
                 <div class="max-h-[28rem] overflow-y-auto">
                     <!-- تنبيهات (زاتكا فشلت / مخزون ناقص) -->
                     <template x-if="!loading && items.length === 0">
@@ -109,7 +167,8 @@
                     </template>
                     <template x-for="item in items" :key="item.type">
                         <a :href="item.url" class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 border-b border-gray-50 transition-colors">
-                            <span class="mt-0.5 flex items-center justify-center w-8 h-8 rounded-lg bg-rose-500/10 text-rose-600 shrink-0">
+                            <span class="mt-0.5 flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
+                                  :class="item.level === 'warning' ? 'bg-amber-500/10 text-amber-600' : 'bg-rose-500/10 text-rose-600'">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M12 9v4M12 17h.01M10.3 4.3 2.7 18a1.5 1.5 0 0 0 1.3 2.2h16a1.5 1.5 0 0 0 1.3-2.2L13.7 4.3a1.5 1.5 0 0 0-2.6 0Z" />
                                 </svg>
@@ -129,14 +188,23 @@
                         <p class="px-4 py-5 text-center text-sm text-gray-400">{{ __('messages.no_recent_operations') }}</p>
                     </template>
                     <template x-for="(op, idx) in recent" :key="idx">
-                        <a :href="op.url" class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition-colors">
+                        <a :href="op.url" class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition-colors" :class="op.is_new ? 'bg-[#1456E8]/[0.04]' : ''">
                             <span class="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
                                   :class="{
                                       'bg-[#1456E8]/10 text-[#1456E8]': op.type === 'sale',
                                       'bg-[#F5811E]/10 text-[#F5811E]': op.type === 'purchase',
                                       'bg-emerald-500/10 text-emerald-600': op.type === 'receipt',
-                                      'bg-rose-500/10 text-rose-600': op.type === 'payment'
+                                      'bg-rose-500/10 text-rose-600': op.type === 'payment',
+                                      'bg-amber-500/10 text-amber-600': op.type === 'truck_loaded',
+                                      'bg-emerald-500/10 text-emerald-700': op.type === 'truck_unloaded',
+                                      'bg-violet-500/10 text-violet-600': op.type === 'journal'
                                   }">
+                                <svg x-show="op.type === 'journal'" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M4 4h12a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V4Z"/><path d="M8 8h6M8 12h6M8 16h4"/>
+                                </svg>
+                                <svg x-show="op.type === 'truck_loaded' || op.type === 'truck_unloaded'" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 6h11v10H3z"/><path d="M14 9h4l3 3v4h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>
+                                </svg>
                                 <svg x-show="op.type === 'sale'" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>
                                 </svg>
@@ -152,12 +220,13 @@
                             </span>
                             <span class="min-w-0 flex-1">
                                 <p class="text-sm text-gray-700 truncate">
+                                    <span x-show="op.is_new" class="inline-block w-2 h-2 rounded-full bg-[#1456E8] align-middle me-1"></span>
                                     <span x-text="op.label"></span> <span class="text-gray-400" x-text="op.number"></span>
                                     <template x-if="op.party"><span class="text-gray-400">- </span></template>
                                     <span class="text-gray-500" x-text="op.party"></span>
                                 </p>
                                 <p class="text-xs text-gray-400 mt-0.5">
-                                    <span x-text="Number(op.total).toFixed(2)"></span> · <span x-text="op.time"></span>
+                                    <template x-if="op.total !== null && op.total !== undefined"><span><span x-text="Number(op.total).toFixed(2)"></span> · </span></template><span x-text="op.time"></span>
                                 </p>
                             </span>
                         </a>

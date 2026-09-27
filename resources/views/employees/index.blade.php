@@ -48,6 +48,12 @@
                         <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>{{ __('employees.status_inactive') }}</option>
                         <option value="terminated" {{ request('status') === 'terminated' ? 'selected' : '' }}>{{ __('employees.status_terminated') }}</option>
                     </select>
+                    <select name="department" class="rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                        <option value="">{{ __('employees.all_departments') }}</option>
+                        @foreach(($departments ?? collect()) as $departmentName)
+                        <option value="{{ $departmentName }}" {{ request('department') === $departmentName ? 'selected' : '' }}>{{ $departmentName }}</option>
+                        @endforeach
+                    </select>
                     <button type="submit" class="px-4 py-2 rounded-lg bg-[#0F1B4C] text-white text-sm font-medium">
                         {{ __('employees.search') }}
                     </button>
@@ -60,6 +66,7 @@
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase">{{ __('employees.employee_number') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase">{{ __('employees.name') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase">{{ __('employees.job_title') }}</th>
+                                <th class="px-4 py-3 text-start text-xs font-semibold uppercase">{{ __('employees.department') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase">{{ __('employees.branch') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase">{{ __('employees.phone') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase">{{ __('employees.status') }}</th>
@@ -72,6 +79,7 @@
                                 <td class="px-4 py-3 text-gray-500 font-mono text-xs">{{ $employee->employee_number }}</td>
                                 <td class="px-4 py-3 font-medium text-gray-800">{{ $employee->name }}</td>
                                 <td class="px-4 py-3 text-gray-600">{{ $employee->job_title }}</td>
+                                <td class="px-4 py-3 text-gray-600">{{ $employee->department ?: '-' }}</td>
                                 <td class="px-4 py-3 text-gray-600">{{ $employee->branch->name ?? '-' }}</td>
                                 <td class="px-4 py-3 text-gray-600">{{ $employee->phone }}</td>
                                 <td class="px-4 py-3">
@@ -103,7 +111,7 @@
                                 </td>
                             </tr>
                             @empty
-                            <tr><td colspan="7" class="px-4 py-10 text-center text-gray-400">{{ __('employees.no_data') }}</td></tr>
+                            <tr><td colspan="8" class="px-4 py-10 text-center text-gray-400">{{ __('employees.no_data') }}</td></tr>
                             @endforelse
                         </tbody>
                     </table>

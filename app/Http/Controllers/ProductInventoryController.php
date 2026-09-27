@@ -8,8 +8,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
-use App\Models\StockAdjustment;
-use Illuminate\Support\Facades\Auth;
 /**
  * قسم المنتجات والمخزون:
  * - قائمة "جميع المنتجات" مع فلترة إجبارية بالفرع أولاً، ثم فلترة اختيارية بالفئة/الرقم.
@@ -149,15 +147,6 @@ public function update(Request $request, Product $product)
     // تحديث المخزون للمنتج
     $product->update(['stock_quantity' => $newQuantity]);
 
-    // تسجيل التعديل في جدول السجلات
-    StockAdjustment::create([
-        'product_id' => $product->id,
-        'user_id' => Auth::id(),
-        'old_quantity' => $oldQuantity,
-        'new_quantity' => $newQuantity,
-        'difference' => $difference,
-        'reason' => $validated['reason'] ?? null,
-    ]);
 
     return redirect()->back()->with('success', __('products.stock_updated_success'));
 }
@@ -238,17 +227,6 @@ public function update(Request $request, Product $product)
 
                 $difference = $newQuantity - $oldQuantity;
 
-                // تسجيل التعديل في جدول السجلات إذا حدث تغيير فعلي
-                if ($difference != 0) {
-                    \App\Models\StockAdjustment::create([
-                        'product_id' => $product->id,
-                        'user_id' => \Illuminate\Support\Facades\Auth::id(),
-                        'old_quantity' => $oldQuantity,
-                        'new_quantity' => $newQuantity,
-                        'difference' => $difference,
-                        'reason' => $reasonText,
-                    ]);
-                }
 
                 $updated++;
             }

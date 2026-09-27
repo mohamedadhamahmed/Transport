@@ -10,12 +10,14 @@
                             <path d="M3 10h18M6 15h4M3 6h18v12H3z"/>
                         </svg>
                     </span>
-                    <h2 class="text-white font-bold text-lg">{{ $type === 'receipt' ? __('vouchers.receipt_title') : __('vouchers.payment_title') }}</h2>
+                    <h2 class="text-white font-bold text-lg">{{ !empty($isMaintenance) ? '🔧 ' . __('transport.maintenance_vouchers') : ($type === 'receipt' ? __('vouchers.receipt_title') : __('vouchers.payment_title')) }}</h2>
                 </div>
-                <a href="{{ route('vouchers.create', ['type' => $type]) }}"
+                @can(!empty($isMaintenance) ? 'maintenance.create' : 'vouchers.create')
+                <a href="{{ !empty($isMaintenance) ? route('vouchers.create', ['type' => 'payment', 'maintenance' => 1]) : route('vouchers.create', ['type' => $type]) }}"
                    class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
-                    + {{ $type === 'receipt' ? __('vouchers.new_receipt') : __('vouchers.new_payment') }}
+                    + {{ !empty($isMaintenance) ? __('transport.new_maintenance') : ($type === 'receipt' ? __('vouchers.new_receipt') : __('vouchers.new_payment')) }}
                 </a>
+                @endcan
             </div>
 
             @include('partials.sweet-alert-flash')
@@ -36,6 +38,23 @@
                 <div class="p-4 border-b border-gray-100">
                     <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <input type="hidden" name="type" value="{{ $type }}">
+                        @if (!empty($isMaintenance))
+                            <input type="hidden" name="maintenance" value="1">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-1">{{ __('transport.truck') }}</label>
+                                <select name="truck_id" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                    <option value="">{{ __('transport.all') }}</option>
+                                    @foreach ($trucks as $t)<option value="{{ $t->id }}" @selected((string) request('truck_id') === (string) $t->id)>{{ $t->display_name }}</option>@endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-1">{{ __('transport.expense_category') }}</label>
+                                <select name="expense_category" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+                                    <option value="">{{ __('transport.all') }}</option>
+                                    @foreach (\App\Models\AccountVoucher::EXPENSE_CATEGORIES as $k => $label)<option value="{{ $k }}" @selected(request('expense_category') === $k)>{{ $label }}</option>@endforeach
+                                </select>
+                            </div>
+                        @endif
                         <div>
                             <label class="block text-xs font-medium text-gray-500 mb-1">{{ __('vouchers.date_from') }}</label>
                             <input type="date" name="date_from" value="{{ request('date_from') }}"
@@ -61,6 +80,10 @@
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('vouchers.voucher_no') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('vouchers.voucher_date') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('vouchers.treasury_account') }}</th>
+                                @if (!empty($isMaintenance))
+                                    <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('transport.truck') }}</th>
+                                    <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('transport.expense_category') }}</th>
+                                @endif
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('vouchers.items_count') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('vouchers.amount') }}</th>
                                 <th class="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide">{{ __('vouchers.view') }}</th>
@@ -72,6 +95,10 @@
                                     <td class="px-4 py-3 font-medium text-gray-800">#{{ $voucher->voucher_number }}</td>
                                     <td class="px-4 py-3 text-gray-500">{{ $voucher->voucher_date->format('Y-m-d') }}</td>
                                     <td class="px-4 py-3 text-gray-500">{{ $voucher->treasuryAccount?->name ?? '-' }}</td>
+                                    @if (!empty($isMaintenance))
+                                        <td class="px-4 py-3 font-semibold text-gray-800">{{ $voucher->truck?->plate_number ?? '-' }}</td>
+                                        <td class="px-4 py-3 text-gray-500">{{ $voucher->expenseCategoryLabel() ?? '-' }}</td>
+                                    @endif
                                     <td class="px-4 py-3 text-gray-500">{{ $voucher->lines_count }}</td>
                                     <td class="px-4 py-3 font-semibold text-[#0F1B4C]">{{ number_format($voucher->lines_total ?? 0, 2) }}</td>
                                     <td class="px-4 py-3">
@@ -80,7 +107,7 @@
                                                class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
                                                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                                             </a>
-                                            @can('vouchers.edit')
+                                            @can($voucher->truck_id ? 'maintenance.edit' : 'vouchers.edit')
                                             <a href="{{ route('vouchers.edit', $voucher) }}" title="{{ __('vouchers.edit_voucher') }}"
                                                class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-amber-50 text-amber-600 hover:bg-amber-100 transition">
                                                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -91,7 +118,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="px-4 py-10 text-center text-gray-400">
+                                    <td colspan="{{ !empty($isMaintenance) ? 8 : 6 }}" class="px-4 py-10 text-center text-gray-400">
                                         {{ __('vouchers.no_vouchers_found') }}
                                     </td>
                                 </tr>

@@ -5,18 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\AccountVoucher;
 use App\Models\Branch;
 use App\Models\Customer;
-use App\Models\DeliveryNote;
 use App\Models\Employee;
 use App\Models\FinancialAccount;
-use App\Models\Invoice;
-use App\Models\InvoiceItem;
-use App\Models\InvoiceReturn;
 use App\Models\JournalEntry;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseReturn;
-use App\Models\StockTransfer;
 use App\Models\Supplier;
+use App\Models\TransportInvoice;
+use App\Models\TransportInvoiceItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -62,35 +59,24 @@ class DashboardController extends Controller
         $today = now()->toDateString();
         $monthStart = now()->startOfMonth()->toDateString();
 
-        $netTotalExpr = '(subtotal + tax_amount - discount_amount)';
+        // "المبيعات" هنا = فواتير النقليات المعتمدة (قسم المبيعات اتشال)
+        $netTotalExpr = 'transport_invoices.total';
 
-        $todaySales = Invoice::query()
+        $todaySales = TransportInvoice::query()->where('is_draft', false)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereDate('issue_date', $today)
             ->selectRaw("COUNT(*) as cnt, COALESCE(SUM({$netTotalExpr}), 0) as net")
             ->first();
 
-        $monthSales = Invoice::query()
+        $monthSales = TransportInvoice::query()->where('is_draft', false)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereDate('issue_date', '>=', $monthStart)
             ->selectRaw("COUNT(*) as cnt, COALESCE(SUM({$netTotalExpr}), 0) as net")
             ->first();
 
-        $todaySalesProfit = DB::table('invoice_items')
-            ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
-            ->join('products', 'products.id', '=', 'invoice_items.product_id')
-            ->when($branchId, fn ($q) => $q->where('invoices.branch_id', $branchId))
-            ->whereDate('invoices.issue_date', $today)
-            ->selectRaw('COALESCE(SUM(((invoice_items.unit_price * invoice_items.quantity) - invoice_items.discount_amount) - (invoice_items.quantity * CASE WHEN products.average_cost > 0 THEN products.average_cost ELSE products.purchase_price END)), 0) as profit')
-            ->value('profit');
-
-        $monthSalesProfit = DB::table('invoice_items')
-            ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
-            ->join('products', 'products.id', '=', 'invoice_items.product_id')
-            ->when($branchId, fn ($q) => $q->where('invoices.branch_id', $branchId))
-            ->whereDate('invoices.issue_date', '>=', $monthStart)
-            ->selectRaw('COALESCE(SUM(((invoice_items.unit_price * invoice_items.quantity) - invoice_items.discount_amount) - (invoice_items.quantity * CASE WHEN products.average_cost > 0 THEN products.average_cost ELSE products.purchase_price END)), 0) as profit')
-            ->value('profit');
+        // الربح = إيراد النقليات قبل الضريبة - مصروفات/صيانة الشاحنات (سندات صرف مربوطة بشاحنة)
+        $todaySalesProfit = $this->transportProfit($today, $today, $branchId);
+        $monthSalesProfit = $this->transportProfit($monthStart, $today, $branchId);
 
         $todayPurchases = Purchase::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
@@ -143,20 +129,9 @@ class DashboardController extends Controller
             ->whereDate('entry_date', $today)
             ->count();
 
-        $todayStockTransfersCount = class_exists(StockTransfer::class)
-            ? StockTransfer::query()
-                ->when($branchId, fn ($q) => $q->where(fn ($qq) => $qq->where('from_branch_id', $branchId)->orWhere('to_branch_id', $branchId)))
-                ->whereDate('transfer_date', $today)
-                ->count()
-            : 0;
+        $todayStockTransfersCount = 0; // (تحويلات المخزون اتشالت)
 
-        $todaySalesReturnsCount = class_exists(InvoiceReturn::class)
-            ? InvoiceReturn::query()
-                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-                ->whereDate('created_at', $today)
-                ->distinct()
-                ->count('reference_value')
-            : 0;
+        $todaySalesReturnsCount = 0; // (مرتجع المبيعات اتشال)
 
         $todayPurchasesReturnsCount = class_exists(PurchaseReturn::class)
             ? PurchaseReturn::query()
@@ -171,11 +146,10 @@ class DashboardController extends Controller
             ->whereColumn('stock_quantity', '<=', 'low_stock_alert_quantity')
             ->count();
 
-        $pendingDeliveryNotes = DeliveryNote::query()
-            ->when($branchId, fn ($q) => $q->where('branchs_id', $branchId))
-            ->where('save', 1)
-            ->where('status', '!=', 3)
-            ->count();
+        // (سندات التسليم اتشالت) - الكارت ده بقى عدد الشاحنات المحمّلة دلوقتي
+        $loadedTrucksCount = \Illuminate\Support\Facades\Schema::hasTable('truck_loads')
+            ? \App\Models\TruckLoad::where('status', 'loaded')->count()
+            : 0;
 
         // العملاء والموردين والموظفين مالهومش فلترة بفرع حاليًا (جدول
         // العملاء/الموردين مفيهوش عمود فرع في التطبيق ده أصلًا).
@@ -232,7 +206,7 @@ class DashboardController extends Controller
             'today_purchases_returns_count' => $todayPurchasesReturnsCount,
 
             'low_stock_count' => $lowStockCount,
-            'pending_delivery_notes_count' => $pendingDeliveryNotes,
+            'loaded_trucks_count' => $loadedTrucksCount,
             'active_employees_count' => $activeEmployeesCount,
 
             'sales_purchases_trend' => $this->salesPurchasesTrend($netTotalExpr, $branchId),
@@ -262,7 +236,7 @@ class DashboardController extends Controller
     {
         $days = collect(range(6, 0))->map(fn ($i) => now()->subDays($i)->toDateString());
 
-        $salesByDay = Invoice::query()
+        $salesByDay = TransportInvoice::query()->where('is_draft', false)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereDate('issue_date', '>=', $days->first())
             ->selectRaw("DATE(issue_date) as d, COALESCE(SUM({$netTotalExpr}), 0) as net")
@@ -293,10 +267,11 @@ class DashboardController extends Controller
      */
     private function topEmployeesToday(string $netTotalExpr, string $today, ?int $branchId): array
     {
-        return Invoice::query()
-            ->join('users', 'users.id', '=', 'invoices.created_by')
-            ->when($branchId, fn ($q) => $q->where('invoices.branch_id', $branchId))
-            ->whereDate('invoices.issue_date', $today)
+        return TransportInvoice::query()
+            ->join('users', 'users.id', '=', 'transport_invoices.created_by')
+            ->where('transport_invoices.is_draft', false)
+            ->when($branchId, fn ($q) => $q->where('transport_invoices.branch_id', $branchId))
+            ->whereDate('transport_invoices.issue_date', $today)
             ->groupBy('users.id', 'users.name')
             ->orderByDesc('net')
             ->limit(5)
@@ -312,9 +287,10 @@ class DashboardController extends Controller
      */
     private function topBranchesToday(string $netTotalExpr, string $today): array
     {
-        return Invoice::query()
-            ->join('branches', 'branches.id', '=', 'invoices.branch_id')
-            ->whereDate('invoices.issue_date', $today)
+        return TransportInvoice::query()
+            ->join('branches', 'branches.id', '=', 'transport_invoices.branch_id')
+            ->where('transport_invoices.is_draft', false)
+            ->whereDate('transport_invoices.issue_date', $today)
             ->groupBy('branches.id', 'branches.name')
             ->orderByDesc('net')
             ->limit(5)
@@ -330,14 +306,17 @@ class DashboardController extends Controller
      */
     private function topProductsToday(string $today, int $branchId): array
     {
-        return InvoiceItem::query()
-            ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
-            ->where('invoices.branch_id', $branchId)
-            ->whereDate('invoices.issue_date', $today)
-            ->groupBy('invoice_items.product_name_snapshot')
+        // أكتر 5 شاحنات إيرادًا اليوم للفرع المختار
+        return TransportInvoiceItem::query()
+            ->join('transport_invoices', 'transport_invoices.id', '=', 'transport_invoice_items.transport_invoice_id')
+            ->join('trucks', 'trucks.id', '=', 'transport_invoice_items.truck_id')
+            ->where('transport_invoices.is_draft', false)
+            ->where('transport_invoices.branch_id', $branchId)
+            ->whereDate('transport_invoices.issue_date', $today)
+            ->groupBy('trucks.id', 'trucks.plate_number')
             ->orderByDesc('net')
             ->limit(5)
-            ->selectRaw('invoice_items.product_name_snapshot as name, COALESCE(SUM(invoice_items.unit_price * invoice_items.quantity), 0) as net')
+            ->selectRaw('trucks.plate_number as name, COALESCE(SUM(transport_invoice_items.line_total), 0) as net')
             ->get()
             ->map(fn ($row) => ['name' => $row->name, 'net' => round((float) $row->net, 2)])
             ->all();
@@ -348,18 +327,20 @@ class DashboardController extends Controller
      */
     private function topSellingProductsDashboard(?int $branchId): array
     {
-        return InvoiceItem::query()
-            ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
-            ->join('products', 'products.id', '=', 'invoice_items.product_id')
-            ->when($branchId, fn ($q) => $q->where('invoices.branch_id', $branchId))
-            ->groupBy('products.id', 'products.name')
+        // أكتر 5 شاحنات نقلات (العدد والإيراد)
+        return TransportInvoiceItem::query()
+            ->join('transport_invoices', 'transport_invoices.id', '=', 'transport_invoice_items.transport_invoice_id')
+            ->join('trucks', 'trucks.id', '=', 'transport_invoice_items.truck_id')
+            ->where('transport_invoices.is_draft', false)
+            ->when($branchId, fn ($q) => $q->where('transport_invoices.branch_id', $branchId))
+            ->groupBy('trucks.id', 'trucks.plate_number')
             ->orderByDesc('qty')
             ->limit(5)
-            ->selectRaw('products.name as name, COALESCE(SUM(invoice_items.quantity), 0) as qty, COALESCE(SUM((invoice_items.unit_price * invoice_items.quantity) - invoice_items.discount_amount), 0) as net')
+            ->selectRaw('trucks.plate_number as name, COUNT(*) as qty, COALESCE(SUM(transport_invoice_items.line_total), 0) as net')
             ->get()
             ->map(fn ($row) => [
                 'name' => $row->name,
-                'qty' => round((float) $row->qty, 2),
+                'qty' => (int) $row->qty,
                 'net' => round((float) $row->net, 2),
             ])
             ->all();
@@ -370,20 +351,43 @@ class DashboardController extends Controller
      */
     private function recentSales(?int $branchId): array
     {
-        return Invoice::query()
+        return TransportInvoice::query()
+            ->where('is_draft', false)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->with('customer:id,name')
             ->latest('id')
             ->limit(6)
-            ->get(['id', 'invoice_number', 'customer_id', 'subtotal', 'tax_amount', 'discount_amount', 'payment_method', 'issue_date', 'created_at'])
-            ->map(fn (Invoice $invoice) => [
+            ->get(['id', 'invoice_number', 'customer_id', 'total', 'payment_method', 'issue_date', 'created_at'])
+            ->map(fn (TransportInvoice $invoice) => [
                 'number' => $invoice->invoice_number ?: ('#' . $invoice->id),
                 'customer' => $invoice->customer?->name,
-                'total' => round((float) ($invoice->subtotal + $invoice->tax_amount - $invoice->discount_amount), 2),
+                'total' => round((float) $invoice->total, 2),
                 'payment_method' => $invoice->payment_method,
                 'time' => optional($invoice->created_at)->diffForHumans(),
             ])
             ->all();
+    }
+
+    /** إيراد النقليات قبل الضريبة ناقص مصروفات الشاحنات في الفترة */
+    private function transportProfit(string $from, string $to, ?int $branchId): float
+    {
+        $revenue = (float) TransportInvoice::query()
+            ->where('is_draft', false)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->whereDate('issue_date', '>=', $from)
+            ->whereDate('issue_date', '<=', $to)
+            ->sum('subtotal');
+
+        $expenses = (float) DB::table('account_vouchers')
+            ->join('account_voucher_lines', 'account_voucher_lines.account_voucher_id', '=', 'account_vouchers.id')
+            ->whereNotNull('account_vouchers.truck_id')
+            ->where('account_vouchers.type', AccountVoucher::TYPE_PAYMENT)
+            ->when($branchId, fn ($q) => $q->where('account_vouchers.branch_id', $branchId))
+            ->whereDate('account_vouchers.voucher_date', '>=', $from)
+            ->whereDate('account_vouchers.voucher_date', '<=', $to)
+            ->sum('account_voucher_lines.amount');
+
+        return round($revenue - $expenses, 2);
     }
 
     /**

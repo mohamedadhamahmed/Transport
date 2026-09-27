@@ -211,14 +211,6 @@
                                 <td class="p-3 text-end text-gray-700 font-mono">{{ number_format($salesTotalWithTax, 2) }}</td>
                                 <td class="p-3 text-center text-gray-600">{{ $salesCount }}</td>
                             </tr>
-                            <tr class="hover:bg-gray-50 text-red-600">
-                                <td class="p-3 font-medium">{{ __('reports.sales_returns_taxable') }}</td>
-                                <td class="p-3 text-end font-mono">({{ number_format($salesReturnsTaxable, 2) }})</td>
-                                <td class="p-3 text-center font-mono">15%</td>
-                                <td class="p-3 text-end font-bold font-mono">({{ number_format($salesReturnsTax, 2) }})</td>
-                                <td class="p-3 text-end font-mono">({{ number_format($salesReturnsTotalWithTax, 2) }})</td>
-                                <td class="p-3 text-center">{{ $salesReturnsCount }}</td>
-                            </tr>
                             <tr class="bg-blue-50/60 font-bold border-t border-b border-blue-100 text-[#0F1B4C]">
                                 <td class="p-3 text-start">{{ __('reports.net_sales_tax') }}</td>
                                 <td class="p-3 text-end font-mono">{{ number_format($netSalesTaxable, 2) }}</td>
@@ -312,11 +304,6 @@
                             :class="activeTab === 'sales' ? 'bg-white text-[#1456E8] border-[#1456E8] shadow-sm' : 'text-gray-500 border-transparent hover:text-gray-700'">
                         {{ __('reports.sales_invoices_tab') }} ({{ $salesCount }})
                     </button>
-                    <button type="button" @click="activeTab = 'sales_returns'"
-                            class="px-4 py-2.5 text-xs font-bold rounded-t-lg transition border-b-2"
-                            :class="activeTab === 'sales_returns' ? 'bg-white text-red-600 border-red-600 shadow-sm' : 'text-gray-500 border-transparent hover:text-gray-700'">
-                        {{ __('reports.sales_returns_tab') }} ({{ $salesReturnsCount }})
-                    </button>
                     <button type="button" @click="activeTab = 'purchases'"
                             class="px-4 py-2.5 text-xs font-bold rounded-t-lg transition border-b-2"
                             :class="activeTab === 'purchases' ? 'bg-white text-emerald-600 border-emerald-600 shadow-sm' : 'text-gray-500 border-transparent hover:text-gray-700'">
@@ -354,12 +341,12 @@
                                 <tbody class="divide-y divide-gray-100">
                                     @foreach ($salesInvoices as $inv)
                                         <tr class="hover:bg-gray-50">
-                                            <td class="p-2.5 font-medium text-[#1456E8]">{{ $inv->invoice_number }}</td>
-                                            <td class="p-2.5">{{ $inv->customer?->name ?? 'عميل نقدي' }}</td>
-                                            <td class="p-2.5 text-center text-gray-500">{{ $inv->issue_date }}</td>
-                                            <td class="p-2.5 text-end font-mono">{{ number_format($inv->subtotal - $inv->discount_amount, 2) }}</td>
+                                            <td class="p-2.5 font-medium text-[#1456E8]"><a href="{{ route('transport.invoices.show', $inv->id) }}" class="hover:underline">{{ $inv->invoice_number }}</a></td>
+                                            <td class="p-2.5">{{ $inv->customer?->name ?? '-' }}</td>
+                                            <td class="p-2.5 text-center text-gray-500">{{ \Illuminate\Support\Carbon::parse($inv->issue_date)->format('Y-m-d') }}</td>
+                                            <td class="p-2.5 text-end font-mono">{{ number_format($inv->subtotal, 2) }}</td>
                                             <td class="p-2.5 text-end font-mono text-blue-600 font-bold">{{ number_format($inv->tax_amount, 2) }}</td>
-                                            <td class="p-2.5 text-end font-mono font-bold">{{ number_format($inv->subtotal - $inv->discount_amount + $inv->tax_amount, 2) }}</td>
+                                            <td class="p-2.5 text-end font-mono font-bold">{{ number_format($inv->subtotal + $inv->tax_amount, 2) }}</td>
                                         </tr>
                                     @endforeach
                                 </tbody>

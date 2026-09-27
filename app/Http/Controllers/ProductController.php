@@ -3,12 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
-use App\Models\Invoice;
-use App\Models\InvoiceItem;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
-use App\Models\StockTransfer;
 use App\Services\Reports\ReportExcelExporter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -153,9 +150,9 @@ public function index(Request $request, Branch $branch)
     {
         $user = Auth::user();
 
-        $canViewSales = (bool) $user?->hasPermission('reports_sales.by_product');
+        $canViewSales = false; // (قسم المبيعات اتشال)
         $canViewPurchases = (bool) $user?->hasPermission('reports_purchases.by_product');
-        $canViewTransfers = (bool) $user?->hasPermission('reports_products.stock_transfers');
+        $canViewTransfers = false; // (تحويلات المخزون اتشالت)
 
         abort_unless($canViewSales || $canViewPurchases || $canViewTransfers, 403);
 
@@ -164,37 +161,6 @@ public function index(Request $request, Branch $branch)
         $dateTo = $request->filled('date_to') ? $request->query('date_to') : null;
 
         $rows = collect();
-
-        if ($canViewSales && in_array($type, ['all', 'sales'], true)) {
-            $rows = $rows->merge(
-                InvoiceItem::query()
-                    ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
-                    ->leftJoin('customers', 'customers.id', '=', 'invoices.customer_id')
-                    ->where('invoice_items.product_id', $product->id)
-                    ->when($dateFrom, fn ($q) => $q->whereDate('invoices.issue_date', '>=', $dateFrom))
-                    ->when($dateTo, fn ($q) => $q->whereDate('invoices.issue_date', '<=', $dateTo))
-                    ->orderByDesc('invoices.issue_date')
-                    ->orderByDesc('invoice_items.id')
-                    ->limit(300)
-                    ->get([
-                        'invoices.invoice_number as document_number',
-                        'invoices.issue_date as op_date',
-                        'customers.name as entity_name',
-                        'invoice_items.quantity as quantity',
-                        'invoice_items.unit_price as price',
-                    ])
-                    ->map(fn ($r) => [
-                        'document_number' => $r->document_number,
-                        'product_name' => $product->name,
-                        'date' => optional($r->op_date)->format('Y-m-d'),
-                        'type_key' => 'sales',
-                        'type_label' => __('products.operations.type_sales'),
-                        'entity_name' => $r->entity_name ?? '-',
-                        'quantity' => (float) $r->quantity,
-                        'price' => (float) $r->price,
-                    ])
-            );
-        }
 
         if ($canViewPurchases && in_array($type, ['all', 'purchases'], true)) {
             $rows = $rows->merge(
@@ -227,38 +193,6 @@ public function index(Request $request, Branch $branch)
             );
         }
 
-        if ($canViewTransfers && in_array($type, ['all', 'transfers'], true)) {
-            $rows = $rows->merge(
-                StockTransfer::query()
-                    ->whereHas('items', function ($itemQuery) use ($product) {
-                        $itemQuery->where('from_product_id', $product->id)
-                            ->orWhere('to_product_id', $product->id);
-                    })
-                    ->with(['fromBranch:id,name', 'toBranch:id,name', 'items' => function ($itemQuery) use ($product) {
-                        $itemQuery->where('from_product_id', $product->id)
-                            ->orWhere('to_product_id', $product->id);
-                    }])
-                    ->when($dateFrom, fn ($q) => $q->whereDate('transfer_date', '>=', $dateFrom))
-                    ->when($dateTo, fn ($q) => $q->whereDate('transfer_date', '<=', $dateTo))
-                    ->orderByDesc('transfer_date')
-                    ->limit(300)
-                    ->get()
-                    ->flatMap(function ($transfer) use ($product) {
-                        return $transfer->items->map(fn ($item) => [
-                            'document_number' => $transfer->transfer_number,
-                            'product_name' => $product->name,
-                            'date' => optional($transfer->transfer_date)->format('Y-m-d'),
-                            'type_key' => 'transfers',
-                            'type_label' => __('products.operations.type_transfers'),
-                            'entity_name' => trim(
-                                (optional($transfer->fromBranch)->name ?? '-') . ' ← ' . (optional($transfer->toBranch)->name ?? '-')
-                            ),
-                            'quantity' => (float) $item->quantity,
-                            'price' => (float) $item->unit_cost_snapshot,
-                        ]);
-                    })
-            );
-        }
 
         $rows = $rows->sortByDesc('date')->take(500)->values();
 

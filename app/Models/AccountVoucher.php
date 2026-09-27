@@ -20,7 +20,23 @@ class AccountVoucher extends Model
         'treasury_account_id',
         'description',
         'branch_id',
+        'truck_id',
+        'expense_category',
         'created_by',
+    ];
+
+    /** أنواع مصروفات الشاحنات (سند الصيانة) */
+    public const EXPENSE_CATEGORIES = [
+        'maintenance' => 'صيانة',
+        'spare_parts' => 'قطع غيار',
+        'tires' => 'كفرات',
+        'oil' => 'زيوت وفلاتر',
+        'fuel' => 'وقود / ديزل',
+        'insurance' => 'تأمين',
+        'registration' => 'استمارة / رسوم حكومية',
+        'fines' => 'مخالفات',
+        'washing' => 'غسيل',
+        'other' => 'أخرى',
     ];
 
     protected $casts = [
@@ -47,6 +63,17 @@ class AccountVoucher extends Model
     public function lines()
     {
         return $this->hasMany(AccountVoucherLine::class, 'account_voucher_id');
+    }
+
+    /** الشاحنة (لو السند ده سند صيانة / مصروف شاحنة) */
+    public function truck()
+    {
+        return $this->belongsTo(Truck::class);
+    }
+
+    public function expenseCategoryLabel(): ?string
+    {
+        return $this->expense_category ? (self::EXPENSE_CATEGORIES[$this->expense_category] ?? $this->expense_category) : null;
     }
 
     public function branch()

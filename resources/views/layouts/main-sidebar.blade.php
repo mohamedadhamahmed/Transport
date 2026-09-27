@@ -6,6 +6,7 @@
     #F5811E برتقالي (لون التمييز / العنصر النشط)
 --}}
 <aside
+    x-data="sidebarSearchComponent()"
     :class="sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'"
     class="fixed lg:static inset-y-0 right-0 z-40 w-64 shrink-0 bg-[#0F1B4C] text-white flex flex-col transition-transform duration-200 ease-in-out">
     <!-- الشعار -->
@@ -44,11 +45,37 @@
         </div>
     </div>
 
+    <!-- صندوق البحث في القائمة الجانبية -->
+    <div class="px-3 pt-3 pb-1 border-b border-white/5">
+        <div class="relative">
+            <div class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none text-white/40">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
+                </svg>
+            </div>
+            <input type="text"
+                x-model="searchQuery"
+                @keydown.escape="searchQuery = ''"
+                placeholder="{{ __('messages.search_menu') }}"
+                class="w-full ps-9 pe-8 py-2 text-xs bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-[#1456E8] focus:border-[#1456E8] transition duration-150">
+            <button type="button"
+                x-show="searchQuery.trim().length > 0"
+                x-cloak
+                @click="searchQuery = ''"
+                title="مسح البحث"
+                class="absolute inset-y-0 end-0 flex items-center pe-2.5 text-white/40 hover:text-white transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
     <!-- عناصر القائمة -->
     <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-5">
 
         <!-- الرئيسية -->
-        <div>
+        <div x-show="!isSearching() || matches(@js(__('messages.dashboard') . ' dashboard الرئيسية لوحة التحكم'))">
             <a href="{{ route('dashboard') }}"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition
                       {{ request()->routeIs('dashboard')
@@ -63,74 +90,37 @@
         </div>
 
         @php
-        // كل عنصر فيه 'url' حقيقي بيروح لصفحته الفعلية، وأي عنصر لسه
-        // 'url' => '#' يبقى Placeholder لحد ما نبني صفحته.
+        $u = auth()->user();
+
         $sections = [
         [
-        'label' => __('messages.sales'),
+        // قسم النقليات: فواتير النقليات + الشاحنات + السائقين
+        'label' => __('transport.section'),
         'groups' => [
         [
-        'key' => 'invoices',
-        'label' => __('messages.sales'),
-        'icon' => 'bag',
-        'items' => [
-        ['label' => __('invoices.title'), 'url' => route('invoices.index')],
-        ['label' => __('invoices.new_invoice'), 'url' => route('invoices.create')],
-        ['label' => __('invoices.previous_drafts'), 'url' => route('invoices.drafts.index')],
-        ['label' => __('invoices.sales_return'), 'url' => route('invoices.returns.create')],
-        ['label' => __('invoices.previous_returns'), 'url' => route('invoices.returns.index')],
-
-
-        ],
-        ],
-        [
-        'key' => 'quotations',
-        'label' => __('quotations.title'),
-        'icon' => 'tag',
-        'items' => [
-        ['label' => __('quotations.title'), 'url' => route('quotations.index')],
-        ['label' => __('quotations.new_quotation'), 'url' => route('quotations.create')],
-        ],
-        ],
-        [
-        'key' => 'zatca',
-        'label' => __('zatca.title'),
-        'icon' => 'doc',
-        'items' => [
-        ['label' => __('zatca.not_sent'), 'url' => route('zatca.index', ['sent' => 0])],
-        ['label' => __('zatca.sent'), 'url' => route('zatca.index', ['sent' => 1])],
-        ],
-        ],
-        ],
-        ],
-        [
-        'label' => __('delivery.title') ?? __('delivery.delivery_product'),
-        'groups' => [
-        [
-        'key' => 'delivery',
-        'label' => __('delivery.delivery_product'),
+        'key' => 'transport-loads',
+        'label' => __('transport.movement'),
         'icon' => 'clock',
-        'items' => [
-        ['label' => __('delivery.delivery_product'), 'url' => route('delivery.create')],
-        ['label' => __('delivery.delivery_history'), 'url' => route('delivery.history')],
+        'items' => array_values(array_filter([
+            $u?->hasPermission('truck_loads.view') ? ['label' => __('transport.board_title'), 'url' => route('transport.loads.board')] : null,
+            $u?->hasPermission('waybills.create') ? ['label' => __('transport.new_waybill'), 'url' => route('transport.waybills.create')] : null,
+            $u?->hasPermission('waybills.view') ? ['label' => __('transport.waybills'), 'url' => route('transport.waybills.index')] : null,
+            $u?->hasPermission('truck_loads.report') ? ['label' => __('transport.loads_report'), 'url' => route('transport.loads.report')] : null,
+            $u?->hasPermission('truck_loads.view') ? ['label' => __('transport.regions'), 'url' => route('transport.regions.index')] : null,
+            $u?->hasPermission('drivers.view') ? ['label' => __('transport.drivers'), 'url' => route('transport.drivers.index')] : null,
+        ])),
         ],
-        ],
-        ],
-        ],
-         [
-        // قائمة منفصلة ثانية: "سند تسليم" (Delivery Note) - النظام الجديد
-        // (تسجيل معلّق، ثم اعتماد وتحويل لفاتورة ضريبية حقيقية).
-        'label' => __('deliverynote.title'),
-        'groups' => [
         [
-        'key' => 'delivery-note',
-        'label' => __('deliverynote.title'),
-        'icon' => 'box',
-        'items' => [
-        ['label' => __('deliverynote.delivery_product'), 'url' => route('deliverynote.create')],
-        ['label' => __('deliverynote.delivery_history'), 'url' => route('deliverynote.history')],
-        ['label' => __('deliverynote.approve_and_invoice'), 'url' => route('deliverynote.convert.index')],
-        ],
+        'key' => 'transport-invoices',
+        'label' => __('transport.invoices'),
+        'icon' => 'cart',
+        'items' => array_values(array_filter([
+            $u?->hasPermission('transport_invoices.create') ? ['label' => __('transport.new_invoice'), 'url' => route('transport.invoices.create')] : null,
+            $u?->hasPermission('transport_invoices.view') ? ['label' => __('transport.invoices'), 'url' => route('transport.invoices.index')] : null,
+            $u?->hasPermission('transport_invoices.view') ? ['label' => __('transport.unbilled_loads'), 'url' => route('transport.reports.unbilled')] : null,
+            $u?->hasPermission('transport_invoices.view') ? ['label' => __('transport.drafts'), 'url' => route('transport.invoices.index', ['status' => 'draft'])] : null,
+            $u?->hasPermission('zatca.view') ? ['label' => __('transport.zatca_title'), 'url' => route('transport.zatca.index')] : null,
+        ])),
         ],
         ],
         ],
@@ -141,19 +131,19 @@
         'key' => 'purchases',
         'label' => __('purchases.title'),
         'icon' => 'cart',
-        'items' => [
-        ['label' => __('purchases.title'), 'url' => route('purchases.index')],
-        ['label' => __('purchases.new_purchase'), 'url' => route('purchases.create')],
-        ['label' => __('purchase_orders.title'), 'url' => route('purchase-orders.index')],
-        ['label' => __('purchase_orders.new_purchase_order'), 'url' => route('purchase-orders.create')],
-        ['label' => __('purchase_returns.new_return'), 'url' => route('purchases.returns.create')],
-        ['label' => __('purchase_returns.previous_returns'), 'url' => route('purchases.returns.index')],
-        ],
+        'items' => array_values(array_filter([
+            $u?->hasPermission('purchases.view') ? ['label' => __('purchases.title'), 'url' => route('purchases.index')] : null,
+            $u?->hasPermission('purchases.create') ? ['label' => __('purchases.new_purchase'), 'url' => route('purchases.create')] : null,
+            $u?->hasPermission('purchases.orders') ? ['label' => __('purchase_orders.title'), 'url' => route('purchase-orders.index')] : null,
+            $u?->hasPermission('purchases.orders') ? ['label' => __('purchase_orders.new_purchase_order'), 'url' => route('purchase-orders.create')] : null,
+            $u?->hasPermission('purchases.returns') ? ['label' => __('purchase_returns.new_return'), 'url' => route('purchases.returns.create')] : null,
+            $u?->hasPermission('purchases.returns') ? ['label' => __('purchase_returns.previous_returns'), 'url' => route('purchases.returns.index')] : null,
+        ])),
         ],
         ],
         ],
         [
-        // قسم جديد: "الإضافات" - إدارة العملاء والموردين (إضافة/تعديل).
+        // قسم: "الإضافات" - إدارة العملاء والموردين
         'label' => __('messages.additions'),
         'groups' => [
         [
@@ -161,8 +151,8 @@
         'label' => __('customers.title'),
         'icon' => 'store',
         'items' => array_values(array_filter([
-        auth()->user()?->hasPermission('customers.view') ? ['label' => __('customers.title'), 'url' => route('customers.index')] : null,
-        auth()->user()?->hasPermission('customers.create') ? ['label' => __('customers.new_customer'), 'url' => route('customers.create')] : null,
+            $u?->hasPermission('customers.view') ? ['label' => __('customers.title'), 'url' => route('customers.index')] : null,
+            $u?->hasPermission('customers.create') ? ['label' => __('customers.new_customer'), 'url' => route('customers.create')] : null,
         ])),
         ],
         [
@@ -170,19 +160,14 @@
         'label' => __('suppliers.title'),
         'icon' => 'store',
         'items' => array_values(array_filter([
-        auth()->user()?->hasPermission('suppliers.view') ? ['label' => __('suppliers.title'), 'url' => route('suppliers.index')] : null,
-        auth()->user()?->hasPermission('suppliers.create') ? ['label' => __('suppliers.new_supplier'), 'url' => route('suppliers.create')] : null,
+            $u?->hasPermission('suppliers.view') ? ['label' => __('suppliers.title'), 'url' => route('suppliers.index')] : null,
+            $u?->hasPermission('suppliers.create') ? ['label' => __('suppliers.new_supplier'), 'url' => route('suppliers.create')] : null,
         ])),
         ],
         ],
         ],
         [
-        // قسم "الموارد البشرية" - كان قبل كده 8 مجموعات (أكورديون) منفصلة
-        // تحت بعض، دلوقتي مدموجين في مجموعة واحدة بس (زي "المشتريات"
-        // بالظبط) - زرار واحد يفتح كل حاجة تحته. الـ 'match' بتحمل كل
-        // الـ prefixes القديمة عشان الأكورديون يتفتح تلقائي لو المستخدم
-        // داخل أي شاشة من شاشات الموارد البشرية (راجع استخدامها تحت في
-        // نفس الملف بدل $group['key'] المفرد).
+        // قسم "الموارد البشرية"
         'label' => __('employees.hr_section_title'),
         'groups' => [
         [
@@ -190,89 +175,107 @@
         'match' => ['employees', 'attendance', 'employee-loans', 'asset-custodies', 'leave-requests', 'end-of-service', 'payroll', 'hr-settings'],
         'label' => __('employees.hr_section_title'),
         'icon' => 'user',
-        'items' => [
-        ['label' => __('contracts.title'), 'url' => route('contracts.index')],
-        ['label' => __('notifications.title'), 'url' => route('notifications.index')],
-        ['label' => __('employees.title'), 'url' => route('employees.index')],
-        ['label' => __('employees.new_employee'), 'url' => route('employees.create')],
-        ['label' => __('employees.import_title'), 'url' => route('employees.import.form')],
-        ['label' => __('attendance.title'), 'url' => route('attendance.index')],
-        ['label' => __('attendance.new_entry'), 'url' => route('attendance.create')],
-        ['label' => __('attendance.import_from_biometric'), 'url' => route('attendance.import.form')],
-        ['label' => __('employee_loans.title'), 'url' => route('employee-loans.index')],
-        ['label' => __('asset_custodies.title'), 'url' => route('asset-custodies.index')],
-        ['label' => __('leave_requests.title'), 'url' => route('leave-requests.index')],
-        ['label' => __('end_of_service.title'), 'url' => route('end-of-service.index')],
-        ['label' => __('end_of_service.new_settlement'), 'url' => route('end-of-service.create')],
-        ['label' => __('payroll.title'), 'url' => route('payroll.index')],
-        ['label' => __('hr_settings.title'), 'url' => route('hr-settings.index')],
-        ],
+        'items' => array_values(array_filter([
+            $u?->hasPermission('employees.view') ? ['label' => __('contracts.title'), 'url' => route('contracts.index')] : null,
+            $u?->hasPermission('employees.view') ? ['label' => __('notifications.title'), 'url' => route('notifications.index')] : null,
+            $u?->hasPermission('employees.view') ? ['label' => __('employees.title'), 'url' => route('employees.index')] : null,
+            $u?->hasPermission('employees.create') ? ['label' => __('employees.new_employee'), 'url' => route('employees.create')] : null,
+            $u?->hasPermission('employees.create') ? ['label' => __('employees.import_title'), 'url' => route('employees.import.form')] : null,
+            $u?->hasPermission('departments.view') ? ['label' => __('employees.departments_title'), 'url' => route('employees.departments.index')] : null,
+            $u?->hasPermission('attendance.view') ? ['label' => __('attendance.title'), 'url' => route('attendance.index')] : null,
+            $u?->hasPermission('attendance.create') ? ['label' => __('attendance.new_entry'), 'url' => route('attendance.create')] : null,
+            $u?->hasPermission('attendance.create') ? ['label' => __('attendance.import_from_biometric'), 'url' => route('attendance.import.form')] : null,
+            $u?->hasPermission('employee_loans.view') ? ['label' => __('employee_loans.title'), 'url' => route('employee-loans.index')] : null,
+            $u?->hasPermission('asset_custodies.view') ? ['label' => __('asset_custodies.title'), 'url' => route('asset-custodies.index')] : null,
+            $u?->hasPermission('employee_custody.view') ? ['label' => __('transport.custody_chart'), 'url' => route('transport.reports.custody')] : null,
+            $u?->hasPermission('drivers.view') ? ['label' => __('transport.drivers'), 'url' => route('transport.drivers.index')] : null,
+            $u?->hasPermission('leave_requests.view') ? ['label' => __('leave_requests.title'), 'url' => route('leave-requests.index')] : null,
+            $u?->hasPermission('end_of_service.view') ? ['label' => __('end_of_service.title'), 'url' => route('end-of-service.index')] : null,
+            $u?->hasPermission('end_of_service.view') ? ['label' => __('end_of_service.new_settlement'), 'url' => route('end-of-service.create')] : null,
+            $u?->hasPermission('payroll.view') ? ['label' => __('payroll.title'), 'url' => route('payroll.index')] : null,
+            $u?->hasPermission('hr_settings.manage') ? ['label' => __('hr_settings.title'), 'url' => route('hr-settings.index')] : null,
+        ])),
         ],
         ],
         ],
         [
-        // قسم جديد: "المنتجات والمخزون" - نقطة الدخول دايمًا "اختيار
-        // الفرع" لأنه إجباري قبل أي عرض/تعديل للمنتجات.
-        'label' => __('products.title'),
+        // قسم: "الشاحنات" (كان قسم المنتجات) - الشاحنات + سندات الصيانة + تقرير الشاحنات
+        'label' => __('transport.trucks'),
         'groups' => [
         [
-        'key' => 'products',
-        'label' => __('products.all_products'),
+        'key' => 'trucks',
+        'label' => __('transport.trucks'),
         'icon' => 'box',
-        'items' => [
-        ['label' => __('products.all_products'), 'url' => route('products.choose_branch')],
-        ['label' => __('products.add_group'), 'url' => route('product-groups.create')],
-        ],
+        'items' => array_values(array_filter([
+            $u?->hasPermission('trucks.view') ? ['label' => __('transport.trucks'), 'url' => route('transport.trucks.index')] : null,
+            $u?->hasPermission('trucks.create') ? ['label' => __('transport.new_truck'), 'url' => route('transport.trucks.create')] : null,
+            $u?->hasPermission('maintenance.create') ? ['label' => __('transport.new_maintenance'), 'url' => route('vouchers.create', ['type' => 'payment', 'maintenance' => 1])] : null,
+            $u?->hasPermission('maintenance.view') ? ['label' => __('transport.maintenance_vouchers'), 'url' => route('vouchers.index', ['type' => 'payment', 'maintenance' => 1])] : null,
+            $u?->hasPermission('transport_reports.fleet') ? ['label' => __('transport.fleet_report'), 'url' => route('transport.reports.fleet')] : null,
+        ])),
         ],
         ],
         ],
         [
-        // قسم جديد: "المحاسبة والفواتير" - شجرة الحسابات، القيد اليومي،
-        // سندات القبض والصرف. رابط accounts.search مش موجود هنا لإنه
-        // endpoint بحث AJAX داخلي بس (مش صفحة).
+        // قسم: "المحاسبة والفواتير"
         'label' => __('messages.accounting_invoices'),
         'groups' => [
+        [
+        'key' => 'quotations',
+        'label' => __('quotations.title'),
+        'icon' => 'tag',
+        'items' => array_values(array_filter([
+            // عروض الأسعار بقت عروض أسعار نقليات (مسار/نوع شاحنة/سعر النقلة/تحويلة)
+            $u?->hasPermission('transport_quotations.view') ? ['label' => __('transport.quotations'), 'url' => route('transport.quotations.index')] : null,
+            $u?->hasPermission('transport_quotations.create') ? ['label' => __('transport.new_quotation'), 'url' => route('transport.quotations.create')] : null,
+        ])),
+        ],
+        [
+        'key' => 'zatca',
+        'label' => __('zatca.title'),
+        'icon' => 'doc',
+        'items' => array_values(array_filter([
+            $u?->hasPermission('zatca.view') ? ['label' => __('zatca.not_sent'), 'url' => route('transport.zatca.index', ['sent' => 0])] : null,
+            $u?->hasPermission('zatca.view') ? ['label' => __('zatca.sent'), 'url' => route('transport.zatca.index', ['sent' => 1])] : null,
+        ])),
+        ],
         [
         'key' => 'accounts',
         'label' => __('accounts.title'),
         'icon' => 'ledger',
-        'items' => [
-        ['label' => __('accounts.list_title'), 'url' => route('accounts.index')],
-        ['label' => __('accounts.tree_title'), 'url' => route('accounts.tree')],
-        ['label' => __('accounts.new_account'), 'url' => route('accounts.create')],
-        ['label' => __('account_types.title'), 'url' => route('account-types.index')],
-        ],
+        'items' => array_values(array_filter([
+            $u?->hasPermission('accounts.view') ? ['label' => __('accounts.list_title'), 'url' => route('accounts.index')] : null,
+            $u?->hasPermission('accounts.view') ? ['label' => __('accounts.tree_title'), 'url' => route('accounts.tree')] : null,
+            $u?->hasPermission('accounts.create') ? ['label' => __('accounts.new_account'), 'url' => route('accounts.create')] : null,
+            $u?->hasPermission('accounts.view') ? ['label' => __('account_types.title'), 'url' => route('account-types.index')] : null,
+        ])),
         ],
         [
         'key' => 'journal-entries',
         'label' => __('journal_entries.group_title'),
         'icon' => 'doc',
-        'items' => [
-        ['label' => __('journal_entries.daily_title'), 'url' => route('journal-entries.index', ['type' => 'daily'])],
-        ['label' => __('journal_entries.new_daily_entry'), 'url' => route('journal-entries.create', ['type' => 'daily'])],
-        ['label' => __('journal_entries.opening_title'), 'url' => route('journal-entries.index', ['type' => 'opening'])],
-        ['label' => __('journal_entries.new_opening_entry'), 'url' => route('journal-entries.create', ['type' => 'opening'])],
-        ],
+        'items' => array_values(array_filter([
+            $u?->hasPermission('journal_entries.view') ? ['label' => __('journal_entries.daily_title'), 'url' => route('journal-entries.index', ['type' => 'daily'])] : null,
+            $u?->hasPermission('journal_entries.create') ? ['label' => __('journal_entries.new_daily_entry'), 'url' => route('journal-entries.create', ['type' => 'daily'])] : null,
+            $u?->hasPermission('journal_entries.view') ? ['label' => __('journal_entries.opening_title'), 'url' => route('journal-entries.index', ['type' => 'opening'])] : null,
+            $u?->hasPermission('journal_entries.create') ? ['label' => __('journal_entries.new_opening_entry'), 'url' => route('journal-entries.create', ['type' => 'opening'])] : null,
+        ])),
         ],
         [
         'key' => 'vouchers',
         'label' => __('vouchers.title'),
         'icon' => 'tag',
-        'items' => [
-        ['label' => __('vouchers.receipt_title'), 'url' => route('vouchers.index', ['type' => 'receipt'])],
-        ['label' => __('vouchers.new_receipt'), 'url' => route('vouchers.create', ['type' => 'receipt'])],
-        ['label' => __('vouchers.payment_title'), 'url' => route('vouchers.index', ['type' => 'payment'])],
-        ['label' => __('vouchers.new_payment'), 'url' => route('vouchers.create', ['type' => 'payment'])],
-        ],
+        'items' => array_values(array_filter([
+            $u?->hasPermission('vouchers.view') ? ['label' => __('vouchers.receipt_title'), 'url' => route('vouchers.index', ['type' => 'receipt'])] : null,
+            $u?->hasPermission('vouchers.create') ? ['label' => __('vouchers.new_receipt'), 'url' => route('vouchers.create', ['type' => 'receipt'])] : null,
+            $u?->hasPermission('vouchers.view') ? ['label' => __('vouchers.payment_title'), 'url' => route('vouchers.index', ['type' => 'payment'])] : null,
+            $u?->hasPermission('vouchers.create') ? ['label' => __('vouchers.new_payment'), 'url' => route('vouchers.create', ['type' => 'payment'])] : null,
+        ])),
         ],
         ],
         ],
         [
-        // قسم جديد: "التقارير" - مركز تقارير موحّد لكل أقسام النظام
-        // (حسابات/مبيعات/تسليم منتج/مشتريات/منتجات/موارد بشرية). كل
-        // تقرير جوه دلوقتي ليه صلاحيته المستقلة بنفسه (reports_*.* في
-        // config/permissions.php)، فالرابط بيظهر بس لو المستخدم عنده
-        // صلاحية التقرير ده بالذات - راجع ReportController.
+        // قسم: "التقارير"
         'label' => __('reports.section_title'),
         'groups' => [
         [
@@ -280,139 +283,110 @@
         'label' => __('reports.section_title'),
         'icon' => 'doc',
         'items' => array_values(array_filter([
-        (auth()->user()?->hasPermission('reports_accounting.trial_balance')
-            || auth()->user()?->hasPermission('reports_accounting.balance_sheet')
-            || auth()->user()?->hasPermission('reports_accounting.income_statement')
-            || auth()->user()?->hasPermission('reports_accounting.equity_changes')
-            || auth()->user()?->hasPermission('reports_accounting.cash_flow')
-            || auth()->user()?->hasPermission('reports_sales.summary')
-            || auth()->user()?->hasPermission('reports_sales.by_customer')
-            || auth()->user()?->hasPermission('reports_sales.by_employee')
-            || auth()->user()?->hasPermission('reports_sales.by_product')
-            || auth()->user()?->hasPermission('reports_sales.returns')
-            || auth()->user()?->hasPermission('reports_purchases.summary')
-            || auth()->user()?->hasPermission('reports_purchases.by_supplier')
-            || auth()->user()?->hasPermission('reports_purchases.by_employee')
-            || auth()->user()?->hasPermission('reports_purchases.by_product')
-            || auth()->user()?->hasPermission('reports_purchases.purchases_vs_sales')
-            || auth()->user()?->hasPermission('reports_purchases.returns')
-            || auth()->user()?->hasPermission('reports_products.stock')
-            || auth()->user()?->hasPermission('reports_products.low_stock')
-            || auth()->user()?->hasPermission('reports_products.stock_transfers')
-            || auth()->user()?->hasPermission('reports_hr.payroll')
-            || auth()->user()?->hasPermission('reports_hr.attendance')
-            || auth()->user()?->hasPermission('reports_hr.loans')
-            || auth()->user()?->hasPermission('reports_hr.employees')
-            || auth()->user()?->hasPermission('reports_hr.bonuses_deductions')
-            || auth()->user()?->hasPermission('reports_hr.leaves')
-            || auth()->user()?->hasPermission('reports_delivery.summary')
-            || auth()->user()?->hasPermission('reports_delivery.pending')
-            || auth()->user()?->hasPermission('reports_delivery.by_employee'))
-            ? ['label' => __('reports.hub_title'), 'url' => route('reports.index')] : null,
-        auth()->user()?->hasPermission('reports_accounting.trial_balance') ? ['label' => __('reports.accounts.trial_balance'), 'url' => route('reports.accounts.trial-balance')] : null,
-        auth()->user()?->hasPermission('reports_accounting.income_statement') ? ['label' => __('reports.accounts.income_statement'), 'url' => route('reports.accounts.income-statement')] : null,
-        auth()->user()?->hasPermission('reports_accounting.balance_sheet') ? ['label' => __('reports.accounts.balance_sheet'), 'url' => route('reports.accounts.balance-sheet')] : null,
-        auth()->user()?->hasPermission('reports_accounting.equity_changes') ? ['label' => __('reports.accounts.equity_changes'), 'url' => route('reports.accounts.equity-changes')] : null,
-        auth()->user()?->hasPermission('reports_accounting.cash_flow') ? ['label' => __('reports.accounts.cash_flow'), 'url' => route('reports.accounts.cash-flow')] : null,
-        (auth()->user()?->hasPermission('reports_sales.summary') || auth()->user()?->hasPermission('reports_sales.profits')
-            || auth()->user()?->hasPermission('reports_sales.employee_profits') || auth()->user()?->hasPermission('reports_sales.top_products')
-            || auth()->user()?->hasPermission('reports_sales.by_customer') || auth()->user()?->hasPermission('reports_sales.by_employee')
-            || auth()->user()?->hasPermission('reports_sales.by_product') || auth()->user()?->hasPermission('reports_sales.returns'))
-            ? ['label' => __('reports.sections.sales'), 'url' => route('reports.sales.index')] : null,
-        (auth()->user()?->hasPermission('reports_delivery.summary') || auth()->user()?->hasPermission('reports_delivery.pending')
-            || auth()->user()?->hasPermission('reports_delivery.by_employee'))
-            ? ['label' => __('reports.sections.delivery'), 'url' => route('reports.delivery.index')] : null,
-        (auth()->user()?->hasPermission('reports_purchases.summary') || auth()->user()?->hasPermission('reports_purchases.by_supplier')
-            || auth()->user()?->hasPermission('reports_purchases.by_employee') || auth()->user()?->hasPermission('reports_purchases.by_product')
-            || auth()->user()?->hasPermission('reports_purchases.purchases_vs_sales')
-            || auth()->user()?->hasPermission('reports_purchases.returns'))
-            ? ['label' => __('reports.sections.purchases'), 'url' => route('reports.purchases.index')] : null,
-        (auth()->user()?->hasPermission('reports_products.stock') || auth()->user()?->hasPermission('reports_products.low_stock')
-            || auth()->user()?->hasPermission('reports_products.stock_transfers'))
-            ? ['label' => __('reports.sections.products'), 'url' => route('reports.products.index')] : null,
-        (auth()->user()?->hasPermission('reports_hr.payroll') || auth()->user()?->hasPermission('reports_hr.attendance')
-            || auth()->user()?->hasPermission('reports_hr.loans') || auth()->user()?->hasPermission('reports_hr.employees')
-            || auth()->user()?->hasPermission('reports_hr.bonuses_deductions') || auth()->user()?->hasPermission('reports_hr.leaves'))
-            ? ['label' => __('reports.sections.hr'), 'url' => route('reports.hr.index')] : null,
+            ($u?->hasPermission('reports_accounting.trial_balance')
+                || $u?->hasPermission('reports_accounting.balance_sheet')
+                || $u?->hasPermission('reports_accounting.income_statement')
+                || $u?->hasPermission('reports_accounting.equity_changes')
+                || $u?->hasPermission('reports_accounting.cash_flow')
+                || $u?->hasPermission('reports_purchases.summary')
+                || $u?->hasPermission('reports_purchases.by_supplier')
+                || $u?->hasPermission('reports_purchases.by_employee')
+                || $u?->hasPermission('reports_purchases.by_product')
+                || $u?->hasPermission('reports_purchases.returns')
+                || $u?->hasPermission('reports_products.stock')
+                || $u?->hasPermission('reports_products.low_stock')
+                || $u?->hasPermission('reports_products.stock_transfers')
+                || $u?->hasPermission('reports_hr.payroll')
+                || $u?->hasPermission('reports_hr.attendance')
+                || $u?->hasPermission('reports_hr.loans')
+                || $u?->hasPermission('reports_hr.employees')
+                || $u?->hasPermission('reports_hr.bonuses_deductions')
+                || $u?->hasPermission('reports_hr.leaves')
+)
+                ? ['label' => __('reports.hub_title'), 'url' => route('reports.index')] : null,
+            $u?->hasPermission('reports_accounting.trial_balance') ? ['label' => __('reports.accounts.trial_balance'), 'url' => route('reports.accounts.trial-balance')] : null,
+            $u?->hasPermission('reports_accounting.income_statement') ? ['label' => __('reports.accounts.income_statement'), 'url' => route('reports.accounts.income-statement')] : null,
+            $u?->hasPermission('reports_accounting.balance_sheet') ? ['label' => __('reports.accounts.balance_sheet'), 'url' => route('reports.accounts.balance-sheet')] : null,
+            $u?->hasPermission('reports_accounting.equity_changes') ? ['label' => __('reports.accounts.equity_changes'), 'url' => route('reports.accounts.equity-changes')] : null,
+            $u?->hasPermission('reports_accounting.cash_flow') ? ['label' => __('reports.accounts.cash_flow'), 'url' => route('reports.accounts.cash-flow')] : null,
+            ($u?->hasPermission('reports_purchases.summary') || $u?->hasPermission('reports_purchases.by_supplier')
+                || $u?->hasPermission('reports_purchases.by_employee') || $u?->hasPermission('reports_purchases.by_product')
+                || $u?->hasPermission('reports_purchases.returns'))
+                ? ['label' => __('reports.sections.purchases'), 'url' => route('reports.purchases.index')] : null,
+            ($u?->hasPermission('reports_products.stock') || $u?->hasPermission('reports_products.low_stock')
+                || $u?->hasPermission('reports_products.stock_transfers'))
+                ? ['label' => __('reports.sections.products'), 'url' => route('reports.products.index')] : null,
+            ($u?->hasPermission('reports_hr.payroll') || $u?->hasPermission('reports_hr.attendance')
+                || $u?->hasPermission('reports_hr.loans') || $u?->hasPermission('reports_hr.employees')
+                || $u?->hasPermission('reports_hr.bonuses_deductions') || $u?->hasPermission('reports_hr.leaves'))
+                ? ['label' => __('reports.sections.hr'), 'url' => route('reports.hr.index')] : null,
         ])),
         ],
         ],
         ],
         [
-        // قسم جديد: "المستودعات" - تحويل منتجات بين فروع الشركة (سند
-        // صرف + سند استلام)، منفصل تمامًا عن سندات التسليم للعميل.
-        'label' => __('stock_transfers.title'),
-        'groups' => [
-        [
-        'key' => 'stock-transfers',
-        'label' => __('stock_transfers.title'),
-        'icon' => 'box',
-        'items' => [
-        ['label' => __('stock_transfers.new_dispatch'), 'url' => route('stock-transfers.choose-branch', ['mode' => 'dispatch'])],
-        ['label' => __('stock_transfers.box_sent'), 'url' => route('stock-transfers.index', ['box' => 'sent'])],
-        ['label' => __('stock_transfers.new_receive'), 'url' => route('stock-transfers.choose-branch', ['mode' => 'receive'])],
-        ['label' => __('stock_transfers.box_received'), 'url' => route('stock-transfers.index', ['box' => 'received'])],
-        ['label' => __('stock_transfers.box_draft'), 'url' => route('stock-transfers.index', ['box' => 'draft'])],
-        ],
-        ],
-        ],
-        ],
-       
-        [
+        // قسم: "الإعدادات والضرائب"
         'label' => __('settings.title'),
         'groups' => [
         [
         'key' => 'settings',
         'label' => __('settings.title'),
         'icon' => 'gear',
-        'items' => [
-        ['label' => __('settings.title'), 'url' => route('settings.index')],
-        ['label' => __('settings.employee_discounts_title'), 'url' => route('employee-discounts.index')],
-        ['label' => __('taxes.title'), 'url' => route('taxes.index')], // <-- تم إضافة رابط الضرائب هنا
-        ],
+        'items' => array_values(array_filter([
+            $u?->hasPermission('settings.manage') ? ['label' => __('settings.title'), 'url' => route('settings.index')] : null,
+            $u?->hasPermission('settings.employee_discounts') ? ['label' => __('settings.employee_discounts_title'), 'url' => route('employee-discounts.index')] : null,
+            $u?->hasPermission('settings.taxes') ? ['label' => __('taxes.title'), 'url' => route('taxes.index')] : null,
+        ])),
         ],
         ],
         ],
         ];
 
-        // قسم "الإدارة" (مستخدمين/فروع/أدوار وصلاحيات) - بيظهر بس لو
-        // المستخدم عنده صلاحية وحدة على الأقل من التلاتة دي (عادةً
-        // المدير العام بس، حسب نظام الصلاحيات الجديد). لو مالوش أي
-        // صلاحية منهم، القسم كله مش بيتضاف لـ $sections أصلًا.
+        // قسم "الإدارة" (مستخدمين/فروع/أدوار وصلاحيات)
         $adminItems = [];
-        if (auth()->user()?->hasPermission('users.view')) {
+        if ($u?->hasPermission('users.view')) {
             $adminItems[] = ['label' => __('users.title'), 'url' => route('users.index')];
         }
-        if (auth()->user()?->hasPermission('branches.view')) {
+        if ($u?->hasPermission('branches.view')) {
             $adminItems[] = ['label' => __('branches.title'), 'url' => route('branches.index')];
         }
-        if (auth()->user()?->hasPermission('roles.manage')) {
+        if ($u?->hasPermission('roles.manage')) {
             $adminItems[] = ['label' => __('roles.title'), 'url' => route('roles.index')];
         }
         if (! empty($adminItems)) {
-        $sections[] = [
-        'label' => __('messages.administration'),
-        'groups' => [
-        [
-        'key' => 'administration',
-        'label' => __('messages.administration'),
-        'icon' => 'shield',
-        'items' => $adminItems,
-        ],
-        ],
-        ];
+            $sections[] = [
+                'label' => __('messages.administration'),
+                'groups' => [
+                    [
+                        'key' => 'administration',
+                        'label' => __('messages.administration'),
+                        'icon' => 'shield',
+                        'items' => $adminItems,
+                    ],
+                ],
+            ];
         }
 
-        // تنضيف عام: أي مجموعة (group) صلاحيات المستخدم خلّت الـ items
-        // بتاعتها فاضية (يعني مالوش صلاحية ولا حاجة فيها) بتتشال
-        // تلقائيًا من القائمة، وأي قسم (section) خلصت كل مجموعاته فاضية
-        // بيتشال هو كمان - عشان القائمة الجانبية تفضل نضيفة ومطابقة
-        // لصلاحيات كل مستخدم (حاليًا بيطبّق ده على مجموعتي العملاء
-        // والموردين بس - باقي الأقسام لسه بتظهر لأي مستخدم مسجّل دخول).
+        // تنظيف عام: حذف المجموعات الفارغة والأقسام الفارغة تلقائياً وفقاً للصلاحيات
         foreach ($sections as $sIndex => $section) {
-        $sections[$sIndex]['groups'] = array_values(array_filter($section['groups'], fn ($g) => ! empty($g['items'])));
+            $sections[$sIndex]['groups'] = array_values(array_filter($section['groups'], fn ($g) => ! empty($g['items'])));
         }
         $sections = array_values(array_filter($sections, fn ($s) => ! empty($s['groups'])));
+
+        // تجميع مصفوفة الكلمات المفتاحية للبحث السريع وتحديد حالة عدم وجود نتائج
+        $allSearchableItems = [
+            __('messages.dashboard') . ' dashboard الرئيسية لوحة التحكم',
+            __('Profile') . ' profile الملف الشخصي',
+        ];
+        foreach ($sections as $sec) {
+            $allSearchableItems[] = $sec['label'];
+            foreach ($sec['groups'] as $grp) {
+                $allSearchableItems[] = $sec['label'] . ' ' . $grp['label'];
+                foreach ($grp['items'] as $itm) {
+                    $allSearchableItems[] = $sec['label'] . ' ' . $grp['label'] . ' ' . $itm['label'];
+                }
+            }
+        }
 
         $icons = [
         'bag' => '
@@ -461,7 +435,12 @@
         @endphp
 
         @foreach ($sections as $section)
-        <div>
+        @php
+            $sectionCombinedText = $section['label'] . ' ' . collect($section['groups'])->map(function($g) {
+                return $g['label'] . ' ' . collect($g['items'])->pluck('label')->implode(' ');
+            })->implode(' ');
+        @endphp
+        <div x-show="!isSearching() || matches(@js($sectionCombinedText))">
             <p class="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-white/35">
                 {{ $section['label'] }}
             </p>
@@ -473,9 +452,25 @@
                     // القديمة، وإلا بيترجع لسلوك $group['key'] المفرد.
                     $groupIsActive = collect($group['match'] ?? [$group['key']])
                         ->contains(fn ($prefix) => request()->is($prefix . '*'));
+                    $groupLabelsText = $section['label'] . ' ' . $group['label'];
+                    $allItemsText = collect($group['items'])->pluck('label')->implode(' ');
+                    $groupCombinedText = $groupLabelsText . ' ' . $allItemsText;
                 @endphp
-                <div x-data="{ open: {{ $groupIsActive ? 'true' : 'false' }} }">
-                    <button type="button" @click="open = !open"
+                <div x-data="{
+                        activeOpen: {{ $groupIsActive ? 'true' : 'false' }},
+                        userToggled: null,
+                        get isOpen() {
+                            if (isSearching()) {
+                                return matches(@js($groupCombinedText));
+                            }
+                            return this.userToggled !== null ? this.userToggled : this.activeOpen;
+                        },
+                        toggle() {
+                            this.userToggled = !this.isOpen;
+                        }
+                    }"
+                    x-show="!isSearching() || matches(@js($groupCombinedText))">
+                    <button type="button" @click="toggle()"
                         class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-300 hover:bg-white/5 hover:text-white transition">
                         <span class="flex items-center gap-3">
                             <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -483,17 +478,21 @@
                             </svg>
                             <span class="text-sm font-medium">{{ $group['label'] }}</span>
                         </span>
-                        <svg :class="open ? '-rotate-180' : ''" class="w-4 h-4 text-white/40 transition-transform duration-200"
+                        <svg :class="isOpen ? '-rotate-180' : ''" class="w-4 h-4 text-white/40 transition-transform duration-200"
                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
-                    <div x-show="open" x-cloak class="mt-1 me-4 pe-3 border-e-2 border-white/10 space-y-1">
+                    <div x-show="isOpen" x-cloak class="mt-1 me-4 pe-3 border-e-2 border-white/10 space-y-1">
                         @foreach ($group['items'] as $item)
+                        @php
+                            $itemCombinedText = $section['label'] . ' ' . $group['label'] . ' ' . $item['label'];
+                        @endphp
                         <a href="{{ $item['url'] }}"
+                            x-show="!isSearching() || matches(@js($itemCombinedText)) || matches(@js($groupLabelsText))"
                             class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/50 hover:bg-white/5 hover:text-white transition">
                             <span class="w-1 h-1 rounded-full bg-[#F5811E]"></span>
-                            {{ $item['label'] }}
+                            <span>{{ $item['label'] }}</span>
                         </a>
                         @endforeach
                     </div>
@@ -502,11 +501,21 @@
             </div>
         </div>
         @endforeach
+
+        <!-- رسالة عدم وجود نتائج مطابقة للبحث -->
+        <div x-show="isSearching() && !hasAnyResults()" x-cloak class="px-4 py-8 text-center text-white/40">
+            <svg class="w-8 h-8 mx-auto mb-2 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
+            </svg>
+            <p class="text-sm font-medium text-white/70">{{ __('messages.no_search_results') }}</p>
+            <p class="text-xs text-white/40 mt-1.5 dir-ltr truncate" x-text="'« ' + searchQuery + ' »'"></p>
+        </div>
     </nav>
 
     <!-- تسجيل الخروج -->
     <div class="border-t border-white/10 p-3">
         <a href="{{ route('profile.edit') }}"
+            x-show="!isSearching() || matches(@js(__('Profile') . ' profile الملف الشخصي'))"
             class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition">
             <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="8" r="3.5" />
@@ -528,6 +537,42 @@
         </form>
     </div>
 </aside>
+
+<!-- كود جافاسكريبت للبحث الذكي في القائمة الجانبية مع معالجة الحروف العربية -->
+<script>
+    function sidebarSearchComponent() {
+        return {
+            searchQuery: '',
+            allSearchItems: @js($allSearchableItems),
+            normalize(str) {
+                if (!str) return '';
+                return str
+                    .toString()
+                    .toLowerCase()
+                    .trim()
+                    .replace(/[\u064B-\u065F\u0670]/g, '') // إزالة الحركات والتشكيل
+                    .replace(/[أإآٱ]/g, 'ا')              // توحيد الألفات
+                    .replace(/ة/g, 'ه')                  // توحيد التاء المربوطة
+                    .replace(/ى/g, 'ي')                  // توحيد الياء
+                    .replace(/[\s\-_]+/g, ' ');
+            },
+            matches(haystack) {
+                if (!this.searchQuery || !this.searchQuery.trim()) return true;
+                const q = this.normalize(this.searchQuery);
+                const h = this.normalize(haystack);
+                const tokens = q.split(' ').filter(t => t.length > 0);
+                return tokens.every(token => h.includes(token));
+            },
+            isSearching() {
+                return Boolean(this.searchQuery && this.searchQuery.trim().length > 0);
+            },
+            hasAnyResults() {
+                if (!this.isSearching()) return true;
+                return this.allSearchItems.some(item => this.matches(item));
+            }
+        };
+    }
+</script>
 
 <!-- طبقة تظليل لإغلاق القائمة على الموبايل -->
 <div x-show="sidebarOpen" x-cloak @click="sidebarOpen = false"

@@ -66,4 +66,9 @@ return [
     'no_transactions_found' => 'لا توجد حركات في الفترة المحددة',
     'total_debtor' => 'إجمالي المدين',
     'total_creditor' => 'إجمالي الدائن',
+    'account' => 'الحساب',
+    'choose_account' => '-- اختر الحساب --',
+    'search_account_placeholder' => 'ابحث برقم أو اسم أي حساب في الشجرة...',
+    'search_any_account' => 'أي حساب في الشجرة',
+    'select_account_prompt' => 'يرجى اختيار حساب من القائمة لعرض كشف حسابه',
 ];

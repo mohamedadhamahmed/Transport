@@ -10,7 +10,7 @@
                             <path d="M3 10h18M6 15h4M3 6h18v12H3z"/>
                         </svg>
                     </span>
-                    <h2 class="text-white font-bold text-lg">{{ $type === 'receipt' ? __('vouchers.new_receipt') : __('vouchers.new_payment') }}</h2>
+                    <h2 class="text-white font-bold text-lg">{{ !empty($isMaintenance) ? '🔧 ' . __('transport.new_maintenance') : ($type === 'receipt' ? __('vouchers.new_receipt') : __('vouchers.new_payment')) }}</h2>
                 </div>
                 <a href="{{ route('vouchers.index', ['type' => $type]) }}"
                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition whitespace-nowrap">
@@ -32,6 +32,8 @@
                 @csrf
                 <input type="hidden" name="type" value="{{ $type }}">
                 <input type="hidden" name="treasury_account_id" id="treasury_account_id" value="{{ old('treasury_account_id') }}">
+
+                @include('vouchers._truck-fields', ['voucher' => null])
 
                 <div class="bg-white shadow-sm border border-gray-100 sm:rounded-xl p-6 space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

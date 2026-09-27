@@ -1,17 +1,12 @@
 <?php
 
-use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ZatcaController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\EmployeeDiscountSettingController;
 use App\Http\Controllers\SettingsController;
-use App\Http\Controllers\InvoiceReturnController;
-use App\Http\Controllers\DraftInvoiceController;
-use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseReturnController;
@@ -19,16 +14,9 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AccountTypeController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\VoucherController;
-use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\TranslationController;
-
-use App\Http\Controllers\DeliveryController;
-use App\Http\Controllers\DeliveryReturnController;
 use App\Http\Controllers\TaxController;
 // تسليم منتج
-    use App\Http\Controllers\DeliveryNoteController;
-use App\Http\Controllers\DeliveryNoteReturnController;
-use App\Http\Controllers\DeliveryNoteConvertController;
 
 
 use App\Http\Controllers\CustomerController;
@@ -47,13 +35,20 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\RoleController;
-use App\Http\Controllers\BomController;
-use App\Http\Controllers\ManufacturingOrderController;
-use App\Http\Controllers\ManufacturingOrderStatusController;
-use App\Http\Controllers\ProductionPlanController;
-use App\Http\Controllers\WorkstationController;
 use App\Http\Controllers\EmployeeContractController;
 use App\Http\Controllers\NotificationController;
+// النقليات
+use App\Http\Controllers\TruckController;
+use App\Http\Controllers\DriverController;
+use App\Http\Controllers\TransportInvoiceController;
+use App\Http\Controllers\ProductLookupController;
+use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\TruckLoadController;
+use App\Http\Controllers\TransportQuotationController;
+use App\Http\Controllers\WaybillController;
+use App\Http\Controllers\TransportReportController;
+use App\Http\Controllers\TransportZatcaController;
+use App\Http\Controllers\RegionController;
 
 
 Route::get('/', function () {
@@ -73,49 +68,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::middleware(['auth'])->group(function () {
 
 
-Route::prefix('manufacturing')->name('manufacturing.')->group(function () {
-
-    // محطات العمل
-    Route::get('workstations', [WorkstationController::class, 'index'])->name('workstations.index');
-    Route::post('workstations', [WorkstationController::class, 'store'])->name('workstations.store');
-    Route::put('workstations/{workstation}', [WorkstationController::class, 'update'])->name('workstations.update');
-    Route::delete('workstations/{workstation}', [WorkstationController::class, 'destroy'])->name('workstations.destroy');
-
-    // حالات الأوامر (قابلة للتخصيص)
-    Route::get('statuses', [ManufacturingOrderStatusController::class, 'index'])->name('statuses.index');
-    Route::post('statuses', [ManufacturingOrderStatusController::class, 'store'])->name('statuses.store');
-    Route::put('statuses/{status}', [ManufacturingOrderStatusController::class, 'update'])->name('statuses.update');
-    Route::delete('statuses/{status}', [ManufacturingOrderStatusController::class, 'destroy'])->name('statuses.destroy');
-
-    // قوائم مواد الإنتاج (BOM)
-    Route::get('bom', [BomController::class, 'index'])->name('bom.index');
-    Route::get('bom/create', [BomController::class, 'create'])->name('bom.create');
-    Route::post('bom', [BomController::class, 'store'])->name('bom.store');
-    Route::get('bom/{bom}/edit', [BomController::class, 'edit'])->name('bom.edit');
-    Route::put('bom/{bom}', [BomController::class, 'update'])->name('bom.update');
-    Route::delete('bom/{bom}', [BomController::class, 'destroy'])->name('bom.destroy');
-
-    // خطط الإنتاج
-    Route::get('production-plans', [ProductionPlanController::class, 'index'])->name('production-plans.index');
-    Route::get('production-plans/create', [ProductionPlanController::class, 'create'])->name('production-plans.create');
-    Route::post('production-plans', [ProductionPlanController::class, 'store'])->name('production-plans.store');
-    Route::get('production-plans/{productionPlan}/edit', [ProductionPlanController::class, 'edit'])->name('production-plans.edit');
-    Route::put('production-plans/{productionPlan}', [ProductionPlanController::class, 'update'])->name('production-plans.update');
-    Route::delete('production-plans/{productionPlan}', [ProductionPlanController::class, 'destroy'])->name('production-plans.destroy');
-    Route::post('production-plans/{productionPlan}/convert', [ProductionPlanController::class, 'convertToOrder'])->name('production-plans.convert');
-
-    // أوامر التصنيع
-    Route::get('orders', [ManufacturingOrderController::class, 'index'])->name('orders.index');
-    Route::get('orders/create', [ManufacturingOrderController::class, 'create'])->name('orders.create');
-    Route::post('orders', [ManufacturingOrderController::class, 'store'])->name('orders.store');
-    Route::get('orders/{order}/edit', [ManufacturingOrderController::class, 'edit'])->name('orders.edit');
-    Route::put('orders/{order}', [ManufacturingOrderController::class, 'update'])->name('orders.update');
-    Route::delete('orders/{order}', [ManufacturingOrderController::class, 'destroy'])->name('orders.destroy');
-    Route::post('orders/{order}/complete', [ManufacturingOrderController::class, 'complete'])->name('orders.complete');
-    Route::put('orders/{order}/items/{itemId}', [ManufacturingOrderController::class, 'updateItem'])->name('orders.items.update');
-    Route::post('orders/{order}/indirect-costs', [ManufacturingOrderController::class, 'addIndirectCost'])->name('orders.indirect-costs.store');
-    Route::delete('orders/{order}/indirect-costs/{indirectCostId}', [ManufacturingOrderController::class, 'removeIndirectCost'])->name('orders.indirect-costs.destroy');
-});
+// (قسم التصنيع اتشال - مش مستخدم في النقليات)
 
 
 
@@ -167,6 +120,11 @@ Route::post('/employees/import', [EmployeeController::class, 'import'])->name('e
 Route::get('/employees/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit');
 Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
 Route::patch('/employees/{employee}/toggle-status', [EmployeeController::class, 'toggleStatus'])->name('employees.toggle-status');
+// أقسام الموظفين (بتتختار في إنشاء/تعديل الموظف)
+Route::get('/hr/departments', [DepartmentController::class, 'index'])->name('employees.departments.index');
+Route::post('/hr/departments', [DepartmentController::class, 'store'])->name('employees.departments.store');
+Route::put('/hr/departments/{department}', [DepartmentController::class, 'update'])->name('employees.departments.update');
+Route::delete('/hr/departments/{department}', [DepartmentController::class, 'destroy'])->name('employees.departments.destroy');
 
 // ===== الحضور والانصراف (تقرير شهري + إدخال يدوي + استيراد بصمة إكسيل) =====
 Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
@@ -249,44 +207,9 @@ Route::get('/products/search-alternates', [ProductController::class, 'searchAlte
 Route::get('/products/branch/{branch}/import', [ProductInventoryController::class, 'showImportForm'])->name('products.import.form');
 Route::post('/products/branch/{branch}/import', [ProductInventoryController::class, 'importExcel'])->name('products.import.process');
 
-// ===== سند تسليم جديد =====
-Route::get('/delivery-note', [DeliveryNoteController::class, 'create'])->name('deliverynote.create');
-Route::post('/delivery-note', [DeliveryNoteController::class, 'store'])->name('deliverynote.store');
-Route::get('/delivery-note/products/search', [DeliveryNoteController::class, 'searchProducts'])->name('deliverynote.products.search');
-Route::get('/delivery-note/products/pick', [DeliveryNoteController::class, 'pickProducts'])->name('deliverynote.products.pick');
-Route::post('/delivery-note/customers/quick', [DeliveryNoteController::class, 'quickStoreCustomer'])->name('deliverynote.customers.quick');
-Route::post('/delivery-note/products/quick', [DeliveryNoteController::class, 'quickStoreProduct'])->name('deliverynote.products.quick');
-
-// ===== سجل سندات التسليم =====
-Route::get('/delivery-note/history', [DeliveryNoteController::class, 'history'])->name('deliverynote.history');
-Route::get('/delivery-note/{id}/show', [DeliveryNoteController::class, 'show'])->name('deliverynote.show');
-
-// ===== تعديل سند تسليم معلّق (لسه محولش/رجعش منه حاجة) =====
-Route::get('/delivery-note/{id}/edit', [DeliveryNoteController::class, 'edit'])->name('deliverynote.edit');
-Route::put('/delivery-note/{id}', [DeliveryNoteController::class, 'update'])->name('deliverynote.update');
-
-// ===== مرتجع سند تسليم =====
-Route::get('/delivery-note/{id}/return', [DeliveryNoteReturnController::class, 'create'])->name('deliverynote.return.create');
-Route::post('/delivery-note/{id}/return', [DeliveryNoteReturnController::class, 'store'])->name('deliverynote.return.store');
-
-// ===== اعتماد وتحويل سندات التسليم لفاتورة ضريبية حقيقية =====
-Route::get('/delivery-note/convert', [DeliveryNoteConvertController::class, 'index'])->name('deliverynote.convert.index');
-Route::get('/delivery-note/convert/{customer}', [DeliveryNoteConvertController::class, 'create'])->name('deliverynote.convert.create');
-Route::post('/delivery-note/convert/{customer}', [DeliveryNoteConvertController::class, 'store'])->name('deliverynote.convert.store');
+// (سندات التسليم اتشالت)
 
 
-
-    Route::get('/invoices', [InvoiceController::class, 'index'])->name('invoices.index');
-    Route::get('/zatca', [ZatcaController::class, 'index'])->name('zatca.index');
-    Route::post('/zatca/{invoice}/send', [ZatcaController::class, 'send'])->name('zatca.send');
-    Route::post('/zatca/send-all', [ZatcaController::class, 'sendAll'])->name('zatca.send-all');
-    Route::get('/zatca/{invoice}/download-xml', [ZatcaController::class, 'downloadXml'])->name('zatca.download-xml');
-
-    // إشعار دائن (مرتجع مبيعات) - نفس فكرة إرسال/تحميل XML الفاتورة
-    // العادية فوق، بس بمرجع reference_value لمجموعة صفوف invoice_returns
-    // (راجع InvoiceReturnController@store/print) بدل invoice id.
-    Route::post('/zatca/returns/{referenceValue}/send', [ZatcaController::class, 'sendReturn'])->name('zatca.send-return');
-    Route::get('/zatca/returns/{referenceValue}/download-xml', [ZatcaController::class, 'downloadCreditNoteReturnXml'])->name('zatca.download-credit-note');
 
     // جرس الإشعارات في الهيدر - endpoint خفيف بيرجع عدّادين (فواتير
     // زاتكا فشلت + منتجات وصلت لحد تنبيه المخزون)، كل واحد متفلتر على
@@ -296,6 +219,9 @@ Route::post('/delivery-note/convert/{customer}', [DeliveryNoteConvertController:
     // صفحة تانية من "عمليات اليوم" (زرار "عرض المزيد" في القايمة) -
     // راجع NotificationController@recentOperationsPage.
     Route::get('/notifications/recent', [NotificationController::class, 'recentOperationsPage'])->name('notifications.recent');
+
+    // فتح الجرس = "اتشافت" (الرقم الأحمر بيعدّ اللي جه بعد كده بس)
+    Route::post('/notifications/seen', [NotificationController::class, 'markSeen'])->name('notifications.seen');
 });
 Route::get('/purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
 Route::get('/purchase-orders/create', [PurchaseOrderController::class, 'create'])->name('purchase-orders.create');
@@ -314,21 +240,7 @@ Route::prefix('settings')->group(function () {
     Route::delete('/taxes/{tax}', [TaxController::class, 'destroy'])->name('taxes.destroy');
 });
 Route::middleware(['auth'])->group(function () {
-    // تسليم منتج
-    Route::get('/delivery-product', [DeliveryController::class, 'create'])->name('delivery.create');
-    Route::post('/delivery-product', [DeliveryController::class, 'store'])->name('delivery.store');
-    Route::get('/delivery-product/products/search', [DeliveryController::class, 'searchProducts'])->name('delivery.products.search');
-    Route::get('/delivery-product/products/pick', [DeliveryController::class, 'pickProducts'])->name('delivery.products.pick');
-    Route::post('/delivery-product/customers/quick', [DeliveryController::class, 'quickStoreCustomer'])->name('delivery.customers.quick');
-    Route::post('/delivery-product/products/quick', [DeliveryController::class, 'quickStoreProduct'])->name('delivery.products.quick');
-
-    // التسليمات السابقة
-    Route::get('/delivery-history', [DeliveryController::class, 'history'])->name('delivery.history');
-    Route::get('/delivery-history/{id}/show', [DeliveryController::class, 'show'])->name('delivery.show');
-
-    // مرتجع تسليمات
-    Route::get('/delivery-return/{id}', [DeliveryReturnController::class, 'create'])->name('delivery.return.create');
-    Route::post('/delivery-return/{id}', [DeliveryReturnController::class, 'store'])->name('delivery.return.store');
+    // (تسليم المنتج القديم اتشال)
 
 
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
@@ -339,9 +251,6 @@ Route::middleware(['auth'])->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    Route::get('/returns', [ReturnController::class, 'index'])->name('returns.index');
-    Route::post('/returns', [ReturnController::class, 'store'])->name('returns.store');
-
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -353,13 +262,6 @@ Route::middleware('auth')->group(function () {
     // النظام كله (بترجع لصفحة فاضية من غير فلترة فرع). فباقي من الـ
     // resource بس create/store (إضافة منتج جديد) وshow/destroy (حذف).
     Route::resource('products', ProductController::class)->except(['index', 'edit', 'update']);
-    // مسارات الفواتير الأساسية والإضافية
-    Route::get('/invoices', [InvoiceController::class, 'index'])->name('invoices.index');
-    Route::get('/invoices/create', [InvoiceController::class, 'create'])->name('invoices.create');
-    Route::post('/invoices', [InvoiceController::class, 'store'])->name('invoices.store');
-    Route::get('/invoices/drafts', [DraftInvoiceController::class, 'index'])->name('invoices.drafts.index');
-    Route::delete('/invoices/drafts/{draft}', [DraftInvoiceController::class, 'destroy'])->name('invoices.drafts.destroy');
-    Route::post('/invoices/drafts/{draft}/approve', [InvoiceController::class, 'approveDraft'])->name('invoices.drafts.approve');
     Route::get('/purchases', [PurchaseController::class, 'index'])->name('purchases.index');
     Route::get('/purchases/create', [PurchaseController::class, 'create'])->name('purchases.create');
     Route::post('/purchases', [PurchaseController::class, 'store'])->name('purchases.store');
@@ -385,48 +287,9 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/purchases/{purchase}', [PurchaseController::class, 'show'])->name('purchases.show');
 
-    // مسارات مرتجع المبيعات - لازم تكون هنا، قبل /invoices/{invoice}،
-    // عشان لارافيل ميفهمش "returns" على إنها ID فاتورة (route model binding).
-    // الترتيب هنا كمان مهم: الروتس الثابتة (create/search/index) لازم تسبق
-    // أي روت فيه باراميتر (زي {invoice}/items أو {referenceValue}/print).
-    Route::get('/invoices/returns', [InvoiceReturnController::class, 'index'])->name('invoices.returns.index');
-    Route::get('/invoices/returns/create', [InvoiceReturnController::class, 'create'])->name('invoices.returns.create');
-    Route::get('/invoices/returns/search', [InvoiceReturnController::class, 'searchInvoice'])->name('invoices.returns.search');
-    Route::post('/invoices/returns', [InvoiceReturnController::class, 'store'])->name('invoices.returns.store');
-    Route::get('/invoices/returns/{invoice}/items', [InvoiceReturnController::class, 'invoiceItems'])->name('invoices.returns.items');
-    Route::get('/invoices/returns/{referenceValue}/print', [InvoiceReturnController::class, 'print'])->name('invoices.returns.print');
-
-    Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
-    Route::get('/quotations', [QuotationController::class, 'index'])->name('quotations.index');
-    Route::get('/quotations/create', [QuotationController::class, 'create'])->name('quotations.create');
-    Route::post('/quotations', [QuotationController::class, 'store'])->name('quotations.store');
-    Route::get('/quotations/{quotation}', [QuotationController::class, 'show'])->name('quotations.show');
-    Route::post('/quotations/{quotation}/approve', [QuotationController::class, 'approve'])->name('quotations.approve');
-    Route::post('/quotations/{quotation}/reject', [QuotationController::class, 'reject'])->name('quotations.reject');
-    Route::get('/quotations/customer-history/{customer}', [QuotationController::class, 'customerHistory'])->name('quotations.customer-history');
-    Route::get('/quotations/{quotation}/pdf', [QuotationController::class, 'downloadPdf'])->name('quotations.pdf');
-    Route::get('/quotations/{quotation}/edit', [QuotationController::class, 'edit'])->name('quotations.edit');
-    Route::put('/quotations/{quotation}', [QuotationController::class, 'update'])->name('quotations.update');
-    Route::get('/quotations/{quotation}', [QuotationController::class, 'showQuotation'])
-        ->name('quotations.show')
-        ->middleware('auth');
-    Route::get('/quotations/{quotation}/download', [QuotationController::class, 'downloadQuotationPdf'])
-        ->name('quotations.download');
-    // مسارات التعديل والـ PDF التي كانت ناقصة
-    Route::get('/invoices/{invoice}/edit', [InvoiceController::class, 'edit'])->name('invoices.edit');
-    Route::put('/invoices/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
-    Route::get('/invoices/{invoice}/pdf', [InvoiceController::class, 'downloadPdf'])->name('invoices.pdf');
-    Route::get('/invoices/{invoice}/public-pdf', [InvoiceController::class, 'publicPdf'])
-        ->name('invoices.public-pdf')
-        ->middleware('signed');
-    // مسارات البحث والمنتجات والعملاء السريعة
-    Route::get('/invoices/products/pick', [InvoiceController::class, 'pickProducts'])->name('invoices.products.pick');
-    Route::get('/invoices/products/search', [InvoiceController::class, 'searchProducts'])->name('invoices.products.search');
-    Route::post('/invoices/products/quick', [InvoiceController::class, 'quickStoreProduct'])->name('invoices.products.quick');
-    // آخر سعر بيع لكل منتج لعميل معيّن - بادچ "آخر سعر لهذا العميل" في
-    // مودال اختيار منتج وجدول أصناف الفاتورة.
-    Route::get('/invoices/products/last-prices', [InvoiceController::class, 'lastCustomerPrices'])->name('invoices.products.last-prices');
-    Route::post('/invoices/customers/quick', [InvoiceController::class, 'quickStoreCustomer'])->name('invoices.customers.quick');
+    // بحث/اختيار المنتجات (مستخدم في المشتريات وأوامر الشراء) - قسم المبيعات اتشال
+    Route::get('/invoices/products/pick', [ProductLookupController::class, 'pickProducts'])->name('invoices.products.pick');
+    Route::get('/invoices/products/search', [ProductLookupController::class, 'searchProducts'])->name('invoices.products.search');
 });
 
 // ===== قسم الحسابات والقيود (شجرة الحسابات، القيد اليومي، سندات
@@ -474,10 +337,8 @@ Route::middleware(['auth'])->group(function () {
 // ReportController للتفاصيل الكاملة عن منطق كل تقرير وفلتر الفرع. =====
 Route::middleware(['auth'])->group(function () {
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
-Route::get('/reports/stock-adjustments', [ReportController::class, 'stockAdjustments'])
-    ->name('reports.stock_adjustments')
-    ->middleware(['auth']);
     Route::get('/reports/accounts', [ReportController::class, 'accountsIndex'])->name('reports.accounts.index');
+    Route::get('/reports/accounts/statement', [AccountController::class, 'statementReport'])->name('reports.accounts.statement');
     Route::get('/reports/accounts/trial-balance', [ReportController::class, 'trialBalance'])->name('reports.accounts.trial-balance');
     Route::get('/reports/accounts/income-statement', [ReportController::class, 'incomeStatement'])->name('reports.accounts.income-statement');
     Route::get('/reports/accounts/balance-sheet', [ReportController::class, 'balanceSheet'])->name('reports.accounts.balance-sheet');
@@ -493,29 +354,11 @@ Route::get('/reports/stock-adjustments', [ReportController::class, 'stockAdjustm
     Route::get('/reports/accounts/daily-closing', [ReportController::class, 'dailyClosingReport'])->name('reports.accounts.daily-closing');
     Route::get('/reports/accounts/tax', [ReportController::class, 'taxReport'])->name('reports.accounts.tax');
 
-    // ===== قسم المبيعات =====
-    Route::get('/reports/sales', [ReportController::class, 'salesIndex'])->name('reports.sales.index');
-    Route::get('/reports/sales/summary', [ReportController::class, 'salesSummary'])->name('reports.sales.summary');
-    Route::get('/reports/sales/profits', [ReportController::class, 'salesProfits'])->name('reports.sales.profits');
-    Route::get('/reports/sales/employee-profits', [ReportController::class, 'salesEmployeeProfits'])->name('reports.sales.employee-profits');
-    Route::get('/reports/sales/top-products', [ReportController::class, 'topSellingProducts'])->name('reports.sales.top-products');
-    Route::get('/reports/sales/by-customer', [ReportController::class, 'salesByCustomer'])->name('reports.sales.by-customer');
-    Route::get('/reports/sales/by-product', [ReportController::class, 'salesByProduct'])->name('reports.sales.by-product');
-    Route::get('/reports/sales/returns', [ReportController::class, 'salesReturns'])->name('reports.sales.returns');
-    Route::get('/reports/sales/by-employee', [ReportController::class, 'salesByEmployee'])->name('reports.sales.by-employee');
-
-    // ===== قسم تسليم المنتج =====
-    Route::get('/reports/delivery', [ReportController::class, 'deliveryIndex'])->name('reports.delivery.index');
-    Route::get('/reports/delivery/summary', [ReportController::class, 'deliverySummary'])->name('reports.delivery.summary');
-    Route::get('/reports/delivery/pending', [ReportController::class, 'deliveryPending'])->name('reports.delivery.pending');
-    Route::get('/reports/delivery/by-employee', [ReportController::class, 'deliveryByEmployee'])->name('reports.delivery.by-employee');
-
     // ===== قسم المشتريات =====
     Route::get('/reports/purchases', [ReportController::class, 'purchasesIndex'])->name('reports.purchases.index');
     Route::get('/reports/purchases/summary', [ReportController::class, 'purchasesSummary'])->name('reports.purchases.summary');
     Route::get('/reports/purchases/by-supplier', [ReportController::class, 'purchasesBySupplier'])->name('reports.purchases.by-supplier');
     Route::get('/reports/purchases/by-product', [ReportController::class, 'purchasesByProduct'])->name('reports.purchases.by-product');
-    Route::get('/reports/purchases/purchases-vs-sales', [ReportController::class, 'purchasesVsSales'])->name('reports.purchases.purchases-vs-sales');
     Route::get('/reports/purchases/returns', [ReportController::class, 'purchasesReturns'])->name('reports.purchases.returns');
     Route::get('/reports/purchases/by-employee', [ReportController::class, 'purchasesByEmployee'])->name('reports.purchases.by-employee');
 
@@ -523,7 +366,6 @@ Route::get('/reports/stock-adjustments', [ReportController::class, 'stockAdjustm
     Route::get('/reports/products', [ReportController::class, 'productsIndex'])->name('reports.products.index');
     Route::get('/reports/products/stock', [ReportController::class, 'productsStock'])->name('reports.products.stock');
     Route::get('/reports/products/low-stock', [ReportController::class, 'productsLowStock'])->name('reports.products.low-stock');
-    Route::get('/reports/products/transfers', [ReportController::class, 'productsStockTransfers'])->name('reports.products.transfers');
     Route::get('/reports/products/movement', [ReportController::class, 'productsMovement'])->name('reports.products.movement');
 
     // ===== قسم الموارد البشرية =====
@@ -545,18 +387,7 @@ Route::get('/reports/stock-adjustments', [ReportController::class, 'stockAdjustm
 // مودالات "منتج جديد" في شاشات المبيعات/المشتريات/التسعيرات/التسليمات.
 Route::middleware(['auth'])->get('/products/translate', [TranslationController::class, 'translate'])->name('products.translate');
 
-Route::middleware(['auth'])->prefix('stock-transfers')->name('stock-transfers.')->group(function () {
-    Route::get('/choose-branch', [StockTransferController::class, 'chooseBranch'])->name('choose-branch');
-    Route::get('/products/search', [StockTransferController::class, 'searchProducts'])->name('products.search');
-    Route::get('/branches/{branch}/users', [StockTransferController::class, 'branchUsers'])->name('branch-users');
-    Route::get('/create/{branch}', [StockTransferController::class, 'create'])->name('create');
-    Route::post('/', [StockTransferController::class, 'store'])->name('store');
-    Route::get('/receive/{branch}', [StockTransferController::class, 'receiveForm'])->name('receive-form');
-    Route::get('/{stockTransfer}/details', [StockTransferController::class, 'transferDetails'])->name('details');
-    Route::post('/{stockTransfer}/receive', [StockTransferController::class, 'confirmReceive'])->name('confirm-receive');
-    Route::get('/{stockTransfer}', [StockTransferController::class, 'show'])->name('show');
-    Route::get('/', [StockTransferController::class, 'index'])->name('index');
-});
+// (تحويلات المخزون اتشالت)
 
 Route::get('/lang/{locale}', function (string $locale, Request $request) {
     if (in_array($locale, ['ar', 'en'])) {
@@ -578,3 +409,54 @@ Route::middleware(['auth'])->group(function () {
 });
 
 require __DIR__ . '/auth.php';
+
+// ===================== النقليات: الشاحنات / السائقين / فواتير النقليات =====================
+// الحماية الفعلية بالصلاحيات جوه الكنترولرات ($this->authorize(...)).
+Route::middleware(['auth'])->prefix('transport')->name('transport.')->group(function () {
+    // حركة الشاحنات (لوحة الشاحنات + تحميل/تفريغ + تقرير الأحمال)
+    Route::get('loads', [TruckLoadController::class, 'board'])->name('loads.board');
+    Route::get('loads/report', [TruckLoadController::class, 'report'])->name('loads.report');
+    Route::post('trucks/{truck}/load', [TruckLoadController::class, 'store'])->name('loads.store');
+    Route::post('trucks/{truck}/location', [TruckLoadController::class, 'setLocation'])->name('loads.location');
+    Route::post('loads/{load}/unload', [TruckLoadController::class, 'unload'])->name('loads.unload');
+    Route::post('loads/{load}/cancel', [TruckLoadController::class, 'cancel'])->name('loads.cancel');
+    Route::get('loads/{load}/edit', [TruckLoadController::class, 'edit'])->name('loads.edit');
+    Route::put('loads/{load}', [TruckLoadController::class, 'update'])->name('loads.update');
+
+    Route::post('drivers/quick', [DriverController::class, 'quick'])->name('drivers.quick');
+    Route::post('trucks/quick', [TruckController::class, 'quick'])->name('trucks.quick');
+
+    Route::resource('trucks', TruckController::class)->except(['show']);
+    Route::resource('drivers', DriverController::class)->except(['show']);
+    Route::post('invoices/{invoice}/approve', [TransportInvoiceController::class, 'approve'])->name('invoices.approve');
+    Route::resource('invoices', TransportInvoiceController::class);
+
+    // إرسال فواتير النقليات للزكاة (بنفس كود إرسال فواتير المبيعات)
+    Route::get('zatca', [TransportZatcaController::class, 'index'])->name('zatca.index');
+    Route::post('zatca/send-all', [TransportZatcaController::class, 'sendAll'])->name('zatca.send-all');
+    Route::post('zatca/{invoice}/send', [TransportZatcaController::class, 'send'])->name('zatca.send');
+    Route::get('zatca/{invoice}/xml', [TransportZatcaController::class, 'downloadXml'])->name('zatca.xml');
+
+    // عروض أسعار النقليات
+    Route::post('quotations/{quotation}/status', [TransportQuotationController::class, 'status'])->name('quotations.status');
+    Route::get('quotations/{quotation}/convert', [TransportQuotationController::class, 'convert'])->name('quotations.convert');
+    Route::resource('quotations', TransportQuotationController::class);
+
+    // بوالص الشحن
+    Route::post('waybills/{waybill}/deliver', [WaybillController::class, 'deliver'])->name('waybills.deliver');
+    Route::post('waybills/{waybill}/cancel', [WaybillController::class, 'cancel'])->name('waybills.cancel');
+    Route::get('waybills/{waybill}/invoice', [WaybillController::class, 'toInvoice'])->name('waybills.invoice');
+    Route::resource('waybills', WaybillController::class);
+
+    // تقارير: الشاحنات (صيانة/مصروفات/وجهات/أحمال) + مخطط عُهد الموظفين
+    Route::get('reports/fleet', [TransportReportController::class, 'fleet'])->name('reports.fleet');
+    Route::get('reports/custody', [TransportReportController::class, 'custody'])->name('reports.custody');
+
+    // الأحمال غير المفوترة (جاهزة للفوترة)
+    Route::get('reports/unbilled', [TransportReportController::class, 'unbilled'])->name('reports.unbilled');
+
+    // المناطق (مناطق المملكة الأساسية + مناطق مضافة)
+    Route::get('regions', [RegionController::class, 'index'])->name('regions.index');
+    Route::post('regions', [RegionController::class, 'store'])->name('regions.store');
+    Route::delete('regions/{region}', [RegionController::class, 'destroy'])->name('regions.destroy');
+});

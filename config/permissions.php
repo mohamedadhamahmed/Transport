@@ -13,6 +13,40 @@
  */
 return [
 
+    'transport' => [
+        'label' => 'النقليات',
+        'label_en' => 'Transportation',
+        'permissions' => [
+            'transport_invoices.view' => ['label' => 'عرض فواتير النقليات', 'label_en' => 'View transport invoices'],
+            'transport_invoices.create' => ['label' => 'إنشاء فاتورة نقليات', 'label_en' => 'Create transport invoice'],
+            'transport_invoices.edit' => ['label' => 'تعديل فاتورة نقليات', 'label_en' => 'Edit transport invoice'],
+            'transport_invoices.delete' => ['label' => 'حذف فاتورة نقليات', 'label_en' => 'Delete transport invoice'],
+            'trucks.view' => ['label' => 'عرض الشاحنات', 'label_en' => 'View trucks'],
+            'trucks.create' => ['label' => 'إضافة شاحنة', 'label_en' => 'Create truck'],
+            'trucks.edit' => ['label' => 'تعديل شاحنة', 'label_en' => 'Edit truck'],
+            'trucks.delete' => ['label' => 'حذف شاحنة', 'label_en' => 'Delete truck'],
+            'drivers.view' => ['label' => 'عرض السائقين', 'label_en' => 'View drivers'],
+            'drivers.create' => ['label' => 'إضافة سائق', 'label_en' => 'Create driver'],
+            'drivers.edit' => ['label' => 'تعديل سائق', 'label_en' => 'Edit driver'],
+            'drivers.delete' => ['label' => 'حذف سائق', 'label_en' => 'Delete driver'],
+            'truck_loads.view' => ['label' => 'عرض لوحة حركة الشاحنات', 'label_en' => 'View truck movement board'],
+            'truck_loads.manage' => ['label' => 'تحميل / تفريغ / تحديد مكان الشاحنات', 'label_en' => 'Load / unload / locate trucks'],
+            'truck_loads.report' => ['label' => 'تقرير الأحمال', 'label_en' => 'Loads report'],
+            'waybills.view' => ['label' => 'عرض بوالص الشحن', 'label_en' => 'View waybills'],
+            'waybills.create' => ['label' => 'إنشاء بوليصة شحن', 'label_en' => 'Create waybill'],
+            'waybills.edit' => ['label' => 'تعديل / تسليم / إلغاء بوليصة', 'label_en' => 'Edit / deliver / cancel waybill'],
+            'waybills.delete' => ['label' => 'حذف بوليصة شحن', 'label_en' => 'Delete waybill'],
+            'transport_quotations.view' => ['label' => 'عرض عروض أسعار النقليات', 'label_en' => 'View transport quotations'],
+            'transport_quotations.create' => ['label' => 'إنشاء عرض سعر نقليات', 'label_en' => 'Create transport quotation'],
+            'transport_quotations.edit' => ['label' => 'تعديل عرض سعر نقليات', 'label_en' => 'Edit transport quotation'],
+            'transport_quotations.delete' => ['label' => 'حذف عرض سعر نقليات', 'label_en' => 'Delete transport quotation'],
+            'maintenance.view' => ['label' => 'عرض سندات صيانة ومصروفات الشاحنات', 'label_en' => 'View truck maintenance vouchers'],
+            'maintenance.create' => ['label' => 'إنشاء سند صيانة شاحنة', 'label_en' => 'Create truck maintenance voucher'],
+            'maintenance.edit' => ['label' => 'تعديل سند صيانة شاحنة', 'label_en' => 'Edit truck maintenance voucher'],
+            'transport_reports.fleet' => ['label' => 'تقرير الشاحنات (الصيانة والوجهات والأحمال)', 'label_en' => 'Fleet report'],
+        ],
+    ],
+
     'customers' => [
         'label' => 'العملاء',
         'label_en' => 'Customers',
@@ -35,21 +69,6 @@ return [
         ],
     ],
 
-    'invoices' => [
-        'label' => 'الفواتير وعروض الأسعار',
-        'label_en' => 'Invoices & Quotations',
-        'permissions' => [
-            'invoices.view' => ['label' => 'عرض الفواتير', 'label_en' => 'View invoices'],
-            'invoices.create' => ['label' => 'إنشاء فاتورة جديدة', 'label_en' => 'Create invoice'],
-            'invoices.edit' => ['label' => 'تعديل فاتورة', 'label_en' => 'Edit invoice'],
-            'invoices.delete' => ['label' => 'حذف فاتورة', 'label_en' => 'Delete invoice'],
-            'invoices.returns' => ['label' => 'مرتجعات المبيعات', 'label_en' => 'Sales returns'],
-            'quotations.view' => ['label' => 'عرض عروض الأسعار', 'label_en' => 'View quotations'],
-            'quotations.create' => ['label' => 'إنشاء عرض سعر', 'label_en' => 'Create quotation'],
-            'quotations.edit' => ['label' => 'تعديل عرض سعر', 'label_en' => 'Edit quotation'],
-            'quotations.delete' => ['label' => 'حذف عرض سعر', 'label_en' => 'Delete quotation'],
-        ],
-    ],
 
     'purchases' => [
         'label' => 'المشتريات',
@@ -64,19 +83,6 @@ return [
         ],
     ],
 
-    'delivery' => [
-        'label' => 'التسليم وسندات التسليم',
-        'label_en' => 'Delivery & Delivery Notes',
-        'permissions' => [
-            'delivery.view' => ['label' => 'عرض عمليات التسليم', 'label_en' => 'View delivery'],
-            'delivery.create' => ['label' => 'تسليم منتج جديد', 'label_en' => 'Create delivery'],
-            'delivery_note.view' => ['label' => 'عرض سندات التسليم', 'label_en' => 'View delivery notes'],
-            'delivery_note.create' => ['label' => 'إنشاء سند تسليم', 'label_en' => 'Create delivery note'],
-            'delivery_note.edit' => ['label' => 'تعديل سند تسليم معلّق', 'label_en' => 'Edit pending delivery note'],
-            'delivery_note.approve' => ['label' => 'اعتماد وتحويل لفاتورة', 'label_en' => 'Approve & convert to invoice'],
-        ],
-    ],
-
     'products' => [
         'label' => 'المنتجات والمخزون',
         'label_en' => 'Products & Inventory',
@@ -86,8 +92,6 @@ return [
             'products.edit' => ['label' => 'تعديل منتج', 'label_en' => 'Edit product'],
             'products.delete' => ['label' => 'حذف منتج', 'label_en' => 'Delete product'],
             'products.groups' => ['label' => 'إدارة مجموعات المنتجات', 'label_en' => 'Manage product groups'],
-            'stock_transfers.view' => ['label' => 'عرض تحويلات المخزون', 'label_en' => 'View stock transfers'],
-            'stock_transfers.create' => ['label' => 'تحويل مخزون بين الفروع', 'label_en' => 'Create stock transfer'],
         ],
     ],
 
@@ -114,11 +118,16 @@ return [
             'employees.view' => ['label' => 'عرض الموظفين', 'label_en' => 'View employees'],
             'employees.create' => ['label' => 'إضافة موظف جديد', 'label_en' => 'Create employee'],
             'employees.edit' => ['label' => 'تعديل بيانات موظف', 'label_en' => 'Edit employee'],
+            'departments.view' => ['label' => 'عرض أقسام الموظفين', 'label_en' => 'View departments'],
+            'departments.create' => ['label' => 'إضافة قسم', 'label_en' => 'Create department'],
+            'departments.edit' => ['label' => 'تعديل قسم', 'label_en' => 'Edit department'],
+            'departments.delete' => ['label' => 'حذف قسم', 'label_en' => 'Delete department'],
             'attendance.view' => ['label' => 'عرض الحضور والانصراف', 'label_en' => 'View attendance'],
             'attendance.create' => ['label' => 'تسجيل حضور/انصراف', 'label_en' => 'Create attendance'],
             'employee_loans.view' => ['label' => 'عرض سلف الموظفين', 'label_en' => 'View employee loans'],
             'employee_loans.create' => ['label' => 'إضافة سلفة', 'label_en' => 'Create employee loan'],
             'asset_custodies.view' => ['label' => 'عرض عهد الموظفين', 'label_en' => 'View asset custodies'],
+            'employee_custody.view' => ['label' => 'مخطط عُهد الموظفين', 'label_en' => 'Employee custody chart'],
             'leave_requests.view' => ['label' => 'عرض طلبات الإجازات', 'label_en' => 'View leave requests'],
             'end_of_service.view' => ['label' => 'عرض مكافآت نهاية الخدمة', 'label_en' => 'View end of service'],
             'payroll.view' => ['label' => 'عرض الرواتب', 'label_en' => 'View payroll'],
@@ -151,20 +160,6 @@ return [
         ],
     ],
 
-    'reports_sales' => [
-        'label' => 'تقارير المبيعات',
-        'label_en' => 'Sales Reports',
-        'permissions' => [
-            'reports_sales.summary' => ['label' => 'ملخص المبيعات', 'label_en' => 'Sales summary'],
-            'reports_sales.profits' => ['label' => 'أرباح المبيعات', 'label_en' => 'Sales profits'],
-            'reports_sales.employee_profits' => ['label' => 'أرباح مبيعات الموظفين', 'label_en' => 'Employee sales profits'],
-            'reports_sales.top_products' => ['label' => 'المنتجات الأكثر مبيعاً', 'label_en' => 'Top selling products'],
-            'reports_sales.by_customer' => ['label' => 'المبيعات حسب العميل', 'label_en' => 'Sales by customer'],
-            'reports_sales.by_employee' => ['label' => 'المبيعات حسب الموظف', 'label_en' => 'Sales by employee'],
-            'reports_sales.by_product' => ['label' => 'المبيعات حسب المنتج', 'label_en' => 'Sales by product'],
-            'reports_sales.returns' => ['label' => 'مرتجعات المبيعات', 'label_en' => 'Sales returns'],
-        ],
-    ],
 
     'reports_purchases' => [
         'label' => 'تقارير المشتريات',
@@ -174,7 +169,6 @@ return [
             'reports_purchases.by_supplier' => ['label' => 'المشتريات حسب المورد', 'label_en' => 'Purchases by supplier'],
             'reports_purchases.by_employee' => ['label' => 'المشتريات حسب الموظف', 'label_en' => 'Purchases by employee'],
             'reports_purchases.by_product' => ['label' => 'المشتريات حسب المنتج', 'label_en' => 'Purchases by product'],
-            'reports_purchases.purchases_vs_sales' => ['label' => 'مشتريات ومبيعات الأصناف', 'label_en' => 'Purchases vs sales by product'],
             'reports_purchases.returns' => ['label' => 'مرتجعات المشتريات', 'label_en' => 'Purchases returns'],
         ],
     ],
@@ -185,7 +179,6 @@ return [
         'permissions' => [
             'reports_products.stock' => ['label' => 'المخزون الحالي', 'label_en' => 'Current stock'],
             'reports_products.low_stock' => ['label' => 'المنتجات الموشكة على النفاد', 'label_en' => 'Low stock'],
-            'reports_products.stock_transfers' => ['label' => 'تحويلات المخزون', 'label_en' => 'Stock transfers'],
         ],
     ],
 
@@ -199,16 +192,6 @@ return [
             'reports_hr.employees' => ['label' => 'تقرير بيانات الموظفين', 'label_en' => 'Employees report'],
             'reports_hr.bonuses_deductions' => ['label' => 'تقرير المكافآت والخصومات', 'label_en' => 'Bonuses & deductions report'],
             'reports_hr.leaves' => ['label' => 'تقرير الإجازات', 'label_en' => 'Leaves report'],
-        ],
-    ],
-
-    'reports_delivery' => [
-        'label' => 'تقارير التسليم',
-        'label_en' => 'Delivery Reports',
-        'permissions' => [
-            'reports_delivery.summary' => ['label' => 'ملخص التسليم', 'label_en' => 'Delivery summary'],
-            'reports_delivery.pending' => ['label' => 'التسليمات المعلّقة', 'label_en' => 'Pending deliveries'],
-            'reports_delivery.by_employee' => ['label' => 'التسليم حسب الموظف', 'label_en' => 'Delivery by employee'],
         ],
     ],
 

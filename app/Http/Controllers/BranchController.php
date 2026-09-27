@@ -80,8 +80,7 @@ class BranchController extends Controller
         $this->authorize('branches.delete');
 
         $inUse = $branch->products()->exists()
-            || $branch->invoices()->exists()
-            || $branch->receivedInvoices()->exists()
+            || \App\Models\TransportInvoice::where('branch_id', $branch->id)->exists()
             || $branch->subBranches()->exists();
 
         if ($inUse) {

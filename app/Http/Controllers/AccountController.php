@@ -421,8 +421,12 @@ class AccountController extends Controller
             );
         }
 
+        $allAccounts = FinancialAccount::orderBy('account_number')
+            ->get(['id', 'name', 'account_number', 'parent_account_number', 'is_parent', 'active']);
+
         return view('accounts.statement', [
             'account' => $account,
+            'allAccounts' => $allAccounts,
             'transactions' => $transactions,
             'openingBalance' => $openingBalance,
             'dateFrom' => $request->input('date_from', ''),
@@ -433,23 +437,50 @@ class AccountController extends Controller
     }
 
     /**
-     * بحث AJAX عن الحسابات النشطة (لاستخدامه في اختيار حساب بالقيد
-     * اليومي وسندات القبض/الصرف). بيرجع أول 20 نتيجة بس.
+     * كشف حساب عام من قسم التقارير المالية (/reports/accounts/statement)
+     * بيسمح باختيار أي حساب من شجرة الحسابات عبر قائمة بحث تفاعلية فورية (Searchable Select)،
+     * أو بيعرض أول حساب متاح تلقائيًا إذا لم يُحدد account_id في الطلب.
+     */
+    public function statementReport(Request $request)
+    {
+        $this->authorize('accounts.view');
+
+        $accountId = $request->input('account_id');
+        $account = null;
+
+        if ($accountId) {
+            $account = FinancialAccount::find($accountId);
+        }
+
+        if (!$account) {
+            $account = FinancialAccount::orderBy('account_number')->first();
+        }
+
+        if (!$account) {
+            abort(404, __('accounts.no_accounts_found') ?? 'لا توجد حسابات مسجلة في شجرة الحسابات');
+        }
+
+        return $this->statement($request, $account);
+    }
+
+    /**
+     * بحث AJAX عن الحسابات (لاستخدامه في اختيار حساب بالقيد اليومي وسندات القبض/الصرف وقوائم البحث).
      *
-     * scope=treasury: مقصور على حسابات الخزينة والبنوك بتاعت الفروع
-     * بس (parent_account_number = 4 أو 5) - ده مطلوب في سندات القبض
-     * والصرف عشان حقل "حساب الخزينة" مايظهرش فيه عملاء/موردين/حسابات
-     * عامة تانية غلط. الأرقام 4 و5 دول أرقام الحسابات الأب الفعلية
-     * لمجموعتي "الخزينة" و"البنوك" في شجرة الحسابات.
+     * scope=treasury: مقصور على حسابات الخزينة والبنوك بتاعت الفروع بس (parent_account_number = 4 أو 5).
+     * scope=all: يشمل كل الحسابات (النشطة وغير النشطة).
+     * الافتراضي: الحسابات النشطة.
      */
     public function search(Request $request)
     {
         $q = trim((string) $request->input('q'));
         $scope = $request->input('scope');
 
-        $accounts = FinancialAccount::where('active', true)
+        $accounts = FinancialAccount::query()
             ->when($scope === 'treasury', function ($query) {
                 $query->whereIn('parent_account_number', [4, 5]);
+            })
+            ->when($scope !== 'all', function ($query) {
+                $query->where('active', true);
             })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($w) use ($q) {
@@ -457,10 +488,18 @@ class AccountController extends Controller
                         ->orWhere('account_number', 'like', "%{$q}%");
                 });
             })
-            ->orderBy('name')
-            ->limit(20)
+            ->orderBy('account_number')
+            ->limit(50)
             ->get(['id', 'name', 'account_number', 'current_balance']);
 
-        return response()->json($accounts);
+        return response()->json($accounts->map(function ($a) {
+            return [
+                'id' => $a->id,
+                'name' => $a->name,
+                'account_number' => $a->account_number,
+                'text' => ($a->account_number ? $a->account_number . ' - ' : '') . $a->name,
+                'current_balance' => $a->current_balance,
+            ];
+        }));
     }
 }

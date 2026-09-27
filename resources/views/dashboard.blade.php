@@ -22,6 +22,9 @@
                 </div>
             </div>
 
+            {{-- حالة الشاحنات (قسم النقليات) - ظاهر لكل المستخدمين --}}
+            @include('transport.partials.dashboard-trucks')
+
             {{-- شريط الفرع: select بارز + شارة واضحة تأكّد إن كل الشاشة
                  تحتها فعلاً بتعرض بيانات الفرع المختار (أو كل الفروع) --}}
             <div class="dash-anim bg-white rounded-xl border border-gray-100 shadow-sm px-4 sm:px-5 py-3 flex items-center justify-between flex-wrap gap-3" style="--dash-delay: 20ms">
@@ -50,7 +53,7 @@
             {{-- إجراءات سريعة --}}
             @php
                 $quickActions = collect([
-                    auth()->user()?->hasPermission('invoices.create') ? ['label' => __('invoices.new_invoice'), 'url' => route('invoices.create'), 'color' => '#1456E8'] : null,
+                    auth()->user()?->hasPermission('transport_invoices.create') ? ['label' => __('transport.new_invoice'), 'url' => route('transport.invoices.create'), 'color' => '#1456E8'] : null,
                     auth()->user()?->hasPermission('purchases.create') ? ['label' => __('purchases.new_purchase'), 'url' => route('purchases.create'), 'color' => '#F5811E'] : null,
                     auth()->user()?->hasPermission('customers.create') ? ['label' => __('customers.new_customer'), 'url' => route('customers.create'), 'color' => '#0F1B4C'] : null,
                     auth()->user()?->hasPermission('suppliers.create') ? ['label' => __('suppliers.new_supplier'), 'url' => route('suppliers.create'), 'color' => '#6B2FD6'] : null,
@@ -211,8 +214,8 @@
                     <p class="text-lg font-bold text-rose-600 mt-1" data-stat="low_stock_count"><span class="dash-skeleton"></span></p>
                 </div>
                 <div class="dash-anim dash-card bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="--dash-delay: 320ms">
-                    <p class="text-[11px] font-medium text-gray-500">{{ __('messages.dashboard_pending_deliveries') }}</p>
-                    <p class="text-lg font-bold text-sky-600 mt-1" data-stat="pending_delivery_notes_count"><span class="dash-skeleton"></span></p>
+                    <p class="text-[11px] font-medium text-gray-500">{{ __('transport.loaded_trucks') }}</p>
+                    <p class="text-lg font-bold text-sky-600 mt-1" data-stat="loaded_trucks_count"><span class="dash-skeleton"></span></p>
                 </div>
             </div>
 
@@ -252,9 +255,6 @@
                 <div class="dash-anim bg-white rounded-2xl border border-gray-100 shadow-sm p-5" style="--dash-delay: 380ms">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-bold text-[#0F1B4C] text-sm">{{ __('messages.dashboard_top_employees') }}</h3>
-                        @can('reports_sales.employee_profits')
-                            <a href="{{ route('reports.sales.employee-profits') }}" class="text-xs text-[#1456E8] font-medium hover:underline">{{ __('reports.sales.employee_profits') }} &larr;</a>
-                        @endcan
                     </div>
                     <div id="dashboard-top-employees" class="space-y-3">
                         <p class="dash-empty text-sm text-gray-400 text-center py-6">{{ __('messages.dashboard_no_data_today') }}</p>
@@ -264,9 +264,6 @@
                 <div class="dash-anim bg-white rounded-2xl border border-gray-100 shadow-sm p-5" style="--dash-delay: 400ms">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-bold text-[#0F1B4C] text-sm" id="dashboard-top-branches-title">{{ __('messages.dashboard_top_branches') }}</h3>
-                        @can('reports_sales.top_products')
-                            <a href="{{ route('reports.sales.top-products') }}" class="text-xs text-[#1456E8] font-medium hover:underline">{{ __('reports.sales.top_products') }} &larr;</a>
-                        @endcan
                     </div>
                     <div id="dashboard-top-branches" class="space-y-3">
                         <p class="dash-empty text-sm text-gray-400 text-center py-6">{{ __('messages.dashboard_no_data_today') }}</p>
@@ -282,11 +279,8 @@
                     <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                         <h3 class="font-bold text-[#0F1B4C] text-sm">{{ __('messages.dashboard_recent_sales') }}</h3>
                         <div class="flex items-center gap-3">
-                            @can('reports_sales.profits')
-                                <a href="{{ route('reports.sales.profits') }}" class="text-xs text-emerald-600 font-medium hover:underline">{{ __('reports.sales.profits') }}</a>
-                            @endcan
-                            @can('invoices.view')
-                                <a href="{{ route('invoices.index') }}" class="text-xs text-[#1456E8] font-medium hover:underline">{{ __('messages.dashboard_view_all') }}</a>
+                            @can('transport_invoices.view')
+                                <a href="{{ route('transport.invoices.index') }}" class="text-xs text-[#1456E8] font-medium hover:underline">{{ __('messages.dashboard_view_all') }}</a>
                             @endcan
                         </div>
                     </div>
@@ -643,7 +637,7 @@
                         var branchesTitle = document.getElementById('dashboard-top-branches-title');
                         if (branchesTitle) {
                             branchesTitle.textContent = data.top_branches_mode === 'products'
-                                ? @json(__('messages.dashboard_top_products'))
+                                ? @json(__('transport.dash_top_trucks_today'))
                                 : @json(__('messages.dashboard_top_branches'));
                         }
 

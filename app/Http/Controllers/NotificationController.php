@@ -3,11 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\AccountVoucher;
-use App\Models\Invoice;
+use App\Models\JournalEntry;
+use App\Models\TransportInvoice;
+use App\Models\Truck;
+use App\Models\TruckLoad;
 use App\Models\Product;
 use App\Models\Purchase;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Models\EmployeeContract;
 
 /*
@@ -79,7 +84,7 @@ class NotificationController extends Controller
         $items = [];
 
         if ($user?->hasPermission('zatca.view')) {
-            $zatcaFailedCount = Invoice::where('is_finalized', true)
+            $zatcaFailedCount = TransportInvoice::where('is_draft', false)
                 ->where('is_sent_to_zatca', false)
                 ->where('zatca_status', 'FAIL')
                 ->count();
@@ -89,7 +94,51 @@ class NotificationController extends Controller
                     'type' => 'zatca_failed',
                     'count' => $zatcaFailedCount,
                     'message' => __('messages.zatca_failed_notification', ['count' => $zatcaFailedCount]),
-                    'url' => route('zatca.index', ['sent' => 0, 'status' => 'FAIL']),
+                    'url' => route('transport.zatca.index', ['sent' => 0, 'status' => 'FAIL']),
+                ];
+            }
+        }
+
+        // وثائق الشاحنات: الاستمارة / التأمين / كرت التشغيل / الفحص الدوري
+        if ($user?->hasPermission('trucks.view')) {
+            $today = now()->toDateString();
+            $limit = now()->addDays(Truck::EXPIRY_ALERT_DAYS)->toDateString();
+            foreach (Truck::DOCUMENTS as $col => $key) {
+                $row = Truck::query()
+                    ->where('status', '!=', 'inactive')
+                    ->whereNotNull($col)
+                    ->whereDate($col, '<=', $limit)
+                    ->selectRaw('COUNT(*) as total, SUM(CASE WHEN ' . $col . ' < ? THEN 1 ELSE 0 END) as expired', [$today])
+                    ->first();
+                $total = (int) ($row->total ?? 0);
+                if ($total > 0) {
+                    $expired = (int) $row->expired;
+                    $items[] = [
+                        'type' => 'truck_doc_' . $col,
+                        'level' => $expired > 0 ? 'danger' : 'warning',
+                        'count' => $total,
+                        'message' => __('transport.notif_truck_doc', [
+                            'doc' => __('transport.' . $key),
+                            'expired' => $expired,
+                            'soon' => $total - $expired,
+                            'days' => Truck::EXPIRY_ALERT_DAYS,
+                        ]),
+                        'url' => route('transport.trucks.index', ['docs' => $col]),
+                    ];
+                }
+            }
+        }
+
+        // شاحنات متأخرة عن التنزيل
+        if ($user?->hasPermission('truck_loads.view')) {
+            $overdue = TruckLoad::where('status', 'loaded')->where('expected_unload_at', '<', now())->count();
+            if ($overdue > 0) {
+                $items[] = [
+                    'type' => 'trucks_overdue',
+                    'level' => 'danger',
+                    'count' => $overdue,
+                    'message' => __('transport.notif_trucks_overdue', ['count' => $overdue]),
+                    'url' => route('transport.loads.board'),
                 ];
             }
         }
@@ -111,22 +160,36 @@ class NotificationController extends Controller
 
         $todayOperations = $this->todayOperations($user);
         $todayCount = count($todayOperations);
+        $newCount = count(array_filter($todayOperations, fn ($op) => $op['is_new']));
         $page = array_slice($todayOperations, 0, self::PAGE_SIZE);
 
         return response()->json([
-            'count' => array_sum(array_column($items, 'count')) + $todayCount,
+            // الرقم الأحمر = التنبيهات (مشاكل قايمة) + العمليات الجديدة من آخر فتح للجرس
+            'count' => array_sum(array_column($items, 'count')) + $newCount,
             'items' => $items,
             'recent' => $page,
+            // أحدث 20 عملية بمفاتيح ثابتة - الفرونت بيطلع منها إشعار متصفح للجديد
+            'latest' => array_slice($todayOperations, 0, 20),
             'today_count' => $todayCount,
+            'new_count' => $newCount,
             'has_more' => $todayCount > count($page),
         ]);
     }
 
+    /** المستخدم فتح الجرس: كل اللي قبل دلوقتي بقى "متشاف" */
+    public function markSeen()
+    {
+        $user = auth()->user();
+        if ($user && Schema::hasColumn('users', 'notifications_seen_at')) {
+            DB::table('users')->where('id', $user->id)->update(['notifications_seen_at' => now()]);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     /**
      * صفحة تانية (وتالتة...) من "عمليات اليوم" - بتتنادى من زرار "عرض
-     * المزيد" في الفرونت. الـ offset بيتحسب على القايمة المدموجة
-     * والمترتبة بالكامل (مش لكل نوع لوحده) عشان الترتيب الزمني يفضل صح
-     * حتى لو النوع اتغير من عملية للتانية.
+     * المزيد" في الفرونت.
      */
     public function recentOperationsPage(Request $request)
     {
@@ -143,46 +206,56 @@ class NotificationController extends Controller
     }
 
     /**
-     * كل عمليات البيع/الشراء/القبض/الصرف اللي حصلت "النهارده" (بتوقيت
-     * الرياض - نفس التوقيت المستخدم في التقرير الختامي اليومي)، مدموجين
-     * مع بعض ومترتبين بالأحدث. كل نوع متفلتر على صلاحيته زي الداشبورد.
+     * عمليات اليوم (بتوقيت الرياض): فواتير النقل، السندات (قبض/صرف/صيانة)،
+     * القيود اليومية، تحميل الشاحنات، تفريغ الشاحنات - مدموجة ومترتبة
+     * بالأحدث، وكل نوع متفلتر على صلاحيته.
      *
-     * ملحوظة توقيت مهمة: created_at متخزّن بتوقيت UTC (راجع
-     * config('app.timezone'))، فمينفعش نقارنه بـ whereDate() ضد تاريخ
-     * نص بالرياض (زي ما بيحصل في dailyClosingReport() اللي بيقارن ضد
-     * عمود تاريخ عادي issue_date/voucher_date مش created_at) - كان ده
-     * هيسبب فجوة 3 ساعات (من 00:00 لـ 03:00 بتوقيت الرياض) العمليات
-     * فيها متتحسبش "النهارده" غلط. الحل: نحول بداية/نهاية يوم الرياض
-     * لمدى UTC ونقارن بيه.
+     * كل عملية ليها key ثابت (نوع|id) عشان إشعار المتصفح ميتكررش، و
+     * is_new = حصلت بعد آخر مرة المستخدم فتح الجرس.
+     *
+     * created_at متخزّن UTC، فبنحوّل بداية/نهاية يوم الرياض لمدى UTC.
      */
     private function todayOperations($user): array
     {
         $startUtc = Carbon::now('Asia/Riyadh')->startOfDay()->utc();
         $endUtc = Carbon::now('Asia/Riyadh')->endOfDay()->utc();
+        $seenAt = $user?->notifications_seen_at ? Carbon::parse($user->notifications_seen_at) : null;
         $operations = collect();
 
-        if ($user?->hasPermission('invoices.view')) {
+        $op = function (string $type, $id, string $label, $number, $party, $total, $at, string $url) {
+            return [
+                'key' => $type . '|' . $id,
+                'type' => $type,
+                'label' => $label,
+                'number' => (string) $number,
+                'party' => $party,
+                'total' => $total,
+                'time' => $at ? Carbon::parse($at)->diffForHumans() : '',
+                'at' => $at ? Carbon::parse($at) : null,
+                'url' => $url,
+            ];
+        };
+
+        // فواتير النقل
+        if ($user?->hasPermission('transport_invoices.view')) {
             $operations = $operations->concat(
-                Invoice::query()
+                TransportInvoice::query()
+                    ->where('is_draft', false)
                     ->whereBetween('created_at', [$startUtc, $endUtc])
                     ->with('customer:id,name')
                     ->latest('id')
                     ->limit(self::MAX_PER_TYPE)
-                    ->get(['id', 'invoice_number', 'customer_id', 'subtotal', 'tax_amount', 'discount_amount', 'created_at'])
-                    ->map(fn (Invoice $invoice) => [
-                        'type' => 'sale',
-                        'label' => __('messages.recent_operation_sale'),
-                        'number' => $invoice->invoice_number ?: ('#' . $invoice->id),
-                        'party' => $invoice->customer?->name,
-                        'total' => round((float) ($invoice->subtotal + $invoice->tax_amount - $invoice->discount_amount), 2),
-                        'time' => optional($invoice->created_at)->diffForHumans(),
-                        'created_at' => $invoice->created_at,
-                        'url' => route('invoices.show', $invoice->id),
-                    ])
+                    ->get(['id', 'invoice_number', 'customer_id', 'total', 'created_at'])
+                    ->map(fn (TransportInvoice $i) => $op(
+                        'sale', $i->id, __('transport.notif_transport_invoice'),
+                        $i->invoice_number ?: ('#' . $i->id), $i->customer?->name,
+                        round((float) $i->total, 2), $i->created_at, route('transport.invoices.show', $i->id)
+                    ))
             );
         }
 
-        if ($user?->hasPermission('purchases.view')) {
+        // المشتريات (لو الموديول لسه موجود)
+        if ($user?->hasPermission('purchases.view') && Schema::hasTable('purchases')) {
             $operations = $operations->concat(
                 Purchase::query()
                     ->whereBetween('created_at', [$startUtc, $endUtc])
@@ -190,56 +263,123 @@ class NotificationController extends Controller
                     ->latest('id')
                     ->limit(self::MAX_PER_TYPE)
                     ->get(['id', 'purchase_number', 'supplier_id', 'grand_total', 'created_at'])
-                    ->map(fn (Purchase $purchase) => [
-                        'type' => 'purchase',
-                        'label' => __('messages.recent_operation_purchase'),
-                        'number' => $purchase->purchase_number ?: ('#' . $purchase->id),
-                        'party' => $purchase->supplier?->name,
-                        'total' => round((float) $purchase->grand_total, 2),
-                        'time' => optional($purchase->created_at)->diffForHumans(),
-                        'created_at' => $purchase->created_at,
-                        'url' => route('purchases.show', $purchase->id),
-                    ])
+                    ->map(fn (Purchase $p) => $op(
+                        'purchase', $p->id, __('messages.recent_operation_purchase'),
+                        $p->purchase_number ?: ('#' . $p->id), $p->supplier?->name,
+                        round((float) $p->grand_total, 2), $p->created_at, route('purchases.show', $p->id)
+                    ))
             );
         }
 
-        if ($user?->hasPermission('vouchers.view')) {
+        // السندات: كل السندات (vouchers.view) أو سندات صيانة الشاحنات بس (maintenance.view)
+        $allVouchers = $user?->hasPermission('vouchers.view');
+        if ($allVouchers || $user?->hasPermission('maintenance.view')) {
             $operations = $operations->concat(
                 AccountVoucher::query()
                     ->whereBetween('created_at', [$startUtc, $endUtc])
-                    ->with('lines.counterpartAccount:id,name')
+                    ->when(!$allVouchers, fn ($q) => $q->whereNotNull('truck_id'))
+                    ->with(['lines.counterpartAccount:id,name', 'truck:id,plate_number', 'creator:id,name'])
                     ->latest('id')
                     ->limit(self::MAX_PER_TYPE)
-                    ->get(['id', 'voucher_number', 'type', 'created_at'])
-                    ->map(function (AccountVoucher $voucher) {
-                        $isReceipt = $voucher->type === AccountVoucher::TYPE_RECEIPT;
-
-                        // السند ممكن يكون له أكتر من بند/طرف (سند متعدد
-                        // البنود) - نجمع أسماء الأطراف المميزة كلها بدل
-                        // ما ناخد بند واحد بس ونتجاهل الباقي.
-                        $partyNames = $voucher->lines->pluck('counterpartAccount.name')->filter()->unique();
+                    ->get()
+                    ->map(function (AccountVoucher $v) use ($op) {
+                        $isReceipt = $v->type === AccountVoucher::TYPE_RECEIPT;
+                        $partyNames = $v->lines->pluck('counterpartAccount.name')->filter()->unique();
                         $party = $partyNames->count() > 1
                             ? $partyNames->take(2)->implode('، ') . __('messages.recent_operation_more_parties')
                             : $partyNames->first();
+                        if ($v->truck) {
+                            $party = trim('🚚 ' . $v->truck->plate_number . ($party ? ' - ' . $party : ''));
+                        }
+                        $label = $v->truck_id && !$isReceipt
+                            ? __('transport.notif_maintenance_voucher')
+                            : ($isReceipt ? __('messages.recent_operation_receipt') : __('messages.recent_operation_payment'));
 
-                        return [
-                            'type' => $isReceipt ? 'receipt' : 'payment',
-                            'label' => $isReceipt ? __('messages.recent_operation_receipt') : __('messages.recent_operation_payment'),
-                            'number' => $voucher->voucher_number ?: ('#' . $voucher->id),
-                            'party' => $party,
-                            'total' => $voucher->total_amount,
-                            'time' => optional($voucher->created_at)->diffForHumans(),
-                            'created_at' => $voucher->created_at,
-                            'url' => route('vouchers.show', $voucher->id),
-                        ];
+                        return $op(
+                            $isReceipt ? 'receipt' : 'payment', $v->id, $label,
+                            $v->voucher_number ?: ('#' . $v->id), $party,
+                            round((float) $v->total_amount, 2), $v->created_at, route('vouchers.show', $v->id)
+                        );
+                    })
+            );
+        }
+
+        // القيود اليومية
+        if ($user?->hasPermission('journal_entries.view')) {
+            $operations = $operations->concat(
+                JournalEntry::query()
+                    ->whereBetween('created_at', [$startUtc, $endUtc])
+                    ->latest('id')
+                    ->limit(self::MAX_PER_TYPE)
+                    ->get(['id', 'entry_number', 'entry_type', 'description', 'total_debit', 'created_at'])
+                    ->map(fn (JournalEntry $e) => $op(
+                        'journal', $e->id,
+                        $e->isOpening() ? __('transport.notif_opening_entry') : __('transport.notif_journal_entry'),
+                        $e->entry_number ?: ('#' . $e->id), mb_strimwidth((string) $e->description, 0, 60, '…'),
+                        round((float) $e->total_debit, 2), $e->created_at, route('journal-entries.show', $e->id)
+                    ))
+            );
+        }
+
+        // حركة الشاحنات النهارده: اتحمّلت / فضيت
+        if ($user?->hasPermission('truck_loads.view')) {
+            $board = route('transport.loads.board');
+
+            $operations = $operations->concat(
+                TruckLoad::with(['truck:id,plate_number', 'customer:id,name'])
+                    ->where('status', '!=', 'cancelled')
+                    ->whereBetween('created_at', [$startUtc, $endUtc])
+                    ->latest('id')->limit(self::MAX_PER_TYPE)->get()
+                    ->map(fn (TruckLoad $l) => $op(
+                        'truck_loaded', $l->id, __('transport.notif_truck_loaded'),
+                        $l->truck?->plate_number ?? ('#' . $l->truck_id),
+                        $l->from_label . ' ← ' . $l->to_label . ($l->customer ? ' · ' . $l->customer->name : ''),
+                        null, $l->created_at, $board
+                    ))
+            );
+
+            // التفريغ: بوقت تسجيله على السيستم (unload_recorded_at) - مش updated_at
+            // اللي بيتغير مع أي تعديل أو فوترة للحمل فكان بيكرر الإشعار
+            $hasRecorded = Schema::hasColumn('truck_loads', 'unload_recorded_at');
+            $todayLocal = Carbon::now('Asia/Riyadh');
+            $operations = $operations->concat(
+                TruckLoad::with('truck:id,plate_number')
+                    ->where('status', 'unloaded')
+                    ->where(function ($q) use ($hasRecorded, $startUtc, $endUtc, $todayLocal) {
+                        if ($hasRecorded) {
+                            $q->whereBetween('unload_recorded_at', [$startUtc, $endUtc])
+                                ->orWhere(fn ($qq) => $qq->whereNull('unload_recorded_at')
+                                    ->whereBetween('unloaded_at', [$todayLocal->copy()->startOfDay()->format('Y-m-d H:i:s'), $todayLocal->copy()->endOfDay()->format('Y-m-d H:i:s')]));
+                        } else {
+                            $q->whereBetween('unloaded_at', [$todayLocal->copy()->startOfDay()->format('Y-m-d H:i:s'), $todayLocal->copy()->endOfDay()->format('Y-m-d H:i:s')]);
+                        }
+                    })
+                    ->latest('id')->limit(self::MAX_PER_TYPE)->get()
+                    ->map(function (TruckLoad $l) use ($op, $board, $hasRecorded) {
+                        // unloaded_at مكتوب بتوقيت الرياض - نحوّله لـ UTC عشان الترتيب والمقارنة
+                        $at = ($hasRecorded && $l->unload_recorded_at)
+                            ? $l->unload_recorded_at
+                            : Carbon::parse($l->unloaded_at->format('Y-m-d H:i:s'), 'Asia/Riyadh')->utc();
+
+                        return $op(
+                            'truck_unloaded', $l->id, __('transport.notif_truck_unloaded'),
+                            $l->truck?->plate_number ?? ('#' . $l->truck_id),
+                            $l->to_label . ' - ' . __('transport.notif_now_empty'),
+                            null, $at, $board
+                        );
                     })
             );
         }
 
         return $operations
-            ->sortByDesc('created_at')
+            ->sortByDesc(fn ($o) => $o['at']?->getTimestamp() ?? 0)
             ->values()
-            ->map(fn ($op) => collect($op)->except('created_at')->all())
+            ->map(function ($o) use ($seenAt) {
+                $o['is_new'] = !$seenAt || ($o['at'] && $o['at']->gt($seenAt));
+                unset($o['at']);
+
+                return $o;
+            })
             ->all();
     }
 }

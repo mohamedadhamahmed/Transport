@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Invoice;
 use App\Models\InvoiceReturn;
 use App\Models\Setting;
+use App\Models\TransportInvoice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Ramsey\Uuid\Uuid;
@@ -256,7 +257,23 @@ return  $result;
      *
      * @return array{success: bool, message?: string}
      */
-    protected function performSend(Invoice $invoice, Setting $setting): array
+    /**
+     * إرسال فاتورة نقليات للزكاة بنفس كود إرسال فواتير المبيعات بالظبط
+     * (performSend + buildAndSendInvoice) - الفرق الوحيد إن أسطر الفاتورة
+     * بتتبني من النقلات (راجع zatcaItems()). مستخدم من TransportZatcaController.
+     */
+    public function sendTransportInvoice(TransportInvoice $invoice, Setting $setting): array
+    {
+        if ($invoice->is_draft) {
+            return ['success' => false, 'message' => __('transport.zatca_draft_not_allowed')];
+        }
+
+        $invoice->loadMissing(['customer', 'items']);
+
+        return $this->performSend($invoice, $setting);
+    }
+
+    protected function performSend(Invoice|TransportInvoice $invoice, Setting $setting): array
     {
         if ($invoice->is_sent_to_zatca) {
             return ['success' => false, 'message' => __('zatca.already_sent')];
@@ -356,7 +373,57 @@ return  $result;
      * إعدادات الزاتكا) يترجع كـ Throwable عادي لـ performSend() يترجم
      * لرسالة عربية واضحة بدل ما يوصل خام للمستخدم.
      */
-    protected function buildAndSendInvoice(Invoice $invoice, Setting $setting, $customer, string $documentType)
+    /**
+     * أسطر الفاتورة بالشكل اللي buildAndSendInvoice() مستنيه (quantity /
+     * unit_price / discount_amount / tax_amount / tax_rate / product_id /
+     * product_name_snapshot). فاتورة المبيعات بترجع أصنافها زي ما هي؛
+     * فاتورة النقليات: كل نقلة سطر والتحويلة سطر، والخصم على مستوى
+     * الفاتورة بيتوزّع على السطور بالنسبة (آخر سطر بياخد فرق التقريب).
+     */
+    protected function zatcaItems(Invoice|TransportInvoice $invoice)
+    {
+        if ($invoice instanceof Invoice) {
+            return $invoice->items;
+        }
+
+        $raw = [];
+        foreach ($invoice->items as $item) {
+            $name = $item->description
+                ? $item->description . ((float) $item->quantity != 1.0 ? ' × ' . rtrim(rtrim(number_format((float) $item->quantity, 2, '.', ''), '0'), '.') : '')
+                : 'نقل ' . trim(($item->from_location ?? '') . ' - ' . ($item->to_location ?? ''), ' -')
+                    . ' / ' . ($item->truck_snapshot ?? '') . ($item->trip_date ? ' / ' . $item->trip_date->format('Y-m-d') : '');
+            $raw[] = ['name' => mb_substr($name, 0, 250), 'amount' => (float) $item->trip_price];
+            if ($item->has_transfer && (float) $item->transfer_price > 0) {
+                $raw[] = ['name' => mb_substr('تحويلة ' . ($item->transfer_location ?? '') . ' / ' . ($item->truck_snapshot ?? ''), 0, 250), 'amount' => (float) $item->transfer_price];
+            }
+        }
+        $raw = array_values(array_filter($raw, fn ($l) => $l['amount'] > 0));
+
+        $gross = array_sum(array_column($raw, 'amount'));
+        $subtotal = round((float) $invoice->subtotal, 2);
+        $rate = (float) $invoice->tax_rate;
+        $allocated = 0;
+        $rows = [];
+        foreach ($raw as $idx => $l) {
+            $net = $idx === array_key_last($raw)
+                ? round($subtotal - $allocated, 2)
+                : round($gross > 0 ? $l['amount'] * $subtotal / $gross : 0, 2);
+            $allocated += $net;
+            $rows[] = (object) [
+                'quantity' => 1,
+                'unit_price' => $net,
+                'discount_amount' => 0,
+                'tax_amount' => round($net * $rate, 2),
+                'tax_rate' => $rate,
+                'product_id' => $idx + 1,
+                'product_name_snapshot' => $l['name'],
+            ];
+        }
+
+        return collect($rows);
+    }
+
+    protected function buildAndSendInvoice(Invoice|TransportInvoice $invoice, Setting $setting, $customer, string $documentType)
     {
         $myUuid = Uuid::uuid4()->toString();
         $previousHash = $setting->previous_hash_invoice ?: 'X+zrZv/IbzjZUnhsbWlsecLbwjndTpG0ZynXOif7V+k=';
@@ -373,7 +440,7 @@ return  $result;
         $invoiceLines = [];
         $ratTax = 0;
 
-        foreach ($invoice->items as $item) {
+        foreach ($this->zatcaItems($invoice) as $item) {
             $qty = (float) $item->quantity;
             if ($qty == 0) {
                 continue;
@@ -389,7 +456,7 @@ return  $result;
             $totalWithTaxSum += (float) $lineTotal;
 
             $ratTax = number_format(((float) ($item->tax_rate ?? 0)) * 100, 2, '.', '');
-            $taxCategoryCode = ($ratTax == 0) ? 'E' : 'S';
+            $taxCategoryCode = ($ratTax == 0) ? ($invoice instanceof TransportInvoice ? 'Z' : 'E') : 'S';
 
             $itemTaxCategory = (new LineTaxCategory())
                 ->setTaxCategory($taxCategoryCode)
@@ -453,14 +520,19 @@ $delivery = (new Delivery())->setDeliveryDateTime(\Carbon\Carbon::parse($invoice
 
         $taxesTotal = (new TaxesTotal())->setTaxCurrencyCode('SAR')->setTaxTotal($taxSum);
 
-        $taxCategoryCode = ($taxSum > 0) ? 'S' : 'E';
-        $taxSubtotal = (new TaxSubtotal())
+        $taxCategoryCode = ($taxSum > 0) ? 'S' : ($invoice instanceof TransportInvoice ? 'Z' : 'E');
+        $taxSubtotalObj = (new TaxSubtotal())
             ->setTaxCurrencyCode('SAR')
             ->setTaxableAmount($totalWithoutTaxSum)
             ->setTaxAmount($taxSum)
             ->setTaxCategory($taxCategoryCode)
-            ->setTaxPercentage($ratTax)
-            ->getElement();
+            ->setTaxPercentage($ratTax);
+        if ($taxCategoryCode === 'Z') {
+            // فاتورة نقليات لشحنة خارج المملكة: نقل دولي للبضائع - نسبة صفر
+            $taxSubtotalObj->setTaxExemptionReasonCode('VATEX-SA-34-1')
+                ->setTaxExemptionReason('The international transport of Goods');
+        }
+        $taxSubtotal = $taxSubtotalObj->getElement();
 
         $allowanceCharge = (new AllowanceCharge())
             ->setAllowanceChargeCurrency('SAR')
@@ -763,14 +835,19 @@ $delivery = (new Delivery())->setDeliveryDateTime(\Carbon\Carbon::parse($invoice
 
         $taxesTotal = (new TaxesTotal())->setTaxCurrencyCode('SAR')->setTaxTotal($taxSum);
 
-        $taxCategoryCode = ($taxSum > 0) ? 'S' : 'E';
-        $taxSubtotal = (new TaxSubtotal())
+        $taxCategoryCode = ($taxSum > 0) ? 'S' : ($invoice instanceof TransportInvoice ? 'Z' : 'E');
+        $taxSubtotalObj = (new TaxSubtotal())
             ->setTaxCurrencyCode('SAR')
             ->setTaxableAmount($totalWithoutTaxSum)
             ->setTaxAmount($taxSum)
             ->setTaxCategory($taxCategoryCode)
-            ->setTaxPercentage($ratTax)
-            ->getElement();
+            ->setTaxPercentage($ratTax);
+        if ($taxCategoryCode === 'Z') {
+            // فاتورة نقليات لشحنة خارج المملكة: نقل دولي للبضائع - نسبة صفر
+            $taxSubtotalObj->setTaxExemptionReasonCode('VATEX-SA-34-1')
+                ->setTaxExemptionReason('The international transport of Goods');
+        }
+        $taxSubtotal = $taxSubtotalObj->getElement();
 
         $allowanceCharge = (new AllowanceCharge())
             ->setAllowanceChargeCurrency('SAR')

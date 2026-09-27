@@ -46,9 +46,18 @@ use Illuminate\Support\Facades\DB;
  */
 class VoucherController extends Controller
 {
+    /**
+     * سندات الصيانة (سند صرف مربوط بشاحنة) ليها صلاحيات مستقلة
+     * maintenance.* - باقي السندات vouchers.*
+     */
+    private function authorizeVoucher(string $action, bool $maintenance): void
+    {
+        $this->authorize(($maintenance ? 'maintenance.' : 'vouchers.') . $action);
+    }
+
     public function index(Request $request)
     {
-        $this->authorize('vouchers.view');
+        $this->authorizeVoucher('view', $request->boolean('maintenance'));
 
         $type = $request->input('type', AccountVoucher::TYPE_RECEIPT);
 
@@ -57,6 +66,16 @@ class VoucherController extends Controller
             ->withSum('lines as lines_total', 'amount')
             ->where('type', $type);
 
+        // سندات الصيانة = سندات صرف مربوطة بشاحنة (قسم الشاحنات)
+        if ($request->boolean('maintenance')) {
+            $query->whereNotNull('truck_id')->with('truck:id,plate_number,name');
+        }
+        if ($request->filled('truck_id')) {
+            $query->where('truck_id', $request->input('truck_id'));
+        }
+        if ($request->filled('expense_category')) {
+            $query->where('expense_category', $request->input('expense_category'));
+        }
         if ($request->filled('date_from')) {
             $query->whereDate('voucher_date', '>=', $request->input('date_from'));
         }
@@ -66,12 +85,15 @@ class VoucherController extends Controller
 
         $vouchers = $query->orderByDesc('voucher_date')->orderByDesc('id')->paginate(20)->withQueryString();
 
-        return view('vouchers.index', compact('vouchers', 'type'));
+        $isMaintenance = $request->boolean('maintenance');
+        $trucks = $isMaintenance ? \App\Models\Truck::orderBy('plate_number')->get(['id', 'plate_number', 'name']) : collect();
+
+        return view('vouchers.index', compact('vouchers', 'type', 'isMaintenance', 'trucks'));
     }
 
     public function create(Request $request)
     {
-        $this->authorize('vouchers.create');
+        $this->authorizeVoucher('create', $request->boolean('maintenance'));
 
         $type = $request->input('type', AccountVoucher::TYPE_RECEIPT);
         if (! in_array($type, [AccountVoucher::TYPE_RECEIPT, AccountVoucher::TYPE_PAYMENT], true)) {
@@ -89,7 +111,15 @@ class VoucherController extends Controller
         // على الخزينة/البنوك بس (accounts.search?scope=treasury) - راجع
         // AccountController::search(). 4 و5 هما رقمي الحساب الأب لمجموعتي
         // "الخزينة" و"البنوك"، ونفس القيد اتأكد تاني في store() تحت.
-        return view('vouchers.create', compact('type', 'branches', 'costCenters', 'taxes'));
+        // سند صيانة: نفس سند الصرف بالظبط + اختيار الشاحنة ونوع المصروف
+        $isMaintenance = $request->boolean('maintenance');
+        if ($isMaintenance) {
+            $type = AccountVoucher::TYPE_PAYMENT;
+        }
+        $trucks = \App\Models\Truck::orderBy('plate_number')->get(['id', 'plate_number', 'name', 'status']);
+        $selectedTruckId = $request->input('truck_id');
+
+        return view('vouchers.create', compact('type', 'branches', 'costCenters', 'taxes', 'isMaintenance', 'trucks', 'selectedTruckId'));
     }
 
     /**
@@ -151,11 +181,13 @@ class VoucherController extends Controller
 
     public function store(Request $request)
     {
-        $this->authorize('vouchers.create');
+        $this->authorizeVoucher('create', $request->boolean('is_maintenance'));
 
         $validated = $request->validate(array_merge([
             'type' => ['required', 'in:receipt,payment'],
             'voucher_date' => ['required', 'date'],
+            'truck_id' => ['nullable', 'required_if:is_maintenance,1', 'exists:trucks,id'],
+            'expense_category' => ['nullable', 'in:' . implode(',', array_keys(AccountVoucher::EXPENSE_CATEGORIES))],
             'treasury_account_id' => ['required', 'integer', 'exists:financialaccount,id'],
             'description' => ['nullable', 'string'],
             'branch_id' => ['nullable', 'exists:branches,id'],
@@ -191,6 +223,8 @@ class VoucherController extends Controller
                 'treasury_account_id' => $treasury->id,
                 'description' => $validated['description'] ?? null,
                 'branch_id' => $validated['branch_id'] ?? null,
+                'truck_id' => $validated['truck_id'] ?? null,
+                'expense_category' => !empty($validated['truck_id']) ? ($validated['expense_category'] ?? 'maintenance') : null,
                 'created_by' => Auth::id(),
             ]);
 
@@ -289,7 +323,7 @@ class VoucherController extends Controller
 
     public function show(AccountVoucher $voucher)
     {
-        $this->authorize('vouchers.view');
+        $this->authorizeVoucher('view', (bool) $voucher->truck_id);
 
         $voucher->load(['treasuryAccount', 'creator', 'branch', 'lines.counterpartAccount', 'lines.costCenter', 'lines.vatAccount']);
 
@@ -298,7 +332,7 @@ class VoucherController extends Controller
 
     public function edit(AccountVoucher $voucher)
     {
-        $this->authorize('vouchers.edit');
+        $this->authorizeVoucher('edit', (bool) $voucher->truck_id);
 
         $voucher->load(['treasuryAccount', 'lines.counterpartAccount']);
 
@@ -323,7 +357,11 @@ class VoucherController extends Controller
             ];
         })->values();
 
-        return view('vouchers.edit', compact('voucher', 'branches', 'costCenters', 'taxes', 'existingLines'));
+        $isMaintenance = (bool) $voucher->truck_id;
+        $trucks = \App\Models\Truck::orderBy('plate_number')->get(['id', 'plate_number', 'name', 'status']);
+        $selectedTruckId = $voucher->truck_id;
+
+        return view('vouchers.edit', compact('voucher', 'branches', 'costCenters', 'taxes', 'existingLines', 'isMaintenance', 'trucks', 'selectedTruckId'));
     }
 
     /**
@@ -337,10 +375,12 @@ class VoucherController extends Controller
      */
     public function update(Request $request, AccountVoucher $voucher)
     {
-        $this->authorize('vouchers.edit');
+        $this->authorizeVoucher('edit', (bool) $voucher->truck_id);
 
         $validated = $request->validate(array_merge([
             'voucher_date' => ['required', 'date'],
+            'truck_id' => ['nullable', 'required_if:is_maintenance,1', 'exists:trucks,id'],
+            'expense_category' => ['nullable', 'in:' . implode(',', array_keys(AccountVoucher::EXPENSE_CATEGORIES))],
             'treasury_account_id' => ['required', 'integer', 'exists:financialaccount,id'],
             'description' => ['nullable', 'string'],
             'branch_id' => ['nullable', 'exists:branches,id'],
@@ -410,6 +450,8 @@ class VoucherController extends Controller
                 'treasury_account_id' => $treasury->id,
                 'description' => $validated['description'] ?? null,
                 'branch_id' => $validated['branch_id'] ?? null,
+                'truck_id' => $validated['truck_id'] ?? null,
+                'expense_category' => !empty($validated['truck_id']) ? ($validated['expense_category'] ?? 'maintenance') : null,
             ]);
 
             // 4) نطبّق أثر البيانات الجديدة من الأول: الخزينة بإجماليها

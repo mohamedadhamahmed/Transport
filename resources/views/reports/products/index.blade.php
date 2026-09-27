@@ -26,16 +26,11 @@
                 @foreach (collect([
                     ['route' => 'reports.products.stock', 'label' => __('reports.products.stock'), 'desc' => __('reports.products.stock_desc'), 'icon' => 'M20 7 12 3 4 7m16 0-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', 'perm' => 'reports_products.stock'],
                     ['route' => 'reports.products.low-stock', 'label' => __('reports.products.low_stock'), 'desc' => __('reports.products.low_stock_desc'), 'icon' => 'M12 9v4m0 4h.01M10.3 3.9 2.5 17a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z', 'perm' => 'reports_products.low_stock'],
-                    ['route' => 'reports.products.transfers', 'label' => __('reports.products.transfers'), 'desc' => __('reports.products.transfers_desc'), 'icon' => 'M17 3v4a1 1 0 0 1-1 1H4M7 21v-4a1 1 0 0 1 1-1h12M7 7 3 3M20 21l-4-4', 'perm' => 'reports_products.stock_transfers'],
-                    
-                    // أضفنا كارت تقرير تعديلات المخزون هنا:
-                    ['route' => 'reports.stock_adjustments', 'label' => __('reports.stock_adjustments_title', [], 'تعديلات المخزون'), 'desc' => __('reports.stock_adjustments_desc', [], 'سجل كل التعديلات اليدوية على كميات المخزون والفوارق'), 'icon' => 'M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z', 'perm' => 'products.edit'],
 
                     ['route' => 'reports.products.movement', 'label' => __('reports.products.movement'), 'desc' => __('reports.products.movement_desc'), 'icon' => 'M3 12h4l3 8 4-16 3 8h4', 'perm' => null],
                 ])->filter(fn ($card) => $card['perm'] === null
                     ? (auth()->user()?->hasPermission('reports_sales.by_product')
-                        || auth()->user()?->hasPermission('reports_purchases.by_product')
-                        || auth()->user()?->hasPermission('reports_products.stock_transfers'))
+                        || auth()->user()?->hasPermission('reports_purchases.by_product'))
                     : auth()->user()?->hasPermission($card['perm'])) as $card)
                     <a href="{{ route($card['route']) }}"
                        class="dc-card-link bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition flex items-start gap-4">

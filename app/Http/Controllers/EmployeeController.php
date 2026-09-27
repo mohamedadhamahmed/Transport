@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\FinancialAccount;
 use App\Models\Branch;
+use App\Models\Department;
 use App\Services\Hr\HrAccountService;
 use App\Services\Hr\EmployeesImporter;
 use App\Services\Hr\EmployeesTemplateExporter;
@@ -50,19 +51,29 @@ class EmployeeController extends Controller
             $query->where('status', $request->status);
         }
 
+        if ($request->filled('department')) {
+            $request->input('department') === '__none'
+                ? $query->where(fn ($q) => $q->whereNull('department')->orWhere('department', ''))
+                : $query->where('department', $request->input('department'));
+        }
+
         $employees = $query->orderBy('name')->paginate(20)->withQueryString();
 
-        return view('employees.index', compact('employees'));
+        $departments = Department::orderBy('name')->pluck('name');
+
+        return view('employees.index', compact('employees', 'departments'));
     }
 
     public function create()
     {
         $this->authorize('employees.create');
 
-        $employee = new Employee();
+        // شركة نقليات: الموظف الجديد بيتحط افتراضيًا في قسم السائقين (يقدر يغيّره)
+        $employee = new Employee(['department' => Department::drivers()->name]);
         $branches = Branch::orderBy('name')->get();
+        $departments = Department::options();
 
-        return view('employees.create', compact('employee', 'branches'));
+        return view('employees.create', compact('employee', 'branches', 'departments'));
     }
 
     public function store(Request $request, HrAccountService $accounts)
@@ -151,8 +162,9 @@ class EmployeeController extends Controller
         $this->authorize('employees.edit');
 
         $branches = Branch::orderBy('name')->get();
+        $departments = Department::options($employee->department);
 
-        return view('employees.edit', compact('employee', 'branches'));
+        return view('employees.edit', compact('employee', 'branches', 'departments'));
     }
 
     public function update(Request $request, Employee $employee)
@@ -168,7 +180,7 @@ class EmployeeController extends Controller
             'phone' => $validated['phone'] ?? $employee->phone,
             'email' => $validated['email'] ?? $employee->email,
             'job_title' => $validated['job_title'] ?? $employee->job_title,
-            'department' => $validated['department'] ?? $employee->department,
+            'department' => $validated['department'] ?? null,
             'branch_id' => $validated['branch_id'] ?? $employee->branch_id,
             'hire_date' => $validated['hire_date'] ?? $employee->hire_date,
             'basic_salary' => $validated['basic_salary'] ?? $employee->basic_salary,
@@ -211,7 +223,13 @@ class EmployeeController extends Controller
             'phone' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'job_title' => ['nullable', 'string', 'max:255'],
-            'department' => ['nullable', 'string', 'max:255'],
+            'department' => ['nullable', 'string', 'max:255', function ($attr, $value, $fail) use ($ignoreEmployeeId) {
+                // لازم يكون من الأقسام، إلا لو هو نفس القسم الحالي للموظف (قديم)
+                $current = $ignoreEmployeeId ? Employee::whereKey($ignoreEmployeeId)->value('department') : null;
+                if ($value !== $current && !Department::where('name', $value)->exists()) {
+                    $fail(__('validation.exists', ['attribute' => __('employees.department')]));
+                }
+            }],
             'branch_id' => ['nullable', 'exists:branches,id'],
             'hire_date' => ['nullable', 'date'],
             'basic_salary' => ['nullable', 'numeric', 'min:0'],

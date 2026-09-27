@@ -65,4 +65,9 @@ return [
     'no_transactions_found' => 'No transactions found in the selected period',
     'total_debtor' => 'Total Debit',
     'total_creditor' => 'Total Credit',
+    'account' => 'Account',
+    'choose_account' => '-- Select Account --',
+    'search_account_placeholder' => 'Search by code or name of any account in the tree...',
+    'search_any_account' => 'Any account in the tree',
+    'select_account_prompt' => 'Please select an account from the list to view its statement',
 ];

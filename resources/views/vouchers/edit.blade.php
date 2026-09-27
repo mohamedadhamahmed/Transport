@@ -39,6 +39,8 @@
                 @method('PUT')
                 <input type="hidden" name="treasury_account_id" id="treasury_account_id" value="{{ old('treasury_account_id', $voucher->treasury_account_id) }}">
 
+                @include('vouchers._truck-fields')
+
                 <div class="bg-white shadow-sm border border-gray-100 sm:rounded-xl p-6 space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>

@@ -24,6 +24,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
                 @foreach (collect([
+                    ['route' => 'reports.accounts.statement', 'label' => __('accounts.statement'), 'desc' => 'كشف حساب تفصيلي لأي حساب في شجرة الحسابات مع إمكانية البحث الفوري واختيار أي حساب وتصدير إكسيل', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', 'perm' => 'accounts.view'],
                     ['route' => 'reports.accounts.trial-balance', 'label' => __('reports.accounts.trial_balance'), 'desc' => __('reports.accounts.trial_balance_desc'), 'icon' => 'M4 6h16M4 12h16M4 18h7', 'perm' => 'reports_accounting.trial_balance'],
                     ['route' => 'reports.accounts.income-statement', 'label' => __('reports.accounts.income_statement'), 'desc' => __('reports.accounts.income_statement_desc'), 'icon' => 'M3 3v18h18M7 15l4-6 4 3 5-8', 'perm' => 'reports_accounting.income_statement'],
                     ['route' => 'reports.accounts.balance-sheet', 'label' => __('reports.accounts.balance_sheet'), 'desc' => __('reports.accounts.balance_sheet_desc'), 'icon' => 'M12 3 3 8v8l9 5 9-5V8l-9-5ZM3 8l9 5 9-5M12 13v8', 'perm' => 'reports_accounting.balance_sheet'],

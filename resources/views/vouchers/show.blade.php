@@ -18,7 +18,7 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    @can('vouchers.edit')
+                    @can($voucher->truck_id ? 'maintenance.edit' : 'vouchers.edit')
                     <a href="{{ route('vouchers.edit', $voucher) }}"
                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
                         {{ __('vouchers.edit_voucher') }}
@@ -47,6 +47,12 @@
                         <div class="text-xs text-gray-400 mb-1">{{ __('vouchers.branch') }}</div>
                         <div class="font-medium text-gray-800">{{ $voucher->branch?->name ?? '-' }}</div>
                     </div>
+                    @if ($voucher->truck_id)
+                        <div>
+                            <div class="text-xs text-gray-400 mb-1">🚚 {{ __('transport.truck') }} / {{ __('transport.expense_category') }}</div>
+                            <div class="font-medium text-gray-800">{{ $voucher->truck?->display_name ?? '-' }} — {{ $voucher->expenseCategoryLabel() }}</div>
+                        </div>
+                    @endif
                     <div>
                         <div class="text-xs text-gray-400 mb-1">{{ __('vouchers.created_by') }}</div>
                         <div class="font-medium text-gray-800">{{ $voucher->creator?->name ?? '-' }}</div>

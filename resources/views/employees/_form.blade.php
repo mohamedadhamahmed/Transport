@@ -43,8 +43,17 @@
     </div>
     <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('employees.department') }}</label>
-        <input type="text" name="department" value="{{ old('department', $employee->department ?? '') }}"
-               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+        @php $currentDepartment = old('department', $employee->department ?? ''); @endphp
+        <select name="department" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
+            <option value="">{{ __('employees.choose_department') }}</option>
+            @foreach(($departments ?? collect()) as $departmentName)
+            <option value="{{ $departmentName }}" {{ (string) $currentDepartment === (string) $departmentName ? 'selected' : '' }}>{{ $departmentName }}</option>
+            @endforeach
+        </select>
+        @can('departments.view')
+        <a href="{{ route('employees.departments.index') }}" target="_blank" class="text-xs text-[#1456E8] hover:underline mt-1 inline-block">{{ __('employees.manage_departments') }}</a>
+        @endcan
+        @error('department') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
     </div>
     <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('employees.branch') }}</label>

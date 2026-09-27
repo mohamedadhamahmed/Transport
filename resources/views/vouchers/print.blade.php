@@ -33,6 +33,12 @@
             <div class="label">{{ __('vouchers.branch') }}</div>
             <div class="value">{{ $voucher->branch?->name ?? '-' }}</div>
         </div>
+        @if ($voucher->truck_id)
+            <div>
+                <div class="label">الشاحنة / نوع المصروف</div>
+                <div class="value">{{ $voucher->truck?->display_name ?? '-' }} — {{ $voucher->expenseCategoryLabel() }}</div>
+            </div>
+        @endif
         <div>
             <div class="label">{{ __('vouchers.created_by') }}</div>
             <div class="value">{{ $voucher->creator?->name ?? '-' }}</div>

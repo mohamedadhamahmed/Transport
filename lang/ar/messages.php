@@ -2,6 +2,8 @@
 
 return array (
   'additions' => 'الإضافات',
+  'search_menu' => 'بحث في القائمة...',
+  'no_search_results' => 'لا توجد نتائج مطابقة',
   'welcome_title' => 'كل أعمالك في دفتر واحد',
   'sales' => 'المبيعات',
   'purchases' => 'المشتريات',

@@ -2,6 +2,8 @@
 
 return array (
   'additions' => 'Additions',
+  'search_menu' => 'Search menu...',
+  'no_search_results' => 'No matching results',
   'welcome_title' => 'All your business in one book',
   'sales' => 'Sales',
   'purchases' => 'Purchases',

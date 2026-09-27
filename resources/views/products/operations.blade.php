@@ -44,21 +44,6 @@
                 </div>
             @else
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    @if($canViewSales)
-                        <a href="{{ route('reports.sales.by-product', ['product_id' => $product->id]) }}" target="_blank"
-                           class="group bg-white shadow-sm border border-gray-100 hover:border-[#1456E8]/40 hover:shadow-md sm:rounded-xl p-5 flex flex-col gap-3 transition">
-                            <span class="w-10 h-10 rounded-lg bg-[#1456E8]/10 flex items-center justify-center">
-                                <svg class="w-5 h-5 text-[#1456E8]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M21 8 12 3 3 8l9 5 9-5ZM3 8v8l9 5m0-13v13m9-13v8l-9 5"/>
-                                </svg>
-                            </span>
-                            <div>
-                                <h3 class="font-semibold text-[#0F1B4C]">{{ __('products.operations.sales_title') }}</h3>
-                                <p class="text-xs text-gray-400 mt-1">{{ __('products.operations.sales_desc') }}</p>
-                            </div>
-                            <span class="text-xs font-medium text-[#1456E8] group-hover:underline mt-auto">{{ __('products.operations.open_report') }} ←</span>
-                        </a>
-                    @endif
 
                     @if($canViewPurchases)
                         <a href="{{ route('reports.purchases.by-product', ['product_id' => $product->id]) }}" target="_blank"
@@ -76,21 +61,7 @@
                         </a>
                     @endif
 
-                    @if($canViewTransfers)
-                        <a href="{{ route('reports.products.transfers', ['product_id' => $product->id]) }}" target="_blank"
-                           class="group bg-white shadow-sm border border-gray-100 hover:border-emerald-400/40 hover:shadow-md sm:rounded-xl p-5 flex flex-col gap-3 transition">
-                            <span class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-                                <svg class="w-5 h-5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M17 3v4a1 1 0 0 1-1 1H4M7 21v-4a1 1 0 0 1 1-1h12M7 7 3 3M20 21l-4-4"/>
-                                </svg>
-                            </span>
-                            <div>
-                                <h3 class="font-semibold text-[#0F1B4C]">{{ __('products.operations.transfers_title') }}</h3>
-                                <p class="text-xs text-gray-400 mt-1">{{ __('products.operations.transfers_desc') }}</p>
-                            </div>
-                            <span class="text-xs font-medium text-emerald-600 group-hover:underline mt-auto">{{ __('products.operations.open_report') }} ←</span>
-                        </a>
-                    @endif
+                    {{-- (تحويلات المخزون اتشالت) --}}
                 </div>
             @endif
         </div>

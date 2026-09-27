@@ -33,6 +33,7 @@ namespace App\Support;
  *   12 = تسوية/استرداد سلفة أو عهدة
  *   13 = قيد مكافأة نهاية الخدمة
  *   14 = ترحيل رواتب شهرية (PayrollController@postMonth)
+ *   15 = فاتورة نقليات (TransportInvoiceController)
  */
 class OperationType
 {
@@ -60,6 +61,8 @@ class OperationType
 
     public const PAYROLL = 14;
 
+    public const TRANSPORT_INVOICE = 15;
+
     public const LABELS = [
         self::SALE_INVOICE => 'فاتورة مبيعات',
         self::SALE_RETURN => 'مرتجع مبيعات',
@@ -73,6 +76,7 @@ class OperationType
         self::EMPLOYEE_LOAN_SETTLEMENT => 'تسوية سلفة/عهدة',
         self::END_OF_SERVICE => 'مكافأة نهاية الخدمة',
         self::PAYROLL => 'ترحيل رواتب شهرية',
+        self::TRANSPORT_INVOICE => 'فاتورة نقليات',
     ];
 
     public static function label(?int $type): ?string
