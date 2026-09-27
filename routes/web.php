@@ -472,6 +472,7 @@ Route::middleware(['auth'])->prefix('transport')->name('transport.')->group(func
     Route::get('reports/routes', [TransportReportController::class, 'routes'])->name('reports.routes');
     Route::get('reports/drivers', [TransportReportController::class, 'drivers'])->name('reports.drivers');
     Route::get('reports/truck', [TransportReportController::class, 'truck'])->name('reports.truck');
+    Route::get('reports/maintenance', [TransportReportController::class, 'maintenance'])->name('reports.maintenance');
 
     // المناطق (مناطق المملكة الأساسية + مناطق مضافة)
     Route::get('regions', [RegionController::class, 'index'])->name('regions.index');

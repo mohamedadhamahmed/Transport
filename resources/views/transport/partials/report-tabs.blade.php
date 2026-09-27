@@ -8,6 +8,7 @@
         'routes' => ['label' => __('transport.routes_report'), 'route' => 'transport.reports.routes', 'can' => 'truck_loads.report'],
         'fleet' => ['label' => __('transport.fleet_report'), 'route' => 'transport.reports.fleet', 'can' => 'transport_reports.fleet'],
         'truck' => ['label' => __('transport.truck_statement'), 'route' => 'transport.reports.truck', 'can' => 'transport_reports.fleet'],
+        'maintenance' => ['label' => __('transport.maintenance_report'), 'route' => 'transport.reports.maintenance', 'can' => 'maintenance.view'],
         'drivers' => ['label' => __('transport.drivers_report'), 'route' => 'transport.reports.drivers', 'can' => 'truck_loads.report'],
         'unbilled' => ['label' => __('transport.unbilled_loads'), 'route' => 'transport.reports.unbilled', 'can' => 'transport_invoices.view'],
     ];

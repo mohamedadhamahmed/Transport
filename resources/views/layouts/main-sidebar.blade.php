@@ -212,6 +212,7 @@
             $u?->hasPermission('trucks.create') ? ['label' => __('transport.new_truck'), 'url' => route('transport.trucks.create')] : null,
             $u?->hasPermission('maintenance.create') ? ['label' => __('transport.new_maintenance'), 'url' => route('vouchers.create', ['type' => 'payment', 'maintenance' => 1])] : null,
             $u?->hasPermission('maintenance.view') ? ['label' => __('transport.maintenance_vouchers'), 'url' => route('vouchers.index', ['type' => 'payment', 'maintenance' => 1])] : null,
+            $u?->hasPermission('maintenance.view') ? ['label' => __('transport.maintenance_report'), 'url' => route('transport.reports.maintenance')] : null,
             $u?->hasPermission('transport_reports.fleet') ? ['label' => __('transport.fleet_report'), 'url' => route('transport.reports.fleet')] : null,
             $u?->hasPermission('transport_reports.fleet') ? ['label' => __('transport.truck_statement'), 'url' => route('transport.reports.truck')] : null,
         ])),

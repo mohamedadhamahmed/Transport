@@ -30,7 +30,8 @@
                 ['route' => 'transport.zatca.index', 'can' => 'zatca.view', 'icon' => '🏛', 'bg' => '#f3f4f6', 'title' => __('transport.zatca_title'), 'desc' => __('transport.rd_zatca')],
             ]],
             ['title' => __('transport.rg_trucks'), 'items' => [
-                ['route' => 'transport.reports.fleet', 'can' => 'transport_reports.fleet', 'icon' => '🔧', 'bg' => '#fff1f2', 'title' => __('transport.fleet_report'), 'desc' => __('transport.rd_fleet')],
+                ['route' => 'transport.reports.maintenance', 'can' => 'maintenance.view', 'icon' => '🛠', 'bg' => '#fef2f2', 'title' => __('transport.maintenance_report'), 'desc' => __('transport.rd_maintenance')],
+                ['route' => 'transport.reports.fleet', 'can' => 'transport_reports.fleet', 'icon' => '📈', 'bg' => '#fff1f2', 'title' => __('transport.fleet_report'), 'desc' => __('transport.rd_fleet')],
                 ['route' => 'transport.reports.truck', 'can' => 'transport_reports.fleet', 'icon' => '🚚', 'bg' => '#eaf1ff', 'title' => __('transport.truck_statement'), 'desc' => __('transport.rd_truck')],
                 ['route' => 'transport.trucks.index', 'can' => 'trucks.view', 'icon' => '🪪', 'bg' => '#fffbeb', 'title' => __('transport.truck_documents'), 'desc' => __('transport.rd_docs'), 'params' => ['docs' => 'alert']],
                 ['route' => 'transport.reports.drivers', 'can' => 'truck_loads.report', 'icon' => '👷', 'bg' => '#ecfdf5', 'title' => __('transport.drivers_report'), 'desc' => __('transport.rd_drivers')],

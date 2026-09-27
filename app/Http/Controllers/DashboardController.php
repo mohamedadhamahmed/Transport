@@ -206,6 +206,99 @@ class DashboardController extends Controller
             'topTrucks' => $topTrucks,
             'alerts' => compact('docsAlert', 'docsExpired', 'zatcaFailed', 'zatcaPending', 'noPrice'),
             'activity' => $activity,
+            'maint' => $this->maintenanceWidget($branchId),
+        ];
+    }
+
+    /**
+     * كارت الصيانة في الرئيسية: أكثر الشاحنات صيانة + أكثر أنواع الصيانة
+     * + أكثر البنود تكرارًا. الفترة بتتغير من الرئيسية نفسها (?m_period=...).
+     */
+    private function maintenanceWidget(?int $branchId): ?array
+    {
+        $u = auth()->user();
+        if (!$u || !($u->can('maintenance.view') || $u->can('transport_reports.fleet'))) {
+            return null;
+        }
+
+        $req = request();
+        $period = in_array($req->input('m_period'), ['month', '3m', '6m', 'year', 'custom'], true) ? $req->input('m_period') : 'month';
+        $to = now()->endOfDay();
+        $from = match ($period) {
+            '3m' => now()->subMonthsNoOverflow(2)->startOfMonth(),
+            '6m' => now()->subMonthsNoOverflow(5)->startOfMonth(),
+            'year' => now()->startOfYear(),
+            default => now()->startOfMonth(),
+        };
+        if ($period === 'custom') {
+            try {
+                $from = \Carbon\Carbon::parse($req->input('m_from') ?: now()->startOfMonth())->startOfDay();
+                $to = \Carbon\Carbon::parse($req->input('m_to') ?: now())->endOfDay();
+                if ($from->gt($to)) {
+                    [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
+                }
+            } catch (\Throwable $e) {
+                $period = 'month';
+                $from = now()->startOfMonth();
+                $to = now()->endOfDay();
+            }
+        }
+        // فترة سابقة بنفس الطول للمقارنة
+        $days = $from->copy()->startOfDay()->diffInDays($to->copy()->startOfDay()) + 1;
+        $prevTo = $from->copy()->subDay()->endOfDay();
+        $prevFrom = $prevTo->copy()->subDays($days - 1)->startOfDay();
+
+        $maintCats = TransportReportController::MAINTENANCE_CATEGORIES;
+        $base = fn ($a, $b) => DB::table('account_vouchers as v')
+            ->join('account_voucher_lines as l', 'l.account_voucher_id', '=', 'v.id')
+            ->whereNotNull('v.truck_id')
+            ->where('v.type', AccountVoucher::TYPE_PAYMENT)
+            ->where(fn ($w) => $w->whereIn('v.expense_category', $maintCats)->orWhereNull('v.expense_category'))
+            ->when($branchId, fn ($q) => $q->where('v.branch_id', $branchId))
+            ->whereDate('v.voucher_date', '>=', $a->toDateString())
+            ->whereDate('v.voucher_date', '<=', $b->toDateString());
+
+        $lines = $base($from, $to)->get([
+            'v.id', 'v.truck_id', 'v.expense_category', 'v.description as v_desc', 'l.description as l_desc',
+            DB::raw('COALESCE(l.net_amount, l.amount) as net'),
+        ]);
+        $prevTotal = (float) $base($prevFrom, $prevTo)->sum(DB::raw('COALESCE(l.net_amount, l.amount)'));
+
+        $cats = AccountVoucher::EXPENSE_CATEGORIES;
+        $lines->each(function ($l) use ($cats) {
+            $l->net = (float) $l->net;
+            $l->cat = $cats[$l->expense_category ?: 'maintenance'] ?? $l->expense_category;
+            $l->item = trim((string) ($l->l_desc ?: $l->v_desc)) ?: $l->cat;
+        });
+
+        $total = (float) $lines->sum('net');
+        $plates = Truck::whereIn('id', $lines->pluck('truck_id')->unique())->pluck('plate_number', 'id');
+
+        $trucks = $lines->groupBy('truck_id')->map(fn ($g, $id) => [
+            'id' => $id, 'label' => $plates[$id] ?? ('#' . $id), 'value' => (float) $g->sum('net'), 'sub' => $g->unique('id')->count(),
+        ])->sortByDesc('value')->take(5)->values();
+
+        $types = $lines->groupBy('cat')->map(fn ($g, $c) => [
+            'label' => $c, 'value' => (float) $g->sum('net'), 'sub' => $g->unique('id')->count(),
+            'share' => $total > 0 ? round($g->sum('net') * 100 / $total) : 0,
+        ])->sortByDesc('value')->take(5)->values();
+
+        $norm = fn ($t) => mb_strtolower(preg_replace('/\s+/u', ' ', trim(str_replace(['أ', 'إ', 'آ', 'ة', 'ى'], ['ا', 'ا', 'ا', 'ه', 'ي'], $t))));
+        $items = $lines->groupBy(fn ($l) => $norm($l->item))->map(fn ($g) => [
+            'label' => $g->first()->item, 'value' => $g->count(), 'sub' => (float) $g->sum('net'),
+        ])->sortByDesc('value')->take(5)->values();
+
+        return [
+            'period' => $period,
+            'from' => $from->toDateString(),
+            'to' => $to->toDateString(),
+            'total' => $total,
+            'visits' => $lines->unique('id')->count(),
+            'trucks_count' => $lines->pluck('truck_id')->unique()->count(),
+            'change' => $prevTotal > 0 ? round(($total - $prevTotal) * 100 / $prevTotal) : null,
+            'trucks' => $trucks,
+            'types' => $types,
+            'items' => $items,
         ];
     }
 

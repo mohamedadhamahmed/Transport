@@ -124,6 +124,21 @@
         .dx-badge { font-size: .68rem; font-weight: 800; padding: .12rem .45rem; border-radius: 99px; background: #fff1f2; color: #be123c; }
 
         .dx-grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+        .dx-seg { display: inline-flex; align-items: center; padding: .3rem .75rem; border-radius: 99px; border: 1px solid #e5e7eb; background: #fff; color: #475569; font-size: .74rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .dx-seg:hover { border-color: #fecdd3; color: #be123c; }
+        .dx-seg.on { background: #e11d48; border-color: #e11d48; color: #fff; }
+        .dx-date { border: 1px solid #e5e7eb; border-radius: 8px; padding: .2rem .4rem; font-size: .74rem; min-height: 30px; }
+        .dx-link { display: inline-flex; align-items: center; gap: .2rem; font-size: .76rem; font-weight: 700; color: #1456E8; }
+        .dx-link svg { width: 14px; height: 14px; }
+        .dx-mstats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+        @media (min-width: 900px) { .dx-mstats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+        .dx-mstats > div { background: #f8fafc; border: 1px solid #eef0f5; border-radius: 12px; padding: .7rem .9rem; display: flex; flex-direction: column; gap: .2rem; }
+        .dx-mstats span { font-size: .72rem; color: #64748b; font-weight: 700; }
+        .dx-mstats b { font-size: 1.15rem; color: #0F1B4C; font-weight: 800; }
+        .dx-mstats b small { font-size: .7rem; color: #64748b; font-weight: 600; }
+        .dx-mcol { border: 1px solid #eef0f5; border-radius: 12px; padding: .8rem .9rem; min-width: 0; }
+        .dx-mcol-h { display: flex; align-items: center; gap: .4rem; font-size: .82rem; font-weight: 800; color: #0F1B4C; margin-bottom: .3rem; }
+        .dx-mcol-h svg { width: 16px; height: 16px; color: #e11d48; }
         @media (min-width: 1200px) { .dx-2-1 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); } .dx-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .dx-1-1 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
         /* ---------- fleet ---------- */
@@ -519,6 +534,86 @@
                         </div>
                     </div>
                 @endforeach
+            </div>
+        @endif
+
+        {{-- ================= الصيانة (فترة قابلة للتغيير) ================= --}}
+        @if (!empty($maint))
+            @php
+                $mp = [
+                    'month' => __('transport.db_m_month'),
+                    '3m' => __('transport.db_m_3m'),
+                    '6m' => __('transport.db_m_6m'),
+                    'year' => __('transport.db_m_year'),
+                ];
+                $mq = fn ($extra) => route('dashboard', array_filter(['branch_id' => $branchId] + $extra)) . '#dx-maint';
+                $maintCols = [
+                    ['title' => __('transport.mr_by_truck'), 'icon' => 'truck', 'rows' => $maint['trucks'], 'color' => '#e11d48', 'money' => true, 'unit' => __('transport.mr_times')],
+                    ['title' => __('transport.mr_by_category'), 'icon' => 'wrench', 'rows' => $maint['types'], 'color' => '#F5811E', 'money' => true, 'unit' => __('transport.mr_times')],
+                    ['title' => __('transport.mr_by_item'), 'icon' => 'tag', 'rows' => $maint['items'], 'color' => '#6B2FD6', 'money' => false, 'unit' => __('transport.mr_times')],
+                ];
+            @endphp
+            <div class="dx-card" id="dx-maint">
+                <div class="dx-card-h" style="flex-wrap:wrap;gap:.75rem">
+                    <h3><span class="hi" style="background:#fff1f2;color:#e11d48">{!! $ic('wrench') !!}</span>{{ __('transport.db_maint_title') }}</h3>
+                    <div style="display:flex;flex-wrap:wrap;gap:.4rem;align-items:center">
+                        @foreach ($mp as $k => $label)
+                            <a href="{{ $mq(['m_period' => $k]) }}" class="dx-seg {{ $maint['period'] === $k ? 'on' : '' }}">{{ $label }}</a>
+                        @endforeach
+                        <form method="GET" action="{{ route('dashboard') }}#dx-maint" style="display:flex;gap:.3rem;align-items:center">
+                            @if ($branchId)<input type="hidden" name="branch_id" value="{{ $branchId }}">@endif
+                            <input type="hidden" name="m_period" value="custom">
+                            <input type="date" name="m_from" value="{{ $maint['from'] }}" class="dx-date">
+                            <span style="color:#94a3b8">→</span>
+                            <input type="date" name="m_to" value="{{ $maint['to'] }}" class="dx-date">
+                            <button type="submit" class="dx-seg {{ $maint['period'] === 'custom' ? 'on' : '' }}">{{ __('transport.show') }}</button>
+                        </form>
+                        @if ($u?->can('maintenance.view'))
+                            <a href="{{ route('transport.reports.maintenance', ['date_from' => $maint['from'], 'date_to' => $maint['to']]) }}" class="dx-link">{{ __('transport.maintenance_report') }}{!! $ic('arrow') !!}</a>
+                        @endif
+                    </div>
+                </div>
+                <div class="dx-card-b">
+                    <div class="dx-mstats">
+                        <div><span>{{ __('transport.mr_total_cost') }}</span><b>{{ $money($maint['total']) }} <small>{{ __('transport.sar') }}</small></b>{!! $trend($maint['change']) !!}</div>
+                        <div><span>{{ __('transport.mr_visits') }}</span><b>{{ number_format($maint['visits']) }}</b></div>
+                        <div><span>{{ __('transport.mr_trucks_serviced') }}</span><b>{{ number_format($maint['trucks_count']) }}</b></div>
+                        <div><span>{{ __('transport.db_m_range') }}</span><b style="font-size:.85rem" dir="ltr">{{ $maint['from'] }} → {{ $maint['to'] }}</b></div>
+                    </div>
+                    <div class="dx-grid dx-3" style="margin-top:1rem;gap:1rem">
+                        @foreach ($maintCols as $col)
+                            @php $mx = collect($col['rows'])->max('value') ?: 0; @endphp
+                            <div class="dx-mcol">
+                                <div class="dx-mcol-h">{!! $ic($col['icon']) !!} {{ $col['title'] }}</div>
+                                @forelse ($col['rows'] as $i => $r)
+                                    <div class="dx-top">
+                                        <span class="rk {{ $i === 0 ? 'g1' : '' }}">{{ $i + 1 }}</span>
+                                        <div class="tb">
+                                            <div class="tn">
+                                                @if (!empty($r['id']) && $u?->can('transport_reports.fleet'))
+                                                    <a href="{{ route('transport.reports.truck', ['truck_id' => $r['id'], 'date_from' => $maint['from'], 'date_to' => $maint['to']]) }}" class="hover:underline">{{ $r['label'] }}</a>
+                                                @else
+                                                    {{ \Illuminate\Support\Str::limit($r['label'], 40) }}
+                                                @endif
+                                            </div>
+                                            <div class="tr"><span style="width:{{ $mx ? max(3, $r['value'] * 100 / $mx) : 0 }}%;background:{{ $col['color'] }}"></span></div>
+                                        </div>
+                                        <span class="tv">
+                                            @if ($col['money'])
+                                                {{ $short($r['value']) }}
+                                                <small>{{ $r['sub'] }} {{ $col['unit'] }}@if (isset($r['share'])) · {{ $r['share'] }}%@endif</small>
+                                            @else
+                                                {{ number_format($r['value']) }} <small>{{ $col['unit'] }} · {{ $short($r['sub']) }}</small>
+                                            @endif
+                                        </span>
+                                    </div>
+                                @empty
+                                    <div class="dx-empty">{{ __('transport.db_m_empty') }}</div>
+                                @endforelse
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
             </div>
         @endif
     </div>
