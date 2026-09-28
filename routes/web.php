@@ -224,6 +224,8 @@ Route::post('/products/branch/{branch}/import', [ProductInventoryController::cla
     // فتح الجرس = "اتشافت" (الرقم الأحمر بيعدّ اللي جه بعد كده بس)
     Route::post('/notifications/seen', [NotificationController::class, 'markSeen'])->name('notifications.seen');
 });
+// (كانت برّه مجموعة auth - اتحطت جواها عشان محدش يوصلها من غير تسجيل دخول)
+Route::middleware(['auth'])->group(function () {
 Route::get('/purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
 Route::get('/purchase-orders/create', [PurchaseOrderController::class, 'create'])->name('purchase-orders.create');
 Route::post('/purchase-orders', [PurchaseOrderController::class, 'store'])->name('purchase-orders.store');
@@ -239,6 +241,7 @@ Route::prefix('settings')->group(function () {
     Route::get('/taxes', [TaxController::class, 'index'])->name('taxes.index');
     Route::post('/taxes', [TaxController::class, 'store'])->name('taxes.store');
     Route::delete('/taxes/{tax}', [TaxController::class, 'destroy'])->name('taxes.destroy');
+});
 });
 Route::middleware(['auth'])->group(function () {
     // (تسليم المنتج القديم اتشال)
@@ -478,4 +481,12 @@ Route::middleware(['auth'])->prefix('transport')->name('transport.')->group(func
     Route::get('regions', [RegionController::class, 'index'])->name('regions.index');
     Route::post('regions', [RegionController::class, 'store'])->name('regions.store');
     Route::delete('regions/{region}', [RegionController::class, 'destroy'])->name('regions.destroy');
+});
+
+// إقفال السنة المالية وترحيل الأرصدة للسنة الجديدة
+Route::middleware(['auth'])->prefix('accounting/year-closing')->name('year-closing.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\FiscalYearClosingController::class, 'index'])->name('index');
+    Route::post('/', [\App\Http\Controllers\FiscalYearClosingController::class, 'store'])->name('store');
+    Route::get('/{closing}', [\App\Http\Controllers\FiscalYearClosingController::class, 'show'])->name('show');
+    Route::delete('/{closing}', [\App\Http\Controllers\FiscalYearClosingController::class, 'destroy'])->name('destroy');
 });

@@ -120,4 +120,37 @@ class User extends Authenticatable
 
         return in_array($key, $this->permissionKeys(), true);
     }
+
+    /**
+     * عنده أي صلاحية من القائمة دي؟ (للأقسام اللي بتظهر لو عنده صلاحية
+     * واحدة على الأقل من صلاحياتها).
+     */
+    public function hasAnyPermission(array $keys): bool
+    {
+        foreach ($keys as $key) {
+            if ($this->hasPermission($key)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * عنده أي صلاحية بتبدأ بالبادئة دي؟ (مثلاً 'reports_' لكل التقارير).
+     */
+    public function hasAnyPermissionStartingWith(string $prefix): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        foreach ($this->permissionKeys() as $key) {
+            if (str_starts_with($key, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

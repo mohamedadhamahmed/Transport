@@ -314,6 +314,7 @@ class TransportCreditNoteController extends Controller
             'note' => 'إشعار دائن رقم : ' . $note->credit_note_number . ' على فاتورة نقليات ' . ($note->invoice?->invoice_number ?? ''),
             'operation_type' => OperationType::TRANSPORT_CREDIT_NOTE,
             'invoice_number' => $note->credit_note_number,
+            'balance_posted' => 1,
             'created_at' => $now,
             'updated_at' => $now,
         ];
@@ -327,6 +328,8 @@ class TransportCreditNoteController extends Controller
                 'currentblance' => $revenue->current_balance - $note->subtotal,
                 'debtor' => $note->subtotal,
             ]);
+            // الإيرادات مدين بالصافي (كانت بتتسجل حركة بس من غير تحديث الرصيد).
+            $revenue->postAmounts((float) $note->subtotal, 0);
         }
 
         // الضريبة (102) مدين بالضريبة
@@ -370,6 +373,30 @@ class TransportCreditNoteController extends Controller
     private function reverseAccounting(TransportCreditNote $note): void
     {
         $branchId = $note->branch_id;
+
+        // فواتير اتسجلت بعد الإصلاح: كل حركة عليها balance_posted=1 اتضافت
+        // فعلاً على رصيد حسابها - فبنعكسها هي نفسها بالظبط.
+        $posted = CreditTransaction::where('invoice_number', $note->credit_note_number)
+            ->where('operation_type', OperationType::TRANSPORT_CREDIT_NOTE)
+            ->where('balance_posted', 1)
+            ->get();
+
+        if ($posted->isNotEmpty()) {
+            foreach ($posted as $transaction) {
+                $account = FinancialAccount::lockForUpdate()->find($transaction->customer_id);
+                $account?->postAmounts(-(float) $transaction->debtor, -(float) $transaction->creditor);
+            }
+
+            Customer::find($note->customer_id)?->increment('balance', $note->total);
+
+            CreditTransaction::where('invoice_number', $note->credit_note_number)
+                ->where('operation_type', OperationType::TRANSPORT_CREDIT_NOTE)
+                ->delete();
+
+            return;
+        }
+
+        // فواتير قديمة (قبل الإصلاح): بس الضريبة والعميل كانوا بيتحدّثوا.
 
         if ((float) $note->tax_amount > 0) {
             $vat = FinancialAccount::where('parent_account_number', 102)->where('branchs_id', $branchId)->first();

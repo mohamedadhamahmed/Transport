@@ -194,22 +194,63 @@ class ReportController extends Controller
         $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
         $q = trim((string) $request->input('q'));
 
-        $accounts = FinancialAccount::query()
+        // نفس الحسابات اللي في ميزان المراجعة بالظبط (كل الحسابات الفرعية).
+        // قبل كده أي حساب فرعي نوعه (account_type) فاضي أو غلط كان بيتشال
+        // من الميزانية وهو موجود في الميزان، فالميزانية تطلع غير متزنة حتى
+        // لو الميزان متزن. دلوقتي الحساب ده بياخد تصنيف أقرب أب ليه.
+        $leaves = FinancialAccount::query()
             ->where('is_parent', false)
-            ->whereIn('account_type', [self::ASSETS, self::LIABILITIES, self::EQUITY])
             ->when($branchId, fn ($query) => $this->applyBranchFilter($query, $branchId))
-            ->when($q !== '', fn ($query) => $this->applySearch($query, $q))
             ->orderBy('account_number')
-            ->get(['id', 'account_number', 'name', 'account_type', 'branchs_id', 'debtor_current', 'creditor_current']);
+            ->get(['id', 'account_number', 'name', 'account_type', 'parent_account_number', 'branchs_id', 'debtor_current', 'creditor_current']);
 
-        foreach ($accounts as $account) {
+        $categoryOf = $this->accountCategoryResolver();
+        $isAr = app()->getLocale() === 'ar';
+
+        foreach ($leaves as $account) {
+            $category = $categoryOf($account);
+            if ($category === null) {
+                // مالوش تصنيف خالص (لا هو ولا أي أب): بيظهر في الأصول لو
+                // رصيده مدين وفي الخصوم لو دائن، عشان الميزانية تفضل متزنة.
+                $category = ((float) $account->debtor_current - (float) $account->creditor_current) >= 0
+                    ? self::ASSETS
+                    : self::LIABILITIES;
+                $account->name .= $isAr ? ' (غير مصنّف)' : ' (unclassified)';
+            }
+            $account->account_type = $category;
             $account->natural_balance = $this->naturalBalance($account);
             $account->is_branch_specific = $branchId && (int) $account->branchs_id === $branchId;
+        }
+
+        $accounts = $leaves->whereIn('account_type', [self::ASSETS, self::LIABILITIES, self::EQUITY]);
+        if ($q !== '') {
+            $accounts = $accounts->filter(fn ($a) => str_contains((string) $a->name, $q) || str_contains((string) $a->account_number, $q));
         }
 
         $assets = $accounts->where('account_type', self::ASSETS)->values();
         $liabilities = $accounts->where('account_type', self::LIABILITIES)->values();
         $equity = $accounts->where('account_type', self::EQUITY)->values();
+
+        // صافي الربح/الخسارة اللي لسه مترحلش لحقوق الملكية (الإيرادات -
+        // المصروفات من أول التشغيل) - بيظهر ضمن حقوق الملكية.
+        if ($q === '') {
+            $netIncome = round((float) $leaves
+                ->whereIn('account_type', [self::REVENUE, self::EXPENSES])
+                ->sum(fn ($a) => (float) $a->creditor_current - (float) $a->debtor_current), 2);
+
+            if (abs($netIncome) >= 0.01) {
+                $pnlLine = new FinancialAccount([
+                    'account_number' => '',
+                    'name' => $netIncome >= 0
+                        ? ($isAr ? 'صافي ربح الفترة (غير مرحّل)' : 'Net profit for the period (not closed)')
+                        : ($isAr ? 'صافي خسارة الفترة (غير مرحّلة)' : 'Net loss for the period (not closed)'),
+                    'account_type' => self::EQUITY,
+                ]);
+                $pnlLine->natural_balance = $netIncome;
+                $pnlLine->is_branch_specific = false;
+                $equity->push($pnlLine);
+            }
+        }
 
         $totalAssets = round((float) $assets->sum('natural_balance'), 2);
         $totalLiabilities = round((float) $liabilities->sum('natural_balance'), 2);
@@ -1677,7 +1718,7 @@ class ReportController extends Controller
         $user = auth()->user();
 
         abort_unless(
-            $user?->hasPermission('reports_sales.by_product')
+            $user?->hasPermission('reports_products.stock')
                 || $user?->hasPermission('reports_purchases.by_product'),
             403
         );
@@ -2124,6 +2165,8 @@ class ReportController extends Controller
         $movements = $accountIds->isEmpty() ? collect() : CreditTransaction::whereIn('customer_id', $accountIds)
             ->whereDate('created_at', '>=', $dateFrom)
             ->whereDate('created_at', '<=', $dateTo)
+            // قيد إقفال السنة بيصفّر الإيرادات والمصروفات - مش جزء من نشاط الفترة.
+            ->where(fn ($w) => $w->whereNull('operation_type')->orWhere('operation_type', '!=', 20))
             ->selectRaw('customer_id, SUM(debtor) as total_debtor, SUM(creditor) as total_creditor')
             ->groupBy('customer_id')
             ->get()
@@ -2178,6 +2221,40 @@ class ReportController extends Controller
         return $query->where(function ($w) use ($q) {
             $w->where('name', 'like', "%{$q}%")->orWhere('account_number', 'like', "%{$q}%");
         });
+    }
+
+    /**
+     * بيرجّع دالة بتحدد تصنيف الحساب (1 أصول / 2 خصوم / 3 إيرادات /
+     * 4 مصروفات / 5 حقوق ملكية): من account_type بتاعه، ولو فاضي أو قيمة
+     * غلط من أقرب أب ليه في الشجرة. null لو مفيش تصنيف خالص.
+     */
+    private function accountCategoryResolver(): \Closure
+    {
+        $map = FinancialAccount::query()->get(['id', 'parent_account_number', 'account_type'])->keyBy('id');
+        $valid = [self::ASSETS, self::LIABILITIES, self::REVENUE, self::EXPENSES, self::EQUITY];
+
+        return function ($account) use ($map, $valid): ?int {
+            $type = (int) $account->account_type;
+            if (in_array($type, $valid, true)) {
+                return $type;
+            }
+
+            $parentId = $account->parent_account_number;
+            $guard = 0;
+            while ($parentId && $guard++ < 50) {
+                $parent = $map->get($parentId);
+                if (! $parent) {
+                    break;
+                }
+                $type = (int) $parent->account_type;
+                if (in_array($type, $valid, true)) {
+                    return $type;
+                }
+                $parentId = $parent->parent_account_number;
+            }
+
+            return null;
+        };
     }
 
     private function naturalBalance(FinancialAccount $account): float

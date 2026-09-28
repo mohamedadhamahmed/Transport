@@ -59,6 +59,14 @@ return new class extends Migration
 
     public function up(): void
     {
+        // ميجريشن إصلاح بيانات قديمة - على قاعدة بيانات جديدة فاضية مالهاش
+        // لازمة، ولو اشتغلت كانت بتعمل حسابات جذر بـ ids (1..8) بتتعارض مع
+        // الـ ids الثابتة في ChartOfAccountsSeeder (العملاء=2، البنوك=4،
+        // الخزينة=5...) وتخلي الحسابات تتحط في أماكن غلط.
+        if (!DB::table('financialaccount')->exists()) {
+            return;
+        }
+
         $now = now();
 
         $this->reparentDuesAccountsToRealParent($now);

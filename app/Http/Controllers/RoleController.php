@@ -103,6 +103,20 @@ class RoleController extends Controller
 
     private function syncPermissions(Role $role, array $keys): void
     {
+        // أي صلاحية جديدة في config/permissions.php لسه ملهاش صف في جدول
+        // permissions (السيدر ما اتشغلش بعد إضافتها) كانت بتتجاهل بصمت
+        // وقت الحفظ - فالمستخدم يعلّم عليها وماتتحفظش. نعملها هنا الأول.
+        $registry = PermissionRegistry::all();
+        foreach ($keys as $key) {
+            if (isset($registry[$key])) {
+                Permission::firstOrCreate(['key' => $key], [
+                    'module' => $registry[$key]['module'],
+                    'label' => $registry[$key]['label'],
+                    'label_en' => $registry[$key]['label_en'],
+                ]);
+            }
+        }
+
         $permissionIds = Permission::whereIn('key', $keys)->pluck('id', 'key');
         $ids = [];
 

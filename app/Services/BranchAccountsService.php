@@ -106,14 +106,30 @@ class BranchAccountsService
 
         $parentAccount = FinancialAccount::find($parentAccountId);
 
+        // تصنيف الحساب من أقرب أب ليه تصنيف صحيح (1-5). قبل كده لو الأب
+        // account_category_id بتاعه فاضي، حساب الفرع (زي "المبيعات فرع ...")
+        // كان بيتعمل من غير تصنيف، فإيراده مكانش بيدخل في صافي الربح
+        // والميزانية العمومية تطلع غير متزنة.
+        $category = null;
+        $node = $parentAccount;
+        for ($guard = 0; $node && $guard < 50; $guard++) {
+            foreach ([$node->account_category_id, $node->account_type] as $candidate) {
+                if (in_array((int) $candidate, [1, 2, 3, 4, 5], true)) {
+                    $category = (int) $candidate;
+                    break 2;
+                }
+            }
+            $node = $node->parent_account_number ? FinancialAccount::find($node->parent_account_number) : null;
+        }
+
         $nextAccountNumber = (int) (FinancialAccount::where('parent_account_number', $parentAccountId)->max('account_number') ?? 0) + 1;
 
         return FinancialAccount::create([
             'name' => $name,
             // account_type و account_category_id بيتورثوا من الأب
             // الحقيقي مباشرة (نفس أسلوب HrAccountService).
-            'account_type' => $parentAccount?->account_category_id,
-            'account_category_id' => $parentAccount?->account_category_id,
+            'account_type' => $category,
+            'account_category_id' => $category,
             'parent_account_number' => $parentAccountId,
             'account_number' => $nextAccountNumber,
             'start_balance' => 0,

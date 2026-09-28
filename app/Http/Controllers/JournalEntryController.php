@@ -88,6 +88,8 @@ class JournalEntryController extends Controller
             'lines.*.note' => ['nullable', 'string', 'max:255'],
         ]);
 
+        $this->ensurePostingAccounts(collect($validated['lines'])->pluck('account_id')->all());
+
         $lines = collect($validated['lines'])->map(function ($line) {
             $line['debit'] = round((float) ($line['debit'] ?? 0), 2);
             $line['credit'] = round((float) ($line['credit'] ?? 0), 2);
@@ -217,6 +219,8 @@ class JournalEntryController extends Controller
             'lines.*.note' => ['nullable', 'string', 'max:255'],
         ]);
 
+        $this->ensurePostingAccounts(collect($validated['lines'])->pluck('account_id')->all());
+
         $lines = collect($validated['lines'])->map(function ($line) {
             $line['debit'] = round((float) ($line['debit'] ?? 0), 2);
             $line['credit'] = round((float) ($line['credit'] ?? 0), 2);
@@ -327,5 +331,22 @@ class JournalEntryController extends Controller
         $journalEntry->load(['lines.account', 'creator', 'branch', 'costCenter']);
 
         return view('journal-entries.print', ['entry' => $journalEntry]);
+    }
+
+    /**
+     * القيد/السند لازم يتسجل على حسابات فرعية بس: الحساب الرئيسي مش بيدخل
+     * في ميزان المراجعة ولا الميزانية، فأي مبلغ عليه كان بيخلّيهم غير متزنين.
+     */
+    private function ensurePostingAccounts(array $accountIds): void
+    {
+        $parents = FinancialAccount::whereIn('id', array_filter($accountIds))
+            ->where('is_parent', true)
+            ->pluck('name');
+
+        if ($parents->isNotEmpty()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'lines' => 'مينفعش تسجّل على حساب رئيسي، اختار حساب فرعي تحته: ' . $parents->implode('، '),
+            ]);
+        }
     }
 }

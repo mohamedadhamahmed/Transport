@@ -108,6 +108,7 @@ return [
             'vouchers.view' => ['label' => 'عرض سندات القبض والصرف', 'label_en' => 'View vouchers'],
             'vouchers.create' => ['label' => 'إنشاء سند قبض/صرف', 'label_en' => 'Create voucher'],
             'vouchers.edit' => ['label' => 'تعديل سند قبض/صرف', 'label_en' => 'Edit voucher'],
+            'year_closing.manage' => ['label' => 'إقفال السنة المالية وترحيل الأرصدة', 'label_en' => 'Fiscal year closing'],
         ],
     ],
 

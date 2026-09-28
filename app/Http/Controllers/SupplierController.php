@@ -122,26 +122,26 @@ class SupplierController extends Controller
             ]);
 
             // حساب مالي مرتبط بالمورد في شجرة الحسابات
-            // ⚠️ parent_account_number = 3 افتراض تخميني للحساب الأب
+            // parent_account_number = 1 ("الموردين" - خصوم) - نفس ثابت PurchaseController
             // الخاص بالموردين - راجعه حسب شجرة حساباتك الفعلية.
             // بنستخدم parent_account_number + orginal_type بدل
             // account_type القديم (اللي كان هنا =2 بينما
             // PurchaseController@quickStoreSupplier كان بيحط =1 لنفس
             // نوع الحساب - تضارب قديم) - account_type بقى بيحمل تصنيف
             // محاسبي بعد ميجريشن 2026_09_02_000028.
-            $nextAccountNumber = FinancialAccount::where('parent_account_number', 3)
+            $nextAccountNumber = FinancialAccount::where('parent_account_number', PurchaseController::SUPPLIER_PARENT_ACCOUNT_NUMBER)
                 ->where('orginal_type', 2)
                 ->max('account_number') + 1;
 
             // account_type و account_category_id بيتورثوا مع بعض من نفس
             // تصنيف حساب الموردين الأب.
-            $inheritedCategoryId = FinancialAccount::inheritedCategoryId(3);
+            $inheritedCategoryId = FinancialAccount::inheritedCategoryId(PurchaseController::SUPPLIER_PARENT_ACCOUNT_NUMBER);
 
             FinancialAccount::create([
                 'name' => $supplier->name,
                 'account_type' => $inheritedCategoryId,
                 'account_category_id' => $inheritedCategoryId,
-                'parent_account_number' => 3,
+                'parent_account_number' => PurchaseController::SUPPLIER_PARENT_ACCOUNT_NUMBER,
                 'account_number' => $nextAccountNumber,
                 'start_balance' => 0,
                 'current_balance' => 0,

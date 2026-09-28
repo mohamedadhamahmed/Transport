@@ -776,6 +776,8 @@ class TransportInvoiceController extends Controller
             'note' => $note,
             'operation_type' => OperationType::TRANSPORT_INVOICE,
             'invoice_number' => $invoice->invoice_number,
+            // كل حركة هنا بتتضاف فعلاً على رصيد حسابها (راجع reverseAccounting)
+            'balance_posted' => 1,
             'created_at' => $now,
             'updated_at' => $now,
         ];
@@ -790,6 +792,9 @@ class TransportInvoiceController extends Controller
                     'currentblance' => $cashAccount->current_balance + $invoice->cash_amount,
                     'debtor' => $invoice->cash_amount,
                 ]);
+                // الخزينة مدين (كانت بتتسجل حركة بس من غير تحديث الرصيد،
+                // فميزان المراجعة والميزانية كانوا بيطلعوا غير متزنين).
+                $cashAccount->postAmounts((float) $invoice->cash_amount, 0);
             }
         }
 
@@ -803,6 +808,7 @@ class TransportInvoiceController extends Controller
                     'currentblance' => $bankAccount->current_balance + $invoice->bank_amount,
                     'debtor' => $invoice->bank_amount,
                 ]);
+                $bankAccount->postAmounts((float) $invoice->bank_amount, 0);
             }
         }
 
@@ -835,6 +841,8 @@ class TransportInvoiceController extends Controller
                 'currentblance' => $revenueAccount->current_balance + $invoice->subtotal,
                 'creditor' => $invoice->subtotal,
             ]);
+            // الإيرادات دائن بالصافي (من غير الضريبة).
+            $revenueAccount->postAmounts(0, (float) $invoice->subtotal);
         }
 
         // هـ. الآجل على العميل
@@ -864,6 +872,32 @@ class TransportInvoiceController extends Controller
     private function reverseAccounting(TransportInvoice $invoice): void
     {
         $branchId = $invoice->branch_id;
+
+        // فواتير اتسجلت بعد الإصلاح: كل حركة عليها balance_posted=1 اتضافت
+        // فعلاً على رصيد حسابها - فبنعكسها هي نفسها بالظبط.
+        $posted = CreditTransaction::where('invoice_number', $invoice->invoice_number)
+            ->where('operation_type', OperationType::TRANSPORT_INVOICE)
+            ->where('balance_posted', 1)
+            ->get();
+
+        if ($posted->isNotEmpty()) {
+            foreach ($posted as $transaction) {
+                $account = FinancialAccount::lockForUpdate()->find($transaction->customer_id);
+                $account?->postAmounts(-(float) $transaction->debtor, -(float) $transaction->creditor);
+            }
+
+            if ((float) $invoice->credit_amount > 0) {
+                Customer::find($invoice->customer_id)?->decrement('balance', $invoice->credit_amount);
+            }
+
+            CreditTransaction::where('invoice_number', $invoice->invoice_number)
+                ->where('operation_type', OperationType::TRANSPORT_INVOICE)
+                ->delete();
+
+            return;
+        }
+
+        // فواتير قديمة (قبل الإصلاح): بس الضريبة والعميل كانوا بيتحدّثوا.
 
         if ((float) $invoice->tax_amount > 0) {
             $vatAccount = FinancialAccount::where('parent_account_number', 102)->where('branchs_id', $branchId)->first();

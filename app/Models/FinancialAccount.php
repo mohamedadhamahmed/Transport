@@ -103,4 +103,29 @@ class FinancialAccount extends Model
             ? $newCreditorTotal - $newDebtorTotal
             : $newDebtorTotal - $newCreditorTotal;
     }
+
+    /**
+     * حساب طبيعته دائنة؟ (خصوم / إيرادات / حقوق ملكية) - حسب التصنيف
+     * المحاسبي (account_type)، مش orginal_type.
+     */
+    public function isCreditNatureByCategory(): bool
+    {
+        return in_array((int) $this->account_type, [2, 3, 5], true);
+    }
+
+    /**
+     * بيضيف مبلغ مدين/دائن على رصيد الحساب: debtor_current و creditor_current
+     * (اللي ميزان المراجعة والقوائم المالية بيقروا منهم) + current_balance
+     * حسب طبيعة الحساب. مبالغ سالبة = عكس قيد سابق.
+     */
+    public function postAmounts(float $debit, float $credit): void
+    {
+        $delta = $this->isCreditNatureByCategory() ? ($credit - $debit) : ($debit - $credit);
+
+        $this->update([
+            'current_balance' => (float) $this->current_balance + $delta,
+            'debtor_current' => (float) $this->debtor_current + $debit,
+            'creditor_current' => (float) $this->creditor_current + $credit,
+        ]);
+    }
 }

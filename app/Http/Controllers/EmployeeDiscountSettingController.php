@@ -2,14 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use App\Models\Branch;
 use App\Models\EmployeeDiscountSetting;
 use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Http\Request;
 
-class EmployeeDiscountSettingController extends Controller
+class EmployeeDiscountSettingController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [new Middleware('can:settings.employee_discounts')];
+    }
+
     public function index(Request $request)
     {
         $branches = Branch::orderBy('name')->get();

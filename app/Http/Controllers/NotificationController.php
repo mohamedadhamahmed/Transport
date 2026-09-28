@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use App\Models\AccountVoucher;
 use App\Models\JournalEntry;
 use App\Models\TransportInvoice;
@@ -36,8 +38,15 @@ use App\Models\EmployeeContract;
 | المزيد" في الفرونت (AJAX) بدل ما تتحمل كلها مرة واحدة - راجع
 | recentOperationsPage() تحت.
 */
-class NotificationController extends Controller
+class NotificationController extends Controller implements HasMiddleware
 {
+    // صفحة التنبيهات الكاملة (عقود الموظفين...) - الجرس في الهيدر
+    // (summary/recent/seen) متاح لأي مستخدم مسجل وبيفلتر حسب صلاحياته.
+    public static function middleware(): array
+    {
+        return [new Middleware('can:employees.view', only: ['index'])];
+    }
+
 
     private const PAGE_SIZE = 5;
 

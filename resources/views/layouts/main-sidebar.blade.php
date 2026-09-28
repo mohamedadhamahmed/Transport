@@ -262,6 +262,7 @@
             $u?->hasPermission('journal_entries.create') ? ['label' => __('journal_entries.new_daily_entry'), 'url' => route('journal-entries.create', ['type' => 'daily'])] : null,
             $u?->hasPermission('journal_entries.view') ? ['label' => __('journal_entries.opening_title'), 'url' => route('journal-entries.index', ['type' => 'opening'])] : null,
             $u?->hasPermission('journal_entries.create') ? ['label' => __('journal_entries.new_opening_entry'), 'url' => route('journal-entries.create', ['type' => 'opening'])] : null,
+            $u?->hasPermission('year_closing.manage') ? ['label' => app()->getLocale() === 'ar' ? 'إقفال السنة المالية' : 'Fiscal year closing', 'url' => route('year-closing.index')] : null,
         ])),
         ],
         [
@@ -301,7 +302,6 @@
                 || $u?->hasPermission('reports_purchases.returns')
                 || $u?->hasPermission('reports_products.stock')
                 || $u?->hasPermission('reports_products.low_stock')
-                || $u?->hasPermission('reports_products.stock_transfers')
                 || $u?->hasPermission('reports_hr.payroll')
                 || $u?->hasPermission('reports_hr.attendance')
                 || $u?->hasPermission('reports_hr.loans')
@@ -321,8 +321,7 @@
                 || $u?->hasPermission('reports_purchases.by_employee') || $u?->hasPermission('reports_purchases.by_product')
                 || $u?->hasPermission('reports_purchases.returns'))
                 ? ['label' => __('reports.sections.purchases'), 'url' => route('reports.purchases.index')] : null,
-            ($u?->hasPermission('reports_products.stock') || $u?->hasPermission('reports_products.low_stock')
-                || $u?->hasPermission('reports_products.stock_transfers'))
+            ($u?->hasPermission('reports_products.stock') || $u?->hasPermission('reports_products.low_stock'))
                 ? ['label' => __('reports.sections.products'), 'url' => route('reports.products.index')] : null,
             ($u?->hasPermission('reports_hr.payroll') || $u?->hasPermission('reports_hr.attendance')
                 || $u?->hasPermission('reports_hr.loans') || $u?->hasPermission('reports_hr.employees')

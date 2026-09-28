@@ -28,4 +28,28 @@ class CreditTransaction extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    /**
+     * حماية الفترات المقفولة (إقفال السنة المالية): مفيش حركة تتسجل أو
+     * تتعدل أو تتحذف بتاريخ جوه سنة اتقفلت - غير قيد الإقفال نفسه.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $tx) {
+            if ((int) $tx->operation_type === \App\Support\ClosedPeriod::CLOSING_OPERATION_TYPE) {
+                return;
+            }
+            \App\Support\ClosedPeriod::ensureOpen($tx->date_export ?: ($tx->created_at ?: now()));
+            if ($tx->exists) {
+                \App\Support\ClosedPeriod::ensureOpen($tx->getOriginal('date_export') ?: $tx->getOriginal('created_at'));
+            }
+        });
+
+        static::deleting(function (self $tx) {
+            if ((int) $tx->operation_type === \App\Support\ClosedPeriod::CLOSING_OPERATION_TYPE) {
+                return;
+            }
+            \App\Support\ClosedPeriod::ensureOpen($tx->date_export ?: $tx->created_at);
+        });
+    }
 }

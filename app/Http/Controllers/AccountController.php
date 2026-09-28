@@ -228,6 +228,14 @@ class AccountController extends Controller
         $debtorCurrent = $startBalance > 0 && $side === 'debtor' ? $startBalance : 0;
         $creditorCurrent = $startBalance > 0 && $side === 'creditor' ? $startBalance : 0;
 
+        // الحساب الرئيسي مالوش رصيد (ميزان المراجعة والميزانية بيقروا
+        // الحسابات الفرعية بس) - الرصيد الافتتاحي بيتسجل على حساب فرعي.
+        if ($request->boolean('is_parent', false)) {
+            $startBalance = 0;
+            $debtorCurrent = 0;
+            $creditorCurrent = 0;
+        }
+
         // الحساب الجديد يدوي دايمًا (orginal_type = null)، يعني طبيعته
         // مدين حسب FinancialAccount::isCreditNormal() - فرصيد افتتاحي
         // "دائن" هيظهر current_balance بالسالب، وده صحيح محاسبيًا لحساب
@@ -263,6 +271,10 @@ class AccountController extends Controller
             'creditor_current' => $creditorCurrent,
         ]);
 
+        // الرصيد الافتتاحي كان بيتكتب في طرف واحد بس فميزان المراجعة يطلع
+        // غير متزن - الطرف التاني بيتسجل على حساب "أرصدة افتتاحية" (حقوق ملكية).
+        $this->postOpeningBalanceCounterpart($account, (float) $debtorCurrent, (float) $creditorCurrent);
+
         return redirect()->route('accounts.index')->with('success', __('accounts.created_successfully'));
     }
 
@@ -296,6 +308,14 @@ class AccountController extends Controller
         // account_type بيتزامن مع account_category_id دايمًا (نفس القيمة
         // أو فاضي مع بعض) - العمودين بقوا بنفس المعنى المحاسبي بعد
         // ميجريشن 2026_09_02_000028.
+
+        if ($request->boolean('is_parent', false) && ! $account->is_parent
+            && (abs((float) $account->debtor_current) + abs((float) $account->creditor_current) > 0
+                || CreditTransaction::where('customer_id', $account->id)->exists())) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'is_parent' => 'مينفعش تحوّل حساب عليه رصيد أو حركات لحساب رئيسي - رصيده هيختفي من ميزان المراجعة والميزانية.',
+            ]);
+        }
         $account->update([
             'name' => $validated['name'],
             'parent_account_number' => $validated['parent_account_number'] ?? null,
@@ -480,7 +500,9 @@ class AccountController extends Controller
                 $query->whereIn('parent_account_number', [4, 5]);
             })
             ->when($scope !== 'all', function ($query) {
-                $query->where('active', true);
+                // الحسابات الرئيسية مينفعش يتسجل عليها قيد/سند (مش بتدخل
+                // في ميزان المراجعة والميزانية) - الفرعية بس.
+                $query->where('active', true)->where('is_parent', false);
             })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($w) use ($q) {
@@ -501,5 +523,98 @@ class AccountController extends Controller
                 'current_balance' => $a->current_balance,
             ];
         }));
+    }
+
+    /**
+     * بيسجّل الطرف المقابل للرصيد الافتتاحي على حساب "أرصدة افتتاحية"
+     * (تحت رأس المال في حقوق الملكية) + حركتين في credittransactions عشان
+     * يظهروا في كشف الحساب.
+     */
+    private function postOpeningBalanceCounterpart(FinancialAccount $account, float $debit, float $credit): void
+    {
+        if (($debit <= 0 && $credit <= 0) || $account->is_parent) {
+            return;
+        }
+
+        $counterpart = $this->openingBalanceAccount();
+        if (! $counterpart || $counterpart->id === $account->id) {
+            return;
+        }
+
+        // حقوق الملكية طبيعتها دائنة: الطرف المقابل عكس طرف الحساب.
+        $counterDebit = $credit;
+        $counterCredit = $debit;
+        $counterpart->update([
+            'current_balance' => (float) $counterpart->current_balance + $counterCredit - $counterDebit,
+            'debtor_current' => (float) $counterpart->debtor_current + $counterDebit,
+            'creditor_current' => (float) $counterpart->creditor_current + $counterCredit,
+        ]);
+
+        $now = Carbon::now('Asia/Riyadh');
+        $base = [
+            'user_id' => Auth::id(),
+            'branchs_id' => $account->branchs_id,
+            'note' => 'رصيد افتتاحي - ' . $account->name,
+            'operation_type' => 10,
+            'invoice_number' => 'OB-' . $account->id,
+            'date_export' => $now->toDateString(),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+
+        CreditTransaction::create($base + [
+            'customer_id' => $account->id,
+            'recive_amount' => max($debit, $credit),
+            'currentblance' => $account->current_balance,
+            'debtor' => $debit,
+            'creditor' => $credit,
+        ]);
+
+        CreditTransaction::create($base + [
+            'customer_id' => $counterpart->id,
+            'recive_amount' => max($debit, $credit),
+            'currentblance' => $counterpart->current_balance,
+            'debtor' => $counterDebit,
+            'creditor' => $counterCredit,
+        ]);
+    }
+
+    private function openingBalanceAccount(): ?FinancialAccount
+    {
+        $name = 'أرصدة افتتاحية';
+
+        $existing = FinancialAccount::where('name', $name)->where('is_parent', false)->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        // تحت "راس المال" لو موجود، وإلا أول حساب رئيسي في حقوق الملكية.
+        $parent = FinancialAccount::where('account_type', 5)->where('is_parent', true)
+            ->where('name', 'like', '%راس المال%')->orderBy('id')->first()
+            ?? FinancialAccount::where('account_type', 5)->where('is_parent', true)->orderBy('id')->first();
+        if (! $parent) {
+            return null;
+        }
+
+        $maxChild = (int) FinancialAccount::where('parent_account_number', $parent->id)->max('account_number');
+        $number = $maxChild > 0 ? $maxChild + 1 : ((int) $parent->account_number) + 1;
+
+        return FinancialAccount::create([
+            'name' => $name,
+            'account_type' => 5,
+            'account_category_id' => 5,
+            'parent_account_number' => $parent->id,
+            'account_number' => (string) $number,
+            'start_balance' => 0,
+            'current_balance' => 0,
+            'debtor_current' => 0,
+            'creditor_current' => 0,
+            'added_by' => Auth::id(),
+            'com_code' => 1,
+            'date' => Carbon::now('Asia/Riyadh'),
+            'active' => true,
+            'is_parent' => false,
+            'branchs_id' => null,
+        ]);
     }
 }

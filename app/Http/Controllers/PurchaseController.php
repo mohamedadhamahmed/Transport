@@ -38,7 +38,9 @@ class PurchaseController extends Controller
      * العملاء) - *** لازم تتأكد منه قبل ما تشغل النظام على بيانات
      * حقيقية *** وتغيّريه هنا لو مختلف عندك.
      */
-    const SUPPLIER_PARENT_ACCOUNT_NUMBER = 3;
+    // الموردين = id 1 في شجرة الحسابات ("الموردين" [2100] - خصوم). الـ 3
+    // القديم كان "الحساب الرئيسي للمناديب" تحت الأصول المتداولة.
+    const SUPPLIER_PARENT_ACCOUNT_NUMBER = 1;
 
     /**
      * *** رقم حساب مصروف الشحن *** - في الكود القديم كان FinancialAccount::find(133)
@@ -792,6 +794,9 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
         $goodsTotal = $subtotal + $taxTotal - $invoiceLevelDiscount;
 
         if (is_null($paymentAccountId)) {
+            // رسوم الشحن بتتضاف على المورد كمان (زي الدفع الفوري)، وإلا قيد الشحن
+            // المدين بيفضل من غير طرف دائن والميزان يطلع غير متزن.
+            $goodsTotal += $shippingFee;
             // آجل: يزيد رصيد المورد (المديونية عليه) + حسابه المالي.
             $supplier = Supplier::find($purchase->supplier_id);
             if ($supplier) {
@@ -829,7 +834,7 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
             if ($paymentAccount) {
                 $paymentAccount->update([
                     'current_balance' => $paymentAccount->current_balance - $payValue,
-                    'debtor_current' => $paymentAccount->debtor_current + $payValue,
+                    'creditor_current' => $paymentAccount->creditor_current + $payValue,
                 ]);
 
                 CreditTransaction::create([
@@ -841,8 +846,8 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
                     'note' => $purchaseNote,
                     'currentblance' => $paymentAccount->current_balance,
                     'Pay_Method_Name' => $payMethodName,
-                    'debtor' => $payValue,
-                    'creditor' => 0,
+                    'debtor' => 0,
+                    'creditor' => $payValue,
                     'invoice_number' => $purchase->purchase_number,
                     'operation_type' => 3,
                 ]);
@@ -969,7 +974,17 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
                 && (int) $transaction->customer_id === (int) $purchase->payment_account_id
                 && (float) $transaction->debtor > 0;
 
-            if ($isPaymentAccountRow) {
+            $isNewPaymentAccountRow = !is_null($purchase->payment_account_id)
+                && (int) $transaction->customer_id === (int) $purchase->payment_account_id
+                && (float) $transaction->creditor > 0;
+
+            if ($isNewPaymentAccountRow) {
+                // حساب الدفع الفوري (التسجيل الجديد - دائن): نرجّع الفلوس.
+                $account->update([
+                    'current_balance' => $account->current_balance + $transaction->creditor,
+                    'creditor_current' => $account->creditor_current - $transaction->creditor,
+                ]);
+            } elseif ($isPaymentAccountRow) {
                 // حساب الدفع الفوري: الرصيد كان نقص وقت الدفع (فلوس
                 // خرجت) - بنرجعه زي ما كان.
                 $account->update([
@@ -998,7 +1013,14 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
             ->delete();
 
         if (is_null($purchase->payment_account_id)) {
-            $goodsTotal = (float) $purchase->subtotal + (float) $purchase->tax_amount - (float) $purchase->invoice_level_discount;
+            // نفس المبلغ اللي اتسجل على المورد بالظبط (من حركة حسابه).
+            $supplierAccountIds = FinancialAccount::where('orginal_type', 2)
+                ->where('orginal_id', $purchase->supplier_id)
+                ->pluck('id');
+            $goodsTotal = (float) $transactions->whereIn('customer_id', $supplierAccountIds->all())->sum('creditor');
+            if ($goodsTotal == 0.0) {
+                $goodsTotal = (float) $purchase->subtotal + (float) $purchase->tax_amount - (float) $purchase->invoice_level_discount;
+            }
             $supplier = Supplier::find($purchase->supplier_id);
             if ($supplier) {
                 $supplier->decrement('balance', $goodsTotal);

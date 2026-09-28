@@ -20,6 +20,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // منع التسجيل/التعديل في السنين المالية المقفولة (راجع EnsurePeriodOpen).
+        $this->app['router']->pushMiddlewareToGroup('web', \App\Http\Middleware\EnsurePeriodOpen::class);
+
         view()->composer('*', function ($view) {
             try {
                 $currCode = \App\Models\SystemSetting::getActiveCurrencyCode();

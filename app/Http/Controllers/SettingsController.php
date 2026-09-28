@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use App\Models\Branch;
 use App\Models\Setting;
 use App\Models\SystemSetting;
@@ -9,8 +11,14 @@ use App\Services\Zatca\OnBoarding;
 use Illuminate\Http\Request;
 use Throwable;
 
-class SettingsController extends Controller
+class SettingsController extends Controller implements HasMiddleware
 {
+    // الإعدادات العامة/الزكاة/ربط زاتكا - محتاجة صلاحية إدارة الإعدادات
+    public static function middleware(): array
+    {
+        return [new Middleware('can:settings.manage')];
+    }
+
     public function index(Request $request)
     {
         $branches = Branch::orderBy('name')->get();

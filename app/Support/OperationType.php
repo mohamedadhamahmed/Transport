@@ -66,7 +66,10 @@ class OperationType
 
     public const TRANSPORT_CREDIT_NOTE = 16;
 
+    public const YEAR_CLOSING = 20;
+
     public const LABELS = [
+        self::YEAR_CLOSING => 'قيد إقفال السنة المالية',
         self::SALE_INVOICE => 'فاتورة مبيعات',
         self::SALE_RETURN => 'مرتجع مبيعات',
         self::PURCHASE_INVOICE => 'فاتورة مشتريات',

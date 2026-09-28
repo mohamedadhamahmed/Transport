@@ -193,6 +193,11 @@ class VoucherController extends Controller
             'branch_id' => ['nullable', 'exists:branches,id'],
         ], $this->linesValidationRules()));
 
+        $this->ensurePostingAccounts(array_merge(
+            [$validated['treasury_account_id']],
+            collect($validated['lines'])->pluck('counterpart_account_id')->all()
+        ));
+
         $isValidTreasuryAccount = FinancialAccount::where('id', $validated['treasury_account_id'])
             ->whereIn('parent_account_number', [4, 5])
             ->exists();
@@ -386,6 +391,11 @@ class VoucherController extends Controller
             'branch_id' => ['nullable', 'exists:branches,id'],
         ], $this->linesValidationRules()));
 
+        $this->ensurePostingAccounts(array_merge(
+            [$validated['treasury_account_id']],
+            collect($validated['lines'])->pluck('counterpart_account_id')->all()
+        ));
+
         $isValidTreasuryAccount = FinancialAccount::where('id', $validated['treasury_account_id'])
             ->whereIn('parent_account_number', [4, 5])
             ->exists();
@@ -566,5 +576,22 @@ class VoucherController extends Controller
         $amountInWords = ArabicNumberWords::amountToWords($voucher->total_amount);
 
         return view('vouchers.print', compact('voucher', 'amountInWords'));
+    }
+
+    /**
+     * القيد/السند لازم يتسجل على حسابات فرعية بس: الحساب الرئيسي مش بيدخل
+     * في ميزان المراجعة ولا الميزانية، فأي مبلغ عليه كان بيخلّيهم غير متزنين.
+     */
+    private function ensurePostingAccounts(array $accountIds): void
+    {
+        $parents = FinancialAccount::whereIn('id', array_filter($accountIds))
+            ->where('is_parent', true)
+            ->pluck('name');
+
+        if ($parents->isNotEmpty()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'lines' => 'مينفعش تسجّل على حساب رئيسي، اختار حساب فرعي تحته: ' . $parents->implode('، '),
+            ]);
+        }
     }
 }

@@ -2,12 +2,23 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use App\Models\Employee;
 use App\Models\EmployeeContract;
 use Illuminate\Http\Request;
 
-class EmployeeContractController extends Controller
+class EmployeeContractController extends Controller implements HasMiddleware
 {
+    // العرض بصلاحية عرض الموظفين، والإضافة/التعديل/الحذف بصلاحية تعديل الموظفين
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:employees.view', only: ['index']),
+            new Middleware('can:employees.edit', except: ['index']),
+        ];
+    }
+
     public function index()
     {
         $contracts = EmployeeContract::with('employee')

@@ -7,11 +7,13 @@
     // الفرع لعرض المنتجات. كانت الأربعة روابط دي href="#" (مؤقتة ومحدش
     // كملها) فمكنتش شغالة خالص - ده الإصلاح.
     $quickLinks = [
-        ['label' => __('transport.invoices'), 'url' => route('transport.invoices.index'), 'icon' => 'bag', 'tint' => 'text-[#1456E8] bg-[#1456E8]/10'],
-        ['label' => __('messages.purchases'), 'url' => route('purchases.index'), 'icon' => 'cart', 'tint' => 'text-[#F5811E] bg-[#F5811E]/10'],
-        ['label' => __('messages.accounting_invoices'), 'url' => route('accounts.index'), 'icon' => 'doc', 'tint' => 'text-violet-600 bg-violet-500/10'],
-        ['label' => __('messages.inventory'), 'url' => route('products.choose_branch'), 'icon' => 'box', 'tint' => 'text-emerald-600 bg-emerald-500/10'],
+        ['perm' => 'transport_invoices.view', 'label' => __('transport.invoices'), 'url' => route('transport.invoices.index'), 'icon' => 'bag', 'tint' => 'text-[#1456E8] bg-[#1456E8]/10'],
+        ['perm' => 'purchases.view', 'label' => __('messages.purchases'), 'url' => route('purchases.index'), 'icon' => 'cart', 'tint' => 'text-[#F5811E] bg-[#F5811E]/10'],
+        ['perm' => 'accounts.view', 'label' => __('messages.accounting_invoices'), 'url' => route('accounts.index'), 'icon' => 'doc', 'tint' => 'text-violet-600 bg-violet-500/10'],
+        ['perm' => 'products.view', 'label' => __('messages.inventory'), 'url' => route('products.choose_branch'), 'icon' => 'box', 'tint' => 'text-emerald-600 bg-emerald-500/10'],
     ];
+    // كل زرار بيظهر بس لو المستخدم معاه صلاحية القسم بتاعه
+    $quickLinks = array_values(array_filter($quickLinks, fn ($l) => auth()->user()?->hasPermission($l['perm'])));
     $icons = [
         'bag' => '<path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
         'cart' => '<circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/><path d="M3 4h2l2.4 12.4a1 1 0 0 0 1 .8h8.4a1 1 0 0 0 1-.8L20 8H6"/>',

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,8 +13,24 @@ use Illuminate\Support\Facades\Auth;
  * وتقرير حركة صنف. كان جوه InvoiceController قبل ما قسم المبيعات يتشال،
  * وأسماء المسارات فضلت زي ما هي (invoices.products.search / pick).
  */
-class ProductLookupController extends Controller
+class ProductLookupController extends Controller implements HasMiddleware
 {
+    // البحث عن المنتجات بيستخدمه أكتر من شاشة، فمسموح لأي حد معاه
+    // صلاحية من الصلاحيات اللي بتفتح الشاشات دي.
+    public static function middleware(): array
+    {
+        return [
+            function ($request, $next) {
+                abort_unless(\Illuminate\Support\Facades\Auth::user()?->hasAnyPermission([
+                    'products.view', 'purchases.create', 'purchases.orders',
+                    'reports_purchases.by_product', 'reports_products.stock',
+                ]), 403);
+
+                return $next($request);
+            },
+        ];
+    }
+
     public function pickProducts(Request $request)
     {
         $search = (string) $request->query('q', '');
