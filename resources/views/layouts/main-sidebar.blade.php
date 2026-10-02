@@ -228,11 +228,15 @@
         'groups' => [
         [
         'key' => 'trucks',
+        'match' => ['trucks', 'store-issues'],
         'label' => __('transport.trucks'),
         'icon' => 'box',
         'items' => array_values(array_filter([
             $u?->hasPermission('trucks.view') ? ['label' => __('transport.trucks'), 'url' => route('transport.trucks.index')] : null,
             $u?->hasPermission('trucks.create') ? ['label' => __('transport.new_truck'), 'url' => route('transport.trucks.create')] : null,
+            $u?->hasPermission('maintenance.create') ? ['label' => 'إذن صرف قطع غيار وزيوت', 'url' => route('transport.store-issues.create')] : null,
+            $u?->hasPermission('trucks.view') ? ['label' => 'أذونات صرف قطع الغيار والزيوت', 'url' => route('transport.store-issues.index')] : null,
+            $u?->hasPermission('trucks.view') ? ['label' => 'تقرير صرف قطع الغيار والزيوت', 'url' => route('transport.store-issues.report')] : null,
             $u?->hasPermission('maintenance.create') ? ['label' => __('transport.new_maintenance'), 'url' => route('vouchers.create', ['type' => 'payment', 'maintenance' => 1])] : null,
             $u?->hasPermission('maintenance.view') ? ['label' => __('transport.maintenance_vouchers'), 'url' => route('vouchers.index', ['type' => 'payment', 'maintenance' => 1])] : null,
             $u?->hasPermission('maintenance.view') ? ['label' => __('transport.maintenance_report'), 'url' => route('transport.reports.maintenance')] : null,

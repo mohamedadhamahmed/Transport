@@ -136,6 +136,16 @@
                             <div class="tb-timer {{ $overdue ? 'late' : 'ok' }}">⏱ {{ $load->remainingText() }}</div>
                         @else
                             <div class="tb-empty-loc">📍 {{ $truck->current_region ? \App\Support\SaudiRegions::name($truck->current_region) : __('transport.location_unknown') }}</div>
+                        @if ($truck->next_oil_change_odometer)
+                            @php
+                                $remKm = $truck->current_odometer ? ($truck->next_oil_change_odometer - $truck->current_odometer) : null;
+                            @endphp
+                            <div class="text-[11px] font-bold px-2.5 py-1 rounded-md flex items-center justify-between {{ ($remKm !== null && $remKm <= 0) ? 'bg-rose-50 text-rose-700 border border-rose-200' : (($remKm !== null && $remKm <= 500) ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-800 border border-blue-100') }}">
+                                <span>🛢️ زيت قادم: {{ number_format($truck->next_oil_change_odometer) }} كم</span>
+                                @if ($remKm !== null)
+                                    <span>{{ $remKm <= 0 ? '🚨 متأخر' : 'باقي ' . number_format($remKm) . ' كم' }}</span>
+                                @endif
+                            </div>
                         @endif
 
                         @include('transport.partials.driver-contact', ['driver' => $driver, 'msg' => $waMsg])

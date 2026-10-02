@@ -13,6 +13,7 @@ class Truck extends Model
         'color', 'chassis_number', 'serial_number', 'registration_number',
         'insurance_company', 'insurance_policy_number', 'operating_card_number',
         'operating_card_expiry', 'inspection_expiry',
+        'current_odometer', 'last_oil_change_odometer', 'next_oil_change_odometer', 'last_oil_change_date',
     ];
 
     /** التنبيه قبل انتهاء أي وثيقة بكام يوم */
@@ -47,6 +48,10 @@ class Truck extends Model
         'purchase_value' => 'decimal:2',
         'operating_card_expiry' => 'date',
         'inspection_expiry' => 'date',
+        'current_odometer' => 'integer',
+        'last_oil_change_odometer' => 'integer',
+        'next_oil_change_odometer' => 'integer',
+        'last_oil_change_date' => 'date',
     ];
 
     public function driver()

@@ -66,6 +66,8 @@ class OperationType
 
     public const TRANSPORT_CREDIT_NOTE = 16;
 
+    public const TRUCK_STORE_ISSUE = 17;
+
     public const YEAR_CLOSING = 20;
 
     public const LABELS = [
@@ -84,6 +86,7 @@ class OperationType
         self::PAYROLL => 'ترحيل رواتب شهرية',
         self::TRANSPORT_INVOICE => 'فاتورة نقليات',
         self::TRANSPORT_CREDIT_NOTE => 'إشعار دائن نقليات',
+        self::TRUCK_STORE_ISSUE => 'إذن صرف قطع غيار وزيوت',
     ];
 
     public static function label(?int $type): ?string

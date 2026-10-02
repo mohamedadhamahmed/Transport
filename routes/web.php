@@ -50,6 +50,7 @@ use App\Http\Controllers\TransportReportController;
 use App\Http\Controllers\TransportZatcaController;
 use App\Http\Controllers\RegionController;
 use App\Http\Controllers\TransportCreditNoteController;
+use App\Http\Controllers\TruckStoreIssueController;
 
 
 Route::get('/', function () {
@@ -433,6 +434,10 @@ Route::middleware(['auth'])->prefix('transport')->name('transport.')->group(func
 
     Route::resource('trucks', TruckController::class)->except(['show']);
     Route::resource('drivers', DriverController::class)->except(['show']);
+
+    // أذونات صرف قطع الغيار والزيوت للشاحنات
+    Route::get('store-issues/report', [TruckStoreIssueController::class, 'report'])->name('store-issues.report');
+    Route::resource('store-issues', TruckStoreIssueController::class)->except(['edit', 'update']);
     Route::post('invoices/{invoice}/approve', [TransportInvoiceController::class, 'approve'])->name('invoices.approve');
     Route::resource('invoices', TransportInvoiceController::class);
 
