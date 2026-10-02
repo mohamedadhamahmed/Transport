@@ -429,6 +429,7 @@ Route::middleware(['auth'])->prefix('transport')->name('transport.')->group(func
 
     Route::post('drivers/quick', [DriverController::class, 'quick'])->name('drivers.quick');
     Route::post('trucks/quick', [TruckController::class, 'quick'])->name('trucks.quick');
+    Route::post('trucks/{truck}/toggle-maintenance', [TruckController::class, 'toggleMaintenance'])->name('trucks.toggle-maintenance');
 
     Route::resource('trucks', TruckController::class)->except(['show']);
     Route::resource('drivers', DriverController::class)->except(['show']);

@@ -144,6 +144,25 @@ class TruckController extends Controller
         ]);
     }
 
+    /** تحويل الشاحنة إلى الصيانة أو إخراجها منها بضغطة واحدة */
+    public function toggleMaintenance(Request $request, Truck $truck)
+    {
+        $this->authorize('trucks.edit');
+
+        if ($truck->status !== 'maintenance' && $truck->activeLoad()->exists()) {
+            return back()->with('error', 'لا يمكن إدخال شاحنة محمّلة في الصيانة، يجب تفريغ الحمولة أولاً.');
+        }
+
+        $newStatus = $truck->status === 'maintenance' ? 'active' : 'maintenance';
+        $truck->update(['status' => $newStatus]);
+
+        $msg = $newStatus === 'maintenance'
+            ? 'تم إدخال الشاحنة (' . $truck->plate_number . ') في الصيانة'
+            : 'تم إخراج الشاحنة (' . $truck->plate_number . ') من الصيانة وأصبحت جاهزة للعمل';
+
+        return back()->with('success', $msg);
+    }
+
     private function driverOptions()
     {
         return Driver::where('status', 'active')->orderBy('name')->pluck('name', 'id');

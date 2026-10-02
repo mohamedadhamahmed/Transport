@@ -94,6 +94,19 @@
                                     <td class="px-4 py-3"><span class="tr-badge {{ $stClass }}">{{ __('transport.status_' . $truck->status) }}</span></td>
                                     <td class="px-4 py-3">
                                         <div class="flex items-center gap-2">
+                                            @can('trucks.edit')
+                                                @if ($truck->status === 'maintenance')
+                                                    <form method="POST" action="{{ route('transport.trucks.toggle-maintenance', $truck) }}" style="display:inline">
+                                                        @csrf
+                                                        <button type="submit" class="tr-btn tr-btn-green" style="background:#16a34a;color:#fff" title="إخراج من الصيانة">✅ جاهزة</button>
+                                                    </form>
+                                                @elseif ($truck->status === 'active' && !$truck->activeLoad)
+                                                    <form method="POST" action="{{ route('transport.trucks.toggle-maintenance', $truck) }}" style="display:inline" onsubmit="return confirm('هل تريد إدخال الشاحنة ({{ $truck->plate_number }}) في الصيانة؟')">
+                                                        @csrf
+                                                        <button type="submit" class="tr-btn tr-btn-gray" title="إدخال في الصيانة">🔧 صيانة</button>
+                                                    </form>
+                                                @endif
+                                            @endcan
                                             @can('transport_invoices.view')
                                                 <a href="{{ route('transport.invoices.index', ['truck_id' => $truck->id]) }}" class="tr-btn tr-btn-gray">{{ __('transport.trips') }}</a>
                                             @endcan

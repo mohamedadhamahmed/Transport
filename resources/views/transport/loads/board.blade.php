@@ -162,6 +162,23 @@
                                             data-url="{{ route('transport.loads.location', $truck) }}"
                                             data-plate="{{ $truck->plate_number }}"
                                             data-region="{{ $truck->current_region }}">📍 {{ __('transport.location') }}</button>
+                                    @can('trucks.edit')
+                                        <form method="POST" action="{{ route('transport.trucks.toggle-maintenance', $truck) }}" style="display:inline" onsubmit="return confirm('هل تريد إدخال الشاحنة ({{ $truck->plate_number }}) في الصيانة؟')">
+                                            @csrf
+                                            <button type="submit" class="tr-btn tr-btn-gray" title="إدخال في الصيانة">🔧 صيانة</button>
+                                        </form>
+                                    @endcan
+                                @elseif ($truck->status === 'maintenance')
+                                    @can('trucks.edit')
+                                        <form method="POST" action="{{ route('transport.trucks.toggle-maintenance', $truck) }}" style="display:inline">
+                                            @csrf
+                                            <button type="submit" class="tr-btn tb-big" style="background:#16a34a;color:#fff;font-weight:700" title="إخراج من الصيانة">
+                                                ✅ إخراج من الصيانة (جاهزة للعمل)
+                                            </button>
+                                        </form>
+                                    @else
+                                        <span class="tb-sub">{{ __('transport.maintenance_hint') }}</span>
+                                    @endcan
                                 @else
                                     <span class="tb-sub">{{ __('transport.maintenance_hint') }}</span>
                                 @endif
