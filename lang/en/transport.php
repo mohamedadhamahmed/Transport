@@ -271,6 +271,7 @@ return [
     'external_driver_hint' => 'External drivers are not added to HR employees.',
     'driver_type' => 'Driver type',
     'link_employee' => 'Link to HR employee',
+    'new_employee_auto' => 'Automatic: Create new employee in HR and chart of accounts',
     'not_linked' => 'Not linked (can link later)',
     'create_as_employee' => 'Add as a new HR employee (Driver)',
     'employee' => 'Employee',

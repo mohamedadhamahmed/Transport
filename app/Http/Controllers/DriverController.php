@@ -74,8 +74,18 @@ class DriverController extends Controller
 
         DB::transaction(function () use ($driver, $request) {
             $data = $this->validated($request);
-            $data['employee_id'] = $this->resolveEmployee($data, $request);
+            $data['employee_id'] = $this->resolveEmployee($data, $request, $driver);
             $driver->update($data);
+
+            if ($driver->employee_id && $driver->employee) {
+                $driver->employee->update([
+                    'name' => $data['name'],
+                    'phone' => $data['phone'] ?? $driver->employee->phone,
+                    'national_id' => $data['id_number'] ?? $driver->employee->national_id,
+                    'basic_salary' => $data['salary'] ?? $driver->employee->basic_salary,
+                    'status' => ($data['status'] ?? 'active') === 'active' ? Employee::STATUS_ACTIVE : Employee::STATUS_INACTIVE,
+                ]);
+            }
         });
 
         return redirect()->route('transport.drivers.index')->with('success', __('transport.driver_updated'));
@@ -100,19 +110,40 @@ class DriverController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'regex:/^05\d{8}$/'],
+            'driver_type' => ['nullable', 'in:company,external'],
         ], ['phone.regex' => __('transport.phone_bad')]);
 
-        $driver = Driver::create($data + ['driver_type' => $request->input('driver_type') === 'external' ? 'external' : 'company', 'status' => 'active', 'salary' => 0, 'created_by' => Auth::id()]);
+        $driverType = $request->input('driver_type') === 'external' ? 'external' : 'company';
+
+        $driver = DB::transaction(function () use ($data, $driverType, $request) {
+            $driverData = [
+                'name' => $data['name'],
+                'phone' => $data['phone'],
+                'driver_type' => $driverType,
+                'status' => 'active',
+                'salary' => 0,
+                'created_by' => Auth::id(),
+            ];
+
+            if ($driverType === 'company') {
+                $driverData['employee_id'] = $this->resolveEmployee($driverData, $request);
+            }
+
+            return Driver::create($driverData);
+        });
 
         return response()->json(['id' => $driver->id, 'name' => $driver->name, 'phone' => $driver->phone]);
     }
 
     /**
-     * السائق تبع الشركة: يا إما مربوط بموظف موجود في الموارد البشرية، يا
-     * إما (لو علّم "أضفه كموظف") بيتعمل له ملف موظف جديد بوظيفة "سائق".
-     * السائق الخارجي مالوش موظف.
+     * السائق تبع الشركة:
+     * 1. لو تم اختيار موظف مسجل يدويًا من القائمة، يتم الربط به.
+     * 2. لو السائق له موظف مرتبط مسبقاً، نحتفظ به.
+     * 3. لو وُجد موظف مسجل بنفس رقم الهوية أو الهاتف، يتم الربط به منعاً للتكرار.
+     * 4. خلاف ذلك: يتم تلقائياً إنشاء ملف موظف جديد له في جدول الموظفين (قسم السائقين)،
+     *    وإنشاء حساباته المالية في شجرة الحسابات، ليظهر فوراً في قسم الموارد البشرية.
      */
-    private function resolveEmployee(array $data, Request $request): ?int
+    private function resolveEmployee(array $data, Request $request, ?Driver $driver = null): ?int
     {
         if (($data['driver_type'] ?? 'company') === 'external') {
             return null;
@@ -122,27 +153,45 @@ class DriverController extends Controller
             return (int) $data['employee_id'];
         }
 
-        if ($request->boolean('create_employee') && auth()->user()?->can('employees.create')) {
-            $employee = Employee::create([
-                'employee_number' => Employee::nextEmployeeNumber(),
-                'name' => $data['name'],
-                'national_id' => $data['id_number'] ?? null,
-                'phone' => $data['phone'] ?? null,
-                'job_title' => 'سائق',
-                'department' => Department::drivers()->name, // قسم السائقين تلقائي
-                'hire_date' => now()->toDateString(),
-                'basic_salary' => $data['salary'] ?? 0,
-                'allowances' => 0,
-                'pay_method' => 'Cash',
-                'status' => Employee::STATUS_ACTIVE,
-                'created_by' => Auth::id(),
-            ]);
-            app(HrAccountService::class)->ensureAllEmployeeAccounts($employee);
-
-            return $employee->id;
+        if ($driver && $driver->employee_id) {
+            return (int) $driver->employee_id;
         }
 
-        return null;
+        $existing = null;
+        if (!empty($data['id_number'])) {
+            $existing = Employee::where('national_id', $data['id_number'])->first();
+        }
+        if (!$existing && !empty($data['phone'])) {
+            $existing = Employee::where('phone', $data['phone'])->first();
+        }
+
+        if ($existing) {
+            return $existing->id;
+        }
+
+        $employee = Employee::create([
+            'employee_number' => Employee::nextEmployeeNumber(),
+            'name' => $data['name'],
+            'national_id' => $data['id_number'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'job_title' => 'سائق',
+            'department' => Department::drivers()->name,
+            'hire_date' => now()->toDateString(),
+            'basic_salary' => $data['salary'] ?? 0,
+            'allowances' => 0,
+            'pay_method' => 'Cash',
+            'status' => ($data['status'] ?? 'active') === 'active' ? Employee::STATUS_ACTIVE : Employee::STATUS_INACTIVE,
+            'notes' => $data['notes'] ?? null,
+            'created_by' => Auth::id(),
+        ]);
+
+        try {
+            app(HrAccountService::class)->ensureAllEmployeeAccounts($employee);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('HrAccountService notice while creating driver employee: ' . $e->getMessage());
+        }
+
+        return $employee->id;
     }
 
     private function employeeOptions(?int $include = null)

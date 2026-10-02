@@ -90,8 +90,13 @@ class Employee extends Model
     public static function nextEmployeeNumber(): string
     {
         $next = (int) (self::max('id') ?? 0) + 1;
+        $candidate = 'EMP-' . str_pad((string) $next, 6, '0', STR_PAD_LEFT);
+        while (self::where('employee_number', $candidate)->exists()) {
+            $next++;
+            $candidate = 'EMP-' . str_pad((string) $next, 6, '0', STR_PAD_LEFT);
+        }
 
-        return 'EMP-' . str_pad((string) $next, 6, '0', STR_PAD_LEFT);
+        return $candidate;
     }
 
     /**

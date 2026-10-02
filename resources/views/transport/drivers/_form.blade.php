@@ -10,24 +10,19 @@
         <label class="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer"><input type="radio" name="driver_type" value="company" @checked($dtype === 'company')> 🏢 {{ __('transport.company_driver') }}</label>
         <label class="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer"><input type="radio" name="driver_type" value="external" @checked($dtype === 'external')> 🤝 {{ __('transport.external_driver') }}</label>
     </div>
-    <div id="drv-company" class="tr-grid tr-grid-2">
+    <div id="drv-company">
         <div>
             <label class="tr-label">{{ __('transport.link_employee') }}</label>
-            <select name="employee_id" id="drv-employee" class="tr-input">
-                <option value="">{{ __('transport.not_linked') }}</option>
+            <select name="employee_id" id="drv-employee" class="tr-input" style="max-width:540px">
+                <option value="">✨ {{ __('transport.new_employee_auto', [], 'ar') ?: 'تلقائي: إنشاء موظف جديد في قسم الموارد البشرية وشجرة الحسابات' }}</option>
                 @foreach ($employees as $e)
                     <option value="{{ $e->id }}" @selected((string) old('employee_id', $driver->employee_id ?? '') === (string) $e->id)>{{ $e->name }} ({{ $e->employee_number }})</option>
                 @endforeach
             </select>
+            <p class="text-xs text-gray-500 mt-1.5">
+                💡 السائق التابع للمؤسسة يُسجّل تلقائياً كموظف في قسم السائقين بالموارد البشرية وتُفتح له حساباته المالية، إلا إذا اخترت ربطه بموظف موجود بالفعل.
+            </p>
         </div>
-        @can('employees.create')
-            <div style="display:flex;align-items:flex-end">
-                <label class="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer" style="color:#0F1B4C">
-                    <input type="checkbox" name="create_employee" value="1" id="drv-create-emp" @checked(old('create_employee'))>
-                    {{ __('transport.create_as_employee') }}
-                </label>
-            </div>
-        @endcan
     </div>
     <div id="drv-external-hint" class="text-xs text-gray-500">{{ __('transport.external_driver_hint') }}</div>
 </div>
@@ -35,12 +30,12 @@
 (function () {
     function sync() {
         const v = (document.querySelector('input[name=driver_type]:checked') || {}).value;
-        document.getElementById('drv-company').style.display = v === 'company' ? '' : 'none';
-        document.getElementById('drv-external-hint').style.display = v === 'external' ? '' : 'none';
+        const comp = document.getElementById('drv-company');
+        const ext = document.getElementById('drv-external-hint');
+        if (comp) comp.style.display = v === 'company' ? '' : 'none';
+        if (ext) ext.style.display = v === 'external' ? '' : 'none';
     }
     document.querySelectorAll('input[name=driver_type]').forEach(r => r.addEventListener('change', sync));
-    const emp = document.getElementById('drv-employee'), chk = document.getElementById('drv-create-emp');
-    if (emp && chk) { emp.addEventListener('change', () => { if (emp.value) chk.checked = false; }); chk.addEventListener('change', () => { if (chk.checked) emp.value = ''; }); }
     sync();
 })();
 </script>
