@@ -30,9 +30,11 @@ class FiscalYearClosingController extends Controller implements HasMiddleware
         $closings = FiscalYearClosing::orderByDesc('closing_date')->get();
         $last = $closings->first();
 
+        $latestTxDate = \App\Models\CreditTransaction::max('created_at');
         $defaultDate = $last
             ? $last->closing_date->copy()->addYear()->endOfYear()
-            : now()->subYear()->endOfYear();
+            : ($latestTxDate ? Carbon::parse($latestTxDate)->endOfYear() : now()->endOfYear());
+
         if ($defaultDate->isFuture()) {
             $defaultDate = now()->startOfDay();
         }

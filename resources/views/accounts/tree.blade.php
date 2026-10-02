@@ -26,31 +26,36 @@
 
             @include('partials.sweet-alert-flash')
 
-            <div class="bg-white overflow-hidden shadow-sm border border-gray-100 sm:rounded-xl">
+            <div id="tree-wrapper" class="bg-white overflow-hidden shadow-sm border border-gray-100 sm:rounded-xl">
 
                 <div class="p-4 border-b border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <input type="text" id="tree-search" autocomplete="off" placeholder="{{ __('accounts.search_placeholder') }}"
                            class="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8] text-sm">
                     <div class="flex items-center gap-2">
-                        {{-- زرار "توسيع الكل" مش موجود عمدًا: مع شجرة ممكن يكون
-                             فيها عشرات آلاف الحسابات، توسيع كل حاجة هيبقى
-                             معناه مئات الطلبات المتتالية للسيرفر دفعة واحدة -
-                             "طي الكل" بس آمن لإنه بيشتغل على اللي اتحمّل
-                             فعلاً في المتصفح من غير أي طلب جديد. --}}
+                        {{-- زر إظهار/إخفاء الأرصدة المالية - افتراضياً مخفية لتظل الشجرة نقية وهيكلية --}}
+                        <button type="button" id="toggle-balances-btn"
+                                class="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 transition whitespace-nowrap flex items-center gap-1.5 shadow-xs">
+                            <svg class="w-3.5 h-3.5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <span id="balances-btn-text">{{ __('accounts.show_balances') }}</span>
+                        </button>
+
                         <button type="button" id="collapse-all-btn" class="px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200 transition whitespace-nowrap">
                             {{ __('accounts.collapse_all') }}
                         </button>
                     </div>
                 </div>
 
-                <div class="px-2 py-2 border-b border-gray-100 hidden sm:flex items-center gap-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-                    <span class="w-5 shrink-0"></span>
-                    <span class="w-16 shrink-0">{{ __('accounts.account_number') }}</span>
+                <div id="tree-table-header" class="px-2 py-2.5 border-b border-gray-100 hidden sm:flex items-center gap-2 text-[11px] font-bold text-gray-500 uppercase tracking-wide bg-gray-50/60">
+                    <span class="w-6 shrink-0"></span>
+                    <span class="w-4 shrink-0"></span>
+                    <span class="min-w-[3.5rem] shrink-0 text-center">{{ __('accounts.account_number') }}</span>
                     <span class="flex-1">{{ __('accounts.name') }}</span>
-                    <span class="w-24 text-end shrink-0">{{ __('accounts.debtor') }}</span>
-                    <span class="w-24 text-end shrink-0">{{ __('accounts.creditor') }}</span>
-                    <span class="w-24 text-end shrink-0">{{ __('accounts.current_balance') }}</span>
-                    <span class="w-[68px] shrink-0"></span>
+                    <div class="account-balances items-center gap-3 shrink-0 hidden">
+                        <span class="w-24 text-end shrink-0">{{ __('accounts.debtor') }}</span>
+                        <span class="w-24 text-end shrink-0">{{ __('accounts.creditor') }}</span>
+                        <span class="w-24 text-end shrink-0">{{ __('accounts.current_balance') }}</span>
+                    </div>
+                    <span class="w-32 shrink-0 text-center">{{ __('accounts.actions') }}</span>
                 </div>
 
                 <div id="tree-container">
@@ -77,9 +82,16 @@
     </div>
 
     <style>
-        .toggle-icon { transition: transform .15s ease; transform: rotate(90deg); }
-        .toggle-btn[aria-expanded="false"] .toggle-icon { transform: rotate(0deg); }
+        .toggle-icon { transition: transform .18s ease-in-out; }
+        [dir="rtl"] .toggle-btn[aria-expanded="false"] .toggle-icon { transform: rotate(180deg); }
+        [dir="ltr"] .toggle-btn[aria-expanded="false"] .toggle-icon { transform: rotate(0deg); }
+        .toggle-btn[aria-expanded="true"] .toggle-icon { transform: rotate(90deg) !important; }
         .toggle-btn[disabled] { opacity: .5; cursor: wait; }
+
+        /* إظهار الأرصدة عند تفعيلها فقط */
+        .tree-show-balances .account-balances {
+            display: flex !important;
+        }
     </style>
 
     <script>
@@ -89,13 +101,23 @@
         const searchInput = document.getElementById('tree-search');
         const searchResultsBox = document.getElementById('tree-search-results');
         const emptySearchBox = document.getElementById('tree-empty-search');
+        const treeWrapper = document.getElementById('tree-wrapper');
+        const toggleBalancesBtn = document.getElementById('toggle-balances-btn');
+        const balancesBtnText = document.getElementById('balances-btn-text');
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
         function setExpanded(node, expanded) {
-            const btn = node.querySelector(':scope > .tree-row > .toggle-btn');
+            const btn = node.querySelector(':scope > .tree-row .toggle-btn');
             const childrenWrap = node.querySelector(':scope > .children-wrap');
+            const folderClosed = node.querySelector(':scope > .tree-row .folder-closed');
+            const folderOpen = node.querySelector(':scope > .tree-row .folder-open');
+
             if (btn) btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
             if (childrenWrap) childrenWrap.classList.toggle('hidden', !expanded);
+            if (folderClosed && folderOpen) {
+                folderClosed.classList.toggle('hidden', expanded);
+                folderOpen.classList.toggle('hidden', !expanded);
+            }
         }
 
         /**
@@ -141,31 +163,62 @@
                 });
         }
 
-        treeContainer.addEventListener('click', (e) => {
-            const btn = e.target.closest('.toggle-btn');
-            if (!btn || btn.disabled) return;
-
-            const node = btn.closest('.tree-node');
+        function toggleNode(node, btn) {
             const childrenWrap = node.querySelector(':scope > .children-wrap');
+            if (!childrenWrap) return;
+
             const expanded = btn.getAttribute('aria-expanded') === 'true';
             const willExpand = !expanded;
 
-            if (willExpand) {
-                // لما نفتح فرع، بنقفل إخوته في نفس المستوى تلقائيًا
-                // (سلوك أكورديون) - يسهّل التصفح في شجرة كبيرة بدل ما
-                // كل الفروع تفضل مفتوحة مع بعض.
-                const siblingsContainer = node.parentElement;
-                siblingsContainer.querySelectorAll(':scope > .tree-node').forEach((sibling) => {
-                    if (sibling !== node) setExpanded(sibling, false);
-                });
-
-                if (btn.dataset.loaded === '0') {
-                    loadChildren(btn, node, childrenWrap);
-                    return; // loadChildren هي اللي هتفتح العقدة لما البيانات توصل.
-                }
+            if (willExpand && btn.dataset.loaded === '0') {
+                loadChildren(btn, node, childrenWrap);
+                return;
             }
 
             setExpanded(node, willExpand);
+        }
+
+        // النقر على الحساب الأب (السطر بالكامل أو السهم أو الاسم أو الأيقونة) يفتح ما تحته
+        treeContainer.addEventListener('click', (e) => {
+            // استبعاد النقر على العناصر التفاعلية (الروابط، سويتش التفعيل، الأزرار)
+            if (e.target.closest('a, input, select, textarea, label.account-active-switch')) {
+                return;
+            }
+
+            const row = e.target.closest('.tree-row');
+            if (!row) return;
+
+            const node = row.closest('.tree-node');
+            if (!node) return;
+
+            const btn = row.querySelector('.toggle-btn');
+            if (!btn || btn.disabled) return;
+
+            toggleNode(node, btn);
+        });
+
+        // زر تبديل إظهار/إخفاء الأرصدة المالية
+        function updateBalancesVisibility(show) {
+            if (show) {
+                treeWrapper.classList.add('tree-show-balances');
+                balancesBtnText.textContent = @json(__('accounts.hide_balances'));
+                try { localStorage.setItem('accounts_tree_show_balances', '1'); } catch (err) {}
+            } else {
+                treeWrapper.classList.remove('tree-show-balances');
+                balancesBtnText.textContent = @json(__('accounts.show_balances'));
+                try { localStorage.setItem('accounts_tree_show_balances', '0'); } catch (err) {}
+            }
+        }
+
+        let savedBalancesState = false;
+        try {
+            savedBalancesState = localStorage.getItem('accounts_tree_show_balances') === '1';
+        } catch (err) {}
+        updateBalancesVisibility(savedBalancesState);
+
+        toggleBalancesBtn.addEventListener('click', () => {
+            const isCurrentlyShown = treeWrapper.classList.contains('tree-show-balances');
+            updateBalancesVisibility(!isCurrentlyShown);
         });
 
         // سويتش تفعيل/تعطيل الحساب مباشرة (AJAX بدون إعادة تحميل

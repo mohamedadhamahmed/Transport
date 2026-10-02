@@ -219,8 +219,11 @@ class FiscalYearClosingService
     private function leavesWithBalances(Carbon $closingDate): Collection
     {
         $all = FinancialAccount::query()
-            ->get(['id', 'name', 'account_number', 'account_type', 'parent_account_number', 'is_parent', 'branchs_id', 'debtor_current', 'creditor_current'])
+            ->get(['id', 'name', 'account_number', 'account_type', 'account_category_id', 'parent_account_number', 'is_parent', 'branchs_id', 'debtor_current', 'creditor_current'])
             ->keyBy('id');
+
+        // الحسابات اللي ليها أبناء بيشيروا ليها تعتبر آباء وليست أوراق طرفية
+        $parentIds = $all->pluck('parent_account_number')->filter()->unique()->flip();
 
         $after = CreditTransaction::query()
             ->where('created_at', '>', $closingDate->copy()->endOfDay())
@@ -229,7 +232,7 @@ class FiscalYearClosingService
             ->get()
             ->keyBy('customer_id');
 
-        return $all->filter(fn ($a) => !$a->is_parent)
+        return $all->filter(fn ($a) => !isset($parentIds[$a->id]) && !$a->is_parent)
             ->map(function ($account) use ($all, $after) {
                 $later = $after->get($account->id);
                 $account->category = $this->categoryOf($account, $all);
@@ -250,8 +253,10 @@ class FiscalYearClosingService
         $valid = [self::ASSETS, self::LIABILITIES, self::REVENUE, self::EXPENSES, self::EQUITY];
         $node = $account;
         for ($guard = 0; $node && $guard < 50; $guard++) {
-            if (in_array((int) $node->account_type, $valid, true)) {
-                return (int) $node->account_type;
+            $cat = in_array((int) $node->account_type, $valid, true) ? (int) $node->account_type : null;
+            $cat ??= in_array((int) ($node->account_category_id ?? null), $valid, true) ? (int) $node->account_category_id : null;
+            if ($cat !== null) {
+                return $cat;
             }
             $node = $node->parent_account_number ? $all->get($node->parent_account_number) : null;
         }

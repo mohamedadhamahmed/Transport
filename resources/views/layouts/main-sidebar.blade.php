@@ -5,9 +5,32 @@
     #6B2FD6 بنفسجي (نهاية التدرج)
     #F5811E برتقالي (لون التمييز / العنصر النشط)
 --}}
+<style>
+    @media (min-width: 1024px) {
+        aside.app-sidebar { position: sticky; top: 0; height: 100vh; }
+    }
+    aside.app-sidebar > nav {
+        min-height: 0;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+    aside.app-sidebar > nav::-webkit-scrollbar {
+        width: 5px;
+    }
+    aside.app-sidebar > nav::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    aside.app-sidebar > nav::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 9999px;
+    }
+    aside.app-sidebar > nav::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.35);
+    }
+</style>
 <aside
     x-data="sidebarSearchComponent()"
-    :class="sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'"
+    :class="app-sidebar sidebarOpen ?'translate-x-0' : 'translate-x-full lg:translate-x-0'"
     class="fixed lg:static inset-y-0 right-0 z-40 w-64 shrink-0 bg-[#0F1B4C] text-white flex flex-col transition-transform duration-200 ease-in-out">
     <!-- الشعار -->
     <div class="flex items-center justify-center gap-2 py-5 border-b border-white/10">

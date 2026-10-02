@@ -190,14 +190,18 @@ class AccountController extends Controller
         ])->all();
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $this->authorize('accounts.create');
 
         $branches = Branch::orderBy('name')->get(['id', 'name']);
         $accountTypes = AccountType::where('active', true)->orderBy('id')->get();
+        $parentAccount = null;
+        if ($request->filled('parent_id')) {
+            $parentAccount = FinancialAccount::find($request->input('parent_id'));
+        }
 
-        return view('accounts.create', compact('branches', 'accountTypes'));
+        return view('accounts.create', compact('branches', 'accountTypes', 'parentAccount'));
     }
 
     public function store(Request $request)

@@ -36,7 +36,11 @@ return new class extends Migration
         // لو تشغيل سابق وقف في النص (الجدول اتعمل والـ index فشل) - نكمل الناقص بس.
         if (Schema::hasTable('fiscal_year_opening_balances')) {
             $hasIndex = collect(\Illuminate\Support\Facades\DB::select('SHOW INDEX FROM fiscal_year_opening_balances'))
-                ->contains(fn ($i) => $i->Key_name === 'fyob_closing_category_idx');
+                ->contains(function ($i) {
+                    $arr = (array) $i;
+                    $key = $arr['Key_name'] ?? $arr['key_name'] ?? '';
+                    return $key === 'fyob_closing_category_idx';
+                });
             if (!$hasIndex) {
                 Schema::table('fiscal_year_opening_balances', function (Blueprint $table) {
                     $table->index(['fiscal_year_closing_id', 'category'], 'fyob_closing_category_idx');
@@ -47,7 +51,7 @@ return new class extends Migration
         if (!Schema::hasTable('fiscal_year_opening_balances')) {
             Schema::create('fiscal_year_opening_balances', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('fiscal_year_closing_id')->constrained('fiscal_year_closings')->cascadeOnDelete();
+                $table->foreignId('fiscal_year_closing_id')->constrained('fiscal_year_closings', indexName: 'fyob_closing_fk')->cascadeOnDelete();
                 $table->unsignedBigInteger('account_id');
                 $table->string('account_number', 50)->nullable();
                 $table->string('account_name')->nullable();

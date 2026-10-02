@@ -26,18 +26,20 @@
         5 => '#7C3AED', // حقوق ملكية - بنفسجي
     ];
     $categoryNames = [
-        1 => 'أصول',
-        2 => 'خصوم',
-        3 => 'إيرادات',
-        4 => 'مصروفات',
-        5 => 'حقوق ملكية',
+        1 => __('accounts.category_assets') !== 'accounts.category_assets' ? __('accounts.category_assets') : 'أصول',
+        2 => __('accounts.category_liabilities') !== 'accounts.category_liabilities' ? __('accounts.category_liabilities') : 'خصوم',
+        3 => __('accounts.category_revenues') !== 'accounts.category_revenues' ? __('accounts.category_revenues') : 'إيرادات',
+        4 => __('accounts.category_expenses') !== 'accounts.category_expenses' ? __('accounts.category_expenses') : 'مصروفات',
+        5 => __('accounts.category_equity') !== 'accounts.category_equity' ? __('accounts.category_equity') : 'حقوق ملكية',
     ];
     $nameColor = $categoryColors[$account->account_type] ?? '#6B7280';
     $categoryName = $categoryNames[$account->account_type] ?? null;
     $nameWeightClass = $nameWeightClass ?? 'text-sm';
 @endphp
 
-<span class="text-xs text-gray-400 w-16 shrink-0">{{ $account->account_number ?? '-' }}</span>
+<span class="inline-flex items-center justify-center font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200 min-w-[3.5rem] shrink-0 text-center tracking-wider shadow-xs" title="{{ __('accounts.account_number') }}: {{ $account->account_number ?? '-' }}">
+    {{ $account->account_number ?: '-' }}
+</span>
 <span class="{{ $nameWeightClass }} flex-1 truncate" style="color: {{ $nameColor }};">
     @isset($breadcrumb)
         @if (!empty($breadcrumb))
@@ -46,32 +48,42 @@
     @endisset
     {{ $account->name }}
     @if ($categoryName)
-        <span class="font-normal text-xs">({{ $categoryName }})</span>
+        <span class="font-normal text-xs opacity-75">({{ $categoryName }})</span>
     @endif
 </span>
 
-<span class="text-xs text-gray-500 w-24 text-end shrink-0">{{ number_format($account->debtor_current ?? 0, 2) }}</span>
-<span class="text-xs text-gray-500 w-24 text-end shrink-0">{{ number_format($account->creditor_current ?? 0, 2) }}</span>
-<span class="text-xs font-semibold text-[#0F1B4C] w-24 text-end shrink-0">{{ number_format($account->current_balance, 2) }}</span>
+<div class="account-balances items-center gap-3 shrink-0 hidden">
+    <span class="text-xs text-gray-500 w-24 text-end shrink-0 font-mono">{{ number_format($account->debtor_current ?? 0, 2) }}</span>
+    <span class="text-xs text-gray-500 w-24 text-end shrink-0 font-mono">{{ number_format($account->creditor_current ?? 0, 2) }}</span>
+    <span class="text-xs font-semibold text-[#0F1B4C] w-24 text-end shrink-0 font-mono">{{ number_format($account->current_balance, 2) }}</span>
+</div>
 
-<div class="flex items-center gap-2 shrink-0">
-    {{-- سويتش تفعيل/تعطيل مباشر (AJAX - بدون إعادة تحميل الصفحة) -
-         راجع AccountController::toggleActive. --}}
-    <label class="account-active-switch relative inline-flex items-center cursor-pointer" title="{{ __('accounts.active') }}">
-        <input type="checkbox" class="account-active-checkbox sr-only peer"
-               data-toggle-url="{{ route('accounts.toggle', $account) }}"
-               @checked($account->active)>
-        <span class="w-9 h-5 rounded-full bg-gray-200 peer-checked:bg-emerald-500 transition-colors relative">
-            <span class="account-active-knob absolute top-0.5 start-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4 rtl:peer-checked:-translate-x-4"></span>
-        </span>
-    </label>
+<div class="flex items-center gap-1.5 shrink-0" onclick="event.stopPropagation();">
+    {{-- إضافة حساب فرعي --}}
+    <a href="{{ route('accounts.create', ['parent_id' => $account->id]) }}" title="{{ __('accounts.add_sub_account') }}"
+       class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+    </a>
 
+    {{-- كشف حساب --}}
     <a href="{{ route('accounts.statement', $account) }}" title="{{ __('accounts.statement') }}"
        class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3v18M3 9h18M3 15h18"/></svg>
     </a>
+
+    {{-- تعديل حساب --}}
     <a href="{{ route('accounts.edit', $account) }}" title="{{ __('accounts.edit_account') }}"
        class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-amber-50 text-amber-600 hover:bg-amber-100 transition">
         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
     </a>
+
+    {{-- سويتش تفعيل/تعطيل مباشر (AJAX) --}}
+    <label class="account-active-switch relative inline-flex items-center cursor-pointer ms-1" title="{{ __('accounts.active') }}">
+        <input type="checkbox" class="account-active-checkbox sr-only peer"
+               data-toggle-url="{{ route('accounts.toggle', $account) }}"
+               @checked($account->active)>
+        <span class="w-8 h-4.5 rounded-full bg-gray-200 peer-checked:bg-emerald-500 transition-colors relative block">
+            <span class="account-active-knob absolute top-0.5 start-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-3.5 rtl:peer-checked:-translate-x-3.5"></span>
+        </span>
+    </label>
 </div>

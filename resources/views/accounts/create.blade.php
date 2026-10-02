@@ -30,7 +30,7 @@
 
             <form method="POST" action="{{ route('accounts.store') }}" class="space-y-6">
                 @csrf
-                <input type="hidden" name="parent_account_number" id="parent_account_number" value="{{ old('parent_account_number') }}">
+                <input type="hidden" name="parent_account_number" id="parent_account_number" value="{{ old('parent_account_number', $parentAccount?->id) }}">
 
                 <div class="bg-white shadow-sm border border-gray-100 sm:rounded-xl p-6 space-y-4">
                     <div>
@@ -44,6 +44,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('accounts.parent_account') }}</label>
                             <div class="relative">
                                 <input type="text" id="parent-search" autocomplete="off" placeholder="{{ __('accounts.search_placeholder') }}"
+                                       value="{{ old('parent_name', $parentAccount ? ($parentAccount->name . ($parentAccount->account_number ? ' (#' . $parentAccount->account_number . ')' : '')) : '') }}"
                                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                 <div id="parent-results" class="absolute z-10 mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-lg divide-y divide-gray-50 max-h-56 overflow-y-auto hidden"></div>
                             </div>
@@ -62,7 +63,7 @@
                             <select name="branchs_id" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                 <option value="">{{ __('accounts.all_branches') }}</option>
                                 @foreach ($branches as $branch)
-                                    <option value="{{ $branch->id }}" @selected(old('branchs_id') == $branch->id)>{{ $branch->name }}</option>
+                                    <option value="{{ $branch->id }}" @selected(old('branchs_id', $parentAccount?->branchs_id) == $branch->id)>{{ $branch->name }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -71,7 +72,7 @@
                             <select name="account_category_id" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
                                 <option value="">{{ __('accounts.no_category') }}</option>
                                 @foreach ($accountTypes as $accountType)
-                                    <option value="{{ $accountType->id }}" @selected(old('account_category_id') == $accountType->id)>{{ $accountType->name }}</option>
+                                    <option value="{{ $accountType->id }}" @selected(old('account_category_id', $parentAccount?->account_category_id ?? $parentAccount?->account_type) == $accountType->id)>{{ $accountType->name }}</option>
                                 @endforeach
                             </select>
                         </div>
