@@ -1,6 +1,6 @@
 <?php
 
-// ملف بيانات ودجت "المساعد" - يتولد آليًا، لا تعدله يدويًا بدون مراجعة النص العربي/الإنجليزي المقابل.
+// Assistant Widget Data - Tailored for Transportation & Fleet ERP.
 
 return array (
   'title' => 'Assistant',
@@ -12,572 +12,392 @@ return array (
   array (
     0 => 
     array (
-      'key' => 'sales',
-      'label' => 'Sales',
-      'icon' => 'bag',
+      'key' => 'loads',
+      'label' => 'Truck Operations & Waybills',
+      'icon' => 'truck',
       'items' => 
       array (
         0 => 
         array (
-          'key' => 'new_invoice',
-          'label' => 'Create New Sales Invoice',
+          'key' => 'new_load',
+          'label' => 'Create New Waybill (Load Truck)',
           'steps' => 
           array (
-            0 => 'On the "New Sales Invoice" screen, choose the customer from the "Customer" dropdown, or click "Add New Customer" to add one without leaving the page.',
-            1 => 'Choose the "Payment Method" (Cash / Bank Transfer / Card / Credit / Split Payment); choosing "Split Payment" reveals "Cash Amount" and "Bank/Card Amount" fields.',
-            2 => 'The "Branch" is set automatically to your current branch; pick the "Tax" rate applied to all items, and add "Notes" if needed.',
-            3 => 'Search for a product in the search box or click "Choose Product" to open the full product picker (with search and paging); repeat this to add multiple line items.',
-            4 => 'For each item in the table, adjust "Quantity", "Unit Price" and "Discount" as needed — the line total and profit update automatically.',
-            5 => 'Enter an "Invoice Discount" (extra discount on the whole invoice) and a "P.O. Number" if one applies.',
-            6 => 'Review the totals below the table (Subtotal, Total Discount, Total Tax, Total Profit, Grand Total).',
-            7 => 'Click "Save Invoice" to record it as an official invoice immediately, or "Save as Draft" to finish it later from "Previous Drafts".',
+            0 => 'From the sidebar "Truck Operations" or header button "Load Truck" / "New Waybill".',
+            1 => 'Select the customer from the "Customer *" dropdown, or click "Add New Customer" directly.',
+            2 => 'Select the "Truck *" from available trucks; default driver and cost center will be filled automatically.',
+            3 => 'Set trip route: "Loading City", "Destination City", and scheduled pickup date/time.',
+            4 => 'Enter cargo details: cargo type, approximate weight, package count, and shipping notes.',
+            5 => 'Set the agreed freight rate / shipping charge and payment method (Cash / On Account / Pay on Delivery).',
+            6 => 'Click "Save Waybill" to generate the shipment order and change truck status to "En Route".',
           ),
         ),
         1 => 
         array (
-          'key' => 'new_return',
-          'label' => 'Create Sales Return',
+          'key' => 'trucks_board',
+          'label' => 'Fleet Board & Status Tracking',
           'steps' => 
           array (
-            0 => 'On the "Sales Return" screen, search for the original invoice in the "Invoice" field by invoice number or customer name, or click "Search".',
-            1 => 'Select the invoice from the search results; its details appear (Invoice Number, Customer, Payment Method, Grand Total).',
-            2 => 'In the items table, enter the "Return Quantity" for each item you want to return (capped by the "Available to Return" column).',
-            3 => 'If part of the refund is actual cash, choose a "Refund Method" (Cash / Bank Transfer / Card).',
-            4 => 'Review "Deducted from Customer Credit Balance", "Actual Refund Amount" and "Total Return" below the table.',
-            5 => 'Click "Save Return" to record it, or "Cancel" to go back to the invoice list.',
+            0 => 'Open "Fleet Board" to view real-time distribution and status cards of your entire fleet.',
+            1 => 'Browse status columns: (Available Trucks, En Route, Delayed Unloading, Under Maintenance).',
+            2 => 'Check the smart oil change alert badge on each truck card (Green: Good, Yellow: Due Soon, Red: Overdue).',
+            3 => 'Click on any truck card to register arrival, complete unloading, or update current odometer reading.',
+            4 => 'Quickly toggle a truck to maintenance or back to ready with a single click.',
           ),
         ),
         2 => 
         array (
-          'key' => 'new_quotation',
-          'label' => 'Create New Quotation',
+          'key' => 'convert_to_invoice',
+          'label' => 'Convert Waybills to Transport Invoice',
           'steps' => 
           array (
-            0 => 'On the "New Quotation" screen, choose the "Customer" from the dropdown, or click "Add New Customer" to add one directly.',
-            1 => 'Choose the "Payment Method"; selecting "Split Payment" reveals "Cash Amount" and "Bank Amount" fields.',
-            2 => 'The "Branch" is set automatically; pick the "Tax" rate and add "Note" if needed.',
-            3 => 'If this customer has earlier quotations, they appear automatically in the "Previous quotations for this customer" table for reference.',
-            4 => 'Search for a product or click "Choose Product" to add it to the table; repeat to add multiple items.',
-            5 => 'Adjust "Quantity", "Unit Price" and "Discount" for each item as needed.',
-            6 => 'Enter an "Extra Discount" and a "PO Number" if applicable, and review the totals below the table.',
-            7 => 'Click "Save Quotation" to save it, or "Cancel" to go back.',
+            0 => 'Navigate to "Transport Invoices" -> "New Transport Invoice" or use the header shortcut.',
+            1 => 'Select the "Customer"; all completed, uninvoiced waybills for this customer will be listed.',
+            2 => 'Check the waybills you wish to include in this tax invoice.',
+            3 => 'Review trip amounts, 15% VAT, and any additional services or discounts.',
+            4 => 'Click "Issue Invoice" to generate an official e-invoice with verified QR code and auto-post ledger entries.',
           ),
         ),
       ),
     ),
     1 => 
     array (
-      'key' => 'delivery',
-      'label' => 'Product Delivery',
-      'icon' => 'box',
+      'key' => 'trucks',
+      'label' => 'Fleet & Trucks',
+      'icon' => 'truck',
       'items' => 
       array (
         0 => 
         array (
-          'key' => 'new_delivery',
-          'label' => 'Deliver Product to Customer',
+          'key' => 'new_truck',
+          'label' => 'Add New Truck to Fleet',
           'steps' => 
           array (
-            0 => 'On the "Deliver Product" screen, choose the customer from "Choose Customer" (defaults to "CASH CUSTOMER"), or click "Add New Customer".',
-            1 => 'Choose the "Payment Method"; selecting "Split (Cash & Bank)" reveals "Cash Amount" and "Bank Amount" fields.',
-            2 => 'Add "Notes" and a "P.O#" if applicable.',
-            3 => 'Search for a product or click "Choose Product", or click "New Product" to add one that doesn\'t exist yet; repeat to add multiple items.',
-            4 => 'Adjust "Quantity", "Unit Price" and "Discount" for each item in the table.',
-            5 => 'Enter a "Discount on Invoice" below the table and review the totals.',
-            6 => 'Click "Save Delivery" to record it, or "Cancel" to go back.',
+            0 => 'From the sidebar "Trucks", click "Add New Truck".',
+            1 => 'Enter "Plate Number *", truck type, model, manufacture year, and chassis number.',
+            2 => 'Select "Default Driver", "Branch", and "Cost Center" (a cost center is also created automatically).',
+            3 => 'Enter "Current Odometer (KM)" reading accurately.',
+            4 => 'Choose "Oil Change Interval (KM)" (4,000, 5,000, or 10,000 km) for automatic maintenance alerts.',
+            5 => 'Enter registration, inspection, and insurance expiry dates to receive renewal alerts.',
+            6 => 'Click "Save Truck" to add it to your fleet.',
+          ),
+        ),
+        1 => 
+        array (
+          'key' => 'toggle_maintenance',
+          'label' => 'Toggle Truck to Maintenance (1-Click)',
+          'steps' => 
+          array (
+            0 => 'On the "Fleet Board" or "Trucks" table, locate the quick maintenance button beside each truck.',
+            1 => 'Click "Maintenance" to instantly move the truck into maintenance mode and prevent new bookings.',
+            2 => 'Once workshop repairs are done, click "Ready for Work" to return it to active duty immediately.',
           ),
         ),
       ),
     ),
     2 => 
     array (
-      'key' => 'delivery_note',
-      'label' => 'Delivery Note',
-      'icon' => 'box',
+      'key' => 'truck_store_issues',
+      'label' => 'Parts & Oil Store Issue',
+      'icon' => 'wrench',
       'items' => 
       array (
         0 => 
         array (
-          'key' => 'new_delivery_note',
-          'label' => 'Create Pending Delivery Note',
+          'key' => 'new_store_issue',
+          'label' => 'Issue Oils, Tires or Parts to a Truck',
           'steps' => 
           array (
-            0 => 'On the delivery note screen, choose the customer from "Choose Customer" (defaults to "CASH CUSTOMER"), or click "Add New Customer".',
-            1 => 'Add "Notes" and a "P.O#" if applicable — there\'s no payment method here since invoicing happens later on approval.',
-            2 => 'Search for a product or click "Choose Product", or "New Product" to add a new one; repeat to add multiple items.',
-            3 => 'Adjust "Quantity", "Unit Price" and "Discount" for each item in the table.',
-            4 => 'Enter a "Discount on Invoice" and review the "Estimated Pending Value" below the table.',
-            5 => 'Click "Save Delivery Note" to record it as pending until it\'s later converted into an invoice, or "Cancel".',
+            0 => 'From the sidebar under "Trucks", select "Parts & Oil Store Issue".',
+            1 => 'Select the target "Truck *"; driver, cost center, and latest odometer are loaded automatically.',
+            2 => 'Enter the "Current Odometer" reading at the time of issuance.',
+            3 => 'Select "Oil Change Interval" (4k / 5k / 10k km); the system calculates "Next Oil Change Odometer" instantly.',
+            4 => 'Select expense category (Oils / Tires / Spare Parts / General Maintenance).',
+            5 => 'In the items table, choose items from stock; current inventory balance and unit cost appear automatically.',
+            6 => 'Enter exact issued quantity (e.g., 20 liters of oil, 2 tires). Use "+ Add Item" for multiple lines.',
+            7 => 'Click "Save Store Issue"; stock is deducted immediately and an accounting entry is posted (Debit: Truck Maintenance Expense, Credit: Inventory 181) without touching cash or banks.',
           ),
         ),
         1 => 
         array (
-          'key' => 'approve_convert',
-          'label' => 'Approve Delivery Note & Convert to Invoice',
+          'key' => 'view_issues',
+          'label' => 'Review & Print Previous Store Issues',
           'steps' => 
           array (
-            0 => 'From the "Approve & Convert to Invoice" screen, you\'ll see a list of customers who still have pending, un-invoiced delivered quantities.',
-            1 => 'Click "Review Pending" next to the customer you want, to open all of their pending quantities.',
-            2 => 'Enter the "Quantity to Invoice" for each item you want to convert into an invoice now.',
-            3 => 'Choose the "Payment Method"; if you pick Split Payment enter the cash and bank/card amounts, and add a note if needed.',
-            4 => 'Review the totals: "Subtotal", "Total Tax", "Grand Total (incl. tax)".',
-            5 => 'Click "Approve & Convert to Invoice" to create a real tax invoice for the selected quantities; this action is final and cannot be undone.',
+            0 => 'From the sidebar under "Trucks", select "Truck Store Issues".',
+            1 => 'Browse past issue records with issue number, date, truck, odometer, and total cost.',
+            2 => 'Click "View" to see full item details and associated double-entry journal lines.',
+            3 => 'Print the issuance slip for the workshop or archives.',
+            4 => 'Canceling an issue automatically restores quantities back to stock and reverses journal entries.',
+          ),
+        ),
+        2 => 
+        array (
+          'key' => 'parts_report',
+          'label' => 'Parts Consumption & Oil Change Report',
+          'steps' => 
+          array (
+            0 => 'From "Trucks", select "Parts & Oil Issue Report".',
+            1 => 'Filter by date range, truck, or category (Oils / Tires / Parts).',
+            2 => 'View total expenditure and quantities consumed across the fleet.',
+            3 => 'Inspect the "Fleet Oil Status Table" to see remaining kilometers for each truck and spot overdue oil changes.',
           ),
         ),
       ),
     ),
     3 => 
     array (
-      'key' => 'purchases',
-      'label' => 'Purchases',
-      'icon' => 'cart',
+      'key' => 'drivers',
+      'label' => 'Drivers & HR',
+      'icon' => 'user',
       'items' => 
       array (
         0 => 
         array (
-          'key' => 'new_purchase',
-          'label' => 'Create New Purchase Invoice',
+          'key' => 'new_driver',
+          'label' => 'Add Driver (Auto-Synced with HR & Accounts)',
           'steps' => 
           array (
-            0 => 'On the "New Purchase Invoice" screen, choose the "Supplier" or click "Add New Supplier" to add one directly.',
-            1 => 'Choose the "Branch" (this loads its payment accounts), then pick the "Payment Method" from the branch\'s accounts, or leave it as "Credit (on supplier account)".',
-            2 => 'Enter the "Supplier invoice number" and "Invoice date", the "Warehouse" and "Cost center" (or click "+" to add a new cost center), the "Shipping fee" and "Note".',
-            3 => 'Upload any "Invoice attachments (PDF or image)" if you have them.',
-            4 => 'Search for a product or click "Choose product" to add it to the table, or click "Download Excel template" then "Import from Excel" to add many items at once.',
-            5 => 'For each item, adjust "Quantity", "Purchase unit price", "Sale price (optional)", "Discount" and the "Tax" rate.',
-            6 => 'Enter an "Extra invoice discount" and review the totals (including shipping) below the table.',
-            7 => 'Click "Save purchase invoice" to record it, or "Cancel" to go back.',
+            0 => 'From the sidebar "Drivers", click "Add New Driver".',
+            1 => 'Enter full name, National ID / Iqama, mobile phone, and monthly salary.',
+            2 => 'Select driver type "Company Driver".',
+            3 => 'Enter driving license details and expiration date.',
+            4 => 'Click "Save Driver"; the system automatically creates an employee record in HR (EMP-...) and opens dedicated accounts in the Chart of Accounts.',
           ),
         ),
         1 => 
         array (
-          'key' => 'new_return',
-          'label' => 'Create Purchase Return',
+          'key' => 'driver_custody',
+          'label' => 'Issue & Settle Driver Travel Custody',
           'steps' => 
           array (
-            0 => 'On the "New Purchase Return" screen, search for the original purchase invoice in the search box and click "Search".',
-            1 => 'Select the invoice you want from the results; its details appear (Invoice Number, Supplier, Payment Method).',
-            2 => 'If the invoice was paid immediately, choose the "Refund Account" the money should return to; if it was on credit, the amount is credited back to the supplier\'s account automatically instead.',
-            3 => 'Enter the "Return Date" and the "Reason" for the return.',
-            4 => 'In the items table, enter the "Return Quantity" for each item you want to return (capped by what\'s still available to return).',
-            5 => 'Review the totals (Subtotal, Total Tax, Grand Total) below the table.',
-            6 => 'Click "Save Return" to record it, or "Cancel" to go back to the returns list.',
-          ),
-        ),
-        2 => 
-        array (
-          'key' => 'new_order',
-          'label' => 'Create New Purchase Order',
-          'steps' => 
-          array (
-            0 => 'From the "Purchase Orders" list, click the "+ New Purchase Order" button at the top to open a separate order-creation screen.',
-            1 => 'Choose the "Supplier" and the "Branch" the order should be recorded under.',
-            2 => 'Enter the "Warehouse", "Cost center", "Shipping fee", "Invoice date" and "Note" if needed.',
-            3 => 'Search for a product or click "Choose Product" to add it to the items table; repeat to add multiple items.',
-            4 => 'For each item set the "Quantity", "Unit Price", "Discount" and the "Tax" rate.',
-            5 => 'Enter an "Extra Invoice Discount" if needed and review the automatically calculated totals.',
-            6 => 'Save the purchase order; it is only a purchase intent and does not affect stock or accounting until it\'s later converted into a real purchase invoice.',
+            0 => 'From "Vouchers" choose "New Payment Voucher" or from HR "Employee Loans".',
+            1 => 'Select the driver as the debit account and cash/bank as credit account.',
+            2 => 'Enter custody amount for road expenses (diesel, tolls, weighbridges).',
+            3 => 'Upon trip completion, settle receipts against the truck cost center and return surplus to treasury.',
           ),
         ),
       ),
     ),
     4 => 
     array (
-      'key' => 'stock_transfers',
-      'label' => 'Stock Transfers',
-      'icon' => 'box',
+      'key' => 'transport_invoices',
+      'label' => 'Transport Invoices & Quotations',
+      'icon' => 'doc',
       'items' => 
       array (
         0 => 
         array (
-          'key' => 'new_dispatch',
-          'label' => 'Dispatch Stock to Another Branch',
+          'key' => 'new_transport_invoice',
+          'label' => 'Issue Tax Transport Invoice',
           'steps' => 
           array (
-            0 => 'On the "Select Sending Branch" screen, click the branch you\'re working from (each branch has its own dispatch voucher).',
-            1 => 'On the "Dispatch Products to Another Branch" screen, choose the "Receiving Branch" from the dropdown.',
-            2 => 'Choose the "Receiving Employee" (this list becomes active once the receiving branch is selected).',
-            3 => 'Adjust the "Date" if needed, and add "Notes".',
-            4 => 'Click "Pick Product" to open the full list of products available in your branch, or use the quick search box next to it; repeat to add multiple items.',
-            5 => 'For each added item, set the "Quantity" to send (capped by the "Available Stock" in your branch).',
-            6 => 'Click "Save as Draft" to finish it later, or "Confirm Dispatch" to actually send the voucher to the receiving branch.',
+            0 => 'From "Transport Invoices", click "+ New Transport Invoice".',
+            1 => 'Select the customer and payment terms (Cash / Bank Transfer / Credit).',
+            2 => 'Add freight items or trip details (route, number of trips, rate, VAT rate).',
+            3 => 'Review totals (Subtotal, 15% VAT, Grand Total).',
+            4 => 'Click "Save Invoice" to print and generate ZATCA compliant QR code.',
           ),
         ),
         1 => 
         array (
-          'key' => 'receive',
-          'label' => 'Receive Stock Transfer',
+          'key' => 'new_quotation',
+          'label' => 'Create Quotation for Client',
           'steps' => 
           array (
-            0 => 'On the "Select Receiving Branch" screen, click your branch to open its transfer-receiving screen.',
-            1 => 'On the "Receive Products from Another Branch" screen, choose the voucher from the "Voucher No." dropdown (only vouchers pending receipt for your branch are listed).',
-            2 => 'Review the voucher details that appear automatically: "Sending Branch", "Sending Employee", "Date".',
-            3 => 'Review the items table (Product and Quantity) sent to you.',
-            4 => 'Click "Confirm Receipt" to confirm receiving the quantities and add them to your branch stock.',
+            0 => 'From "Transport Invoices", choose "New Quotation".',
+            1 => 'Select customer, routes, and proposed freight rates.',
+            2 => 'Add freight terms, validity period, and notes.',
+            3 => 'Save and export as PDF to send to the client.',
           ),
         ),
       ),
     ),
     5 => 
     array (
-      'key' => 'customers',
-      'label' => 'Customers',
-      'icon' => 'store',
+      'key' => 'purchases',
+      'label' => 'Purchases & Spare Parts',
+      'icon' => 'cart',
       'items' => 
       array (
         0 => 
         array (
-          'key' => 'new_customer',
-          'label' => 'New Customer',
+          'key' => 'new_purchase',
+          'label' => 'Purchase Oils, Tires & Parts to Inventory',
           'steps' => 
           array (
-            0 => 'Type the "Name" (required).',
-            1 => 'Enter "Phone" (required) and "Email" (optional).',
-            2 => 'If the customer is a company, fill in "Company Name", "Tax Number" and "Commercial Registration No.".',
-            3 => 'Set the "Credit Limit" and "Grace Period (Days)" allowed for this customer.',
-            4 => 'Enter an "Opening Balance" if the customer already had a balance before you started using the system.',
-            5 => 'Fill in the "National Address" fields: City, District, Street Name, Building Number, Additional Number, Postal Code.',
-            6 => 'Add "Notes" if needed.',
-            7 => 'Click "Save" to add the customer - a linked account is automatically created for them in the Chart of Accounts.',
+            0 => 'From "Purchase Invoices", click "+ New Purchase Invoice".',
+            1 => 'Select the supplier (oil supplier, tire dealer, workshop).',
+            2 => 'Choose target parts warehouse, branch, and payment terms.',
+            3 => 'Enter supplier invoice number and date.',
+            4 => 'Add purchased items (oil barrels, tires, filters) with quantity, unit cost, and tax rate.',
+            5 => 'Save invoice; items are immediately added to stock ready for truck issuance.',
+          ),
+        ),
+        1 => 
+        array (
+          'key' => 'new_product',
+          'label' => 'Add New Item (Oil / Tire / Part) in Stock',
+          'steps' => 
+          array (
+            0 => 'From "Products & Inventory", click "Add Product".',
+            1 => 'Enter item name (e.g., Rimula 15W-40 Oil, 315/80R22.5 Tire).',
+            2 => 'Select unit of measure (Liter / Piece / Set / Drum) and default cost.',
+            3 => 'Assign branch and warehouse, then save.',
           ),
         ),
       ),
     ),
     6 => 
     array (
-      'key' => 'suppliers',
-      'label' => 'Suppliers',
-      'icon' => 'store',
+      'key' => 'accounting',
+      'label' => 'Accounting & Cost Centers',
+      'icon' => 'ledger',
       'items' => 
       array (
         0 => 
         array (
-          'key' => 'new_supplier',
-          'label' => 'New Supplier',
+          'key' => 'truck_expense_voucher',
+          'label' => 'Payment Voucher for Truck Maintenance / Expense',
           'steps' => 
           array (
-            0 => 'Type the "Name" (required), and add "Name (English)" if needed.',
-            1 => 'Enter "Phone" (required) and "Email" (optional).',
-            2 => 'If the supplier is a company, fill in "Company Name", "Tax Number" and "Commercial Registration No.".',
-            3 => 'Set the "Credit Limit" granted to this supplier.',
-            4 => 'Add "Notes" if needed.',
-            5 => 'Fill in the "Address" fields: City, District, Street Name, Building Number, Additional Number, Postal Code.',
-            6 => 'Click "Save" to add the supplier.',
+            0 => 'Click header button "New Truck Maintenance/Expense Voucher" or "Vouchers" -> "New Payment Voucher".',
+            1 => 'Select debit expense account (Maintenance, Tires, Fuel, Road fees).',
+            2 => 'Select credit payment account (Cash treasury or bank account).',
+            3 => 'Crucial: Select the target truck "Cost Center" to allocate the expense directly to the truck P&L.',
+            4 => 'Enter amount, description, attach bill, and save.',
+          ),
+        ),
+        1 => 
+        array (
+          'key' => 'receipt_voucher',
+          'label' => 'Receipt Voucher from Transport Client',
+          'steps' => 
+          array (
+            0 => 'Click "New Receipt Voucher" from header or "Vouchers".',
+            1 => 'Select the customer account.',
+            2 => 'Select the receiving cash or bank account.',
+            3 => 'Enter received amount, bank transfer reference, and description.',
+            4 => 'Save voucher to settle customer ledger and credit treasury.',
+          ),
+        ),
+        2 => 
+        array (
+          'key' => 'journal_entry',
+          'label' => 'Create General Journal Entry',
+          'steps' => 
+          array (
+            0 => 'From "Journal Entries", click "New Journal Entry".',
+            1 => 'Enter entry date and general description.',
+            2 => 'Add debit and credit accounts, linking truck cost centers to lines.',
+            3 => 'Verify debit equals credit, then save.',
           ),
         ),
       ),
     ),
     7 => 
     array (
-      'key' => 'hr',
-      'label' => 'HR',
-      'icon' => 'user',
+      'key' => 'entities',
+      'label' => 'Customers & Suppliers',
+      'icon' => 'store',
       'items' => 
       array (
         0 => 
         array (
-          'key' => 'new_employee',
-          'label' => 'New Employee',
+          'key' => 'new_customer',
+          'label' => 'Add New Transport Customer',
           'steps' => 
           array (
-            0 => 'Type the "Name" (required), and add the "Name (English)" if needed.',
-            1 => 'Enter the "National ID/Iqama", "Phone" and "Email".',
-            2 => 'Type the "Job Title" and "Department" the employee belongs to.',
-            3 => 'Choose the "Branch" and set the "Hire Date".',
-            4 => 'Enter the "Basic Salary" and "Allowances".',
-            5 => 'Choose the "Pay Method" (Cash or Bank Transfer) - for bank transfer, fill in "Bank Name" and "IBAN".',
-            6 => 'Add the "National Address" if available, and any extra "Notes".',
-            7 => 'Click "Save" to add the employee - an "Employee No." is assigned automatically.',
+            0 => 'From "Customers" sidebar or header "+ New Customer" button.',
+            1 => 'Enter customer/company name, phone number, and email.',
+            2 => 'Enter VAT number, commercial registration, and national address.',
+            3 => 'Set credit limit, payment grace days, and opening balance.',
+            4 => 'Click Save; a dedicated financial ledger is created in the Chart of Accounts automatically.',
           ),
         ),
         1 => 
         array (
-          'key' => 'new_attendance',
-          'label' => 'Record Attendance',
+          'key' => 'new_supplier',
+          'label' => 'Add Parts / Service Supplier',
           'steps' => 
           array (
-            0 => 'Choose the "Employee" from the list (required).',
-            1 => 'Check the "Date" field (defaults to today, and can be changed).',
-            2 => 'Enter "Check In" time if you want to record it.',
-            3 => 'Enter "Check Out" time if you want to record it.',
-            4 => 'Add any "Notes" about that day.',
-            5 => 'Click "Save" to record the attendance day.',
-          ),
-        ),
-        2 => 
-        array (
-          'key' => 'new_loan',
-          'label' => 'New Loan/Custody',
-          'steps' => 
-          array (
-            0 => 'From the "Loans & Custodies" screen, choose the "Employee" (required).',
-            1 => 'Choose the "Type": Cash Loan or Custody.',
-            2 => 'Choose "Pay From Account" - the treasury/bank account the amount will be paid from.',
-            3 => 'Enter the "Amount".',
-            4 => 'Set the "Monthly Installment" if it will be deducted in instalments, or leave it empty to deduct the full remaining amount in one go on the next payroll run.',
-            5 => 'Check the "Date" field (defaults to today).',
-            6 => 'Add a "Description" and "Notes" if needed.',
-            7 => 'Click "Save" to record the loan/custody and automatically post its accounting entry.',
-          ),
-        ),
-        3 => 
-        array (
-          'key' => 'new_custody',
-          'label' => 'New Asset Custody',
-          'steps' => 
-          array (
-            0 => 'From the "Asset Custody" screen, choose the "Employee" (required).',
-            1 => 'Type the "Item Name" (required), e.g. laptop or phone.',
-            2 => 'Pick or type a "Category" (Laptop / Vehicle / Phone / Other).',
-            3 => 'Enter the "Serial Number" and "Value" if available.',
-            4 => 'Choose the "Condition" on issue (New / Good / Used / Damaged).',
-            5 => 'Check "Issued Date" (defaults to today) and set an "Expected Return Date" if known.',
-            6 => 'Add "Notes" if needed.',
-            7 => 'Click "Save" to record the custody item.',
-          ),
-        ),
-        4 => 
-        array (
-          'key' => 'new_leave',
-          'label' => 'New Leave Request',
-          'steps' => 
-          array (
-            0 => 'From the "Leave Requests" screen, choose the "Employee" (required) - you can check their balance in the "Annual Leave Balance" table further down the page.',
-            1 => 'Choose the "Leave Type": Annual / Sick / Unpaid / Emergency / Other.',
-            2 => 'Set the "From" and "To" dates for the leave (both required).',
-            3 => 'Type a "Reason" if needed.',
-            4 => 'Click "Submit Request" - the request appears as "Pending" until it is approved or rejected.',
-          ),
-        ),
-        5 => 
-        array (
-          'key' => 'new_end_of_service',
-          'label' => 'End of Service Settlement',
-          'steps' => 
-          array (
-            0 => 'Choose the "Employee" (required).',
-            1 => 'Choose the "Termination Reason": Resignation / Termination by Employer / Contract End / Death / Termination for Cause (no gratuity).',
-            2 => 'Check the "Termination Date" (defaults to today).',
-            3 => 'Choose "Pay From Account" - the treasury/bank account the gratuity will be paid from.',
-            4 => 'Enter a "Wage Basis (monthly)" if you want to override it, or leave it empty to automatically use the employee\'s current basic salary plus allowances.',
-            5 => 'Add "Notes" if needed.',
-            6 => 'Click "Calculate & Post" - the system calculates the gratuity per official Saudi labor law and posts its accounting entry immediately.',
-          ),
-        ),
-        6 => 
-        array (
-          'key' => 'run_payroll',
-          'label' => 'Run Payroll',
-          'steps' => 
-          array (
-            0 => 'Choose the "Month" and optionally a "Branch" or "Employee", then click "Filter" to display that month\'s payroll sheet.',
-            1 => 'Review each employee\'s "Basic Salary", "Allowances", "Overtime", and the absence/lateness/unpaid-leave/loan deductions, down to "Net Pay".',
-            2 => 'To add a bonus for an employee, type the value under "Monthly Bonus" and click ✓ to save it.',
-            3 => 'You can print any employee\'s slip with "Print Slip".',
-            4 => 'Once the figures are ready, pick a pay-from account under "Pay From Account" next to "Post Month Payroll", or leave it empty and choose "Defer payment" if salaries will be paid later.',
-            5 => 'Click "Post Month Payroll" to post the accounting entry for every employee shown.',
-            6 => 'If posted as deferred, a "Payable - not paid yet" badge appears - choose a treasury account and click "Pay Now" once you actually disburse the money.',
-            7 => 'If something is wrong before payment, click "Cancel Posting" to fully reverse the entry.',
+            0 => 'From "Suppliers", click "Add New Supplier".',
+            1 => 'Enter supplier name (fuel stations, external workshops, parts vendor).',
+            2 => 'Enter phone number, tax number, and address, then save.',
           ),
         ),
       ),
     ),
     8 => 
     array (
-      'key' => 'products',
-      'label' => 'Products & Inventory',
-      'icon' => 'box',
+      'key' => 'hr',
+      'label' => 'HR & Payroll',
+      'icon' => 'user',
       'items' => 
       array (
         0 => 
         array (
-          'key' => 'new_product',
-          'label' => 'Add a New Product',
+          'key' => 'payroll',
+          'label' => 'Drivers & Staff Payroll Run',
           'steps' => 
           array (
-            0 => 'A new product is added from inside the sales invoice or purchase invoice screen directly, not from a separate page.',
-            1 => 'While adding a line item to an invoice, click "New Product" instead of "Choose Product" if the item doesn\'t exist in stock yet.',
-            2 => 'Type the product name, code (if you have one), unit, sale price, cost price, and opening quantity.',
-            3 => 'Save the product - it\'s added to the invoice line you were on, and becomes available to pick on any future invoice.',
-            4 => 'To organize products into groups, from "All Products" click "Add Product Group" and type the group name to save it.',
+            0 => 'From "Human Resources", choose "Payroll" -> "New Payroll Run".',
+            1 => 'Select month, year, and branch.',
+            2 => 'The system computes base salaries, allowances, loans, and deductions automatically.',
+            3 => 'Approve payroll to post accounting accruals and bank payment orders.',
+          ),
+        ),
+        1 => 
+        array (
+          'key' => 'documents',
+          'label' => 'Track Expiring Licenses & Registrations',
+          'steps' => 
+          array (
+            0 => 'From Dashboard or HR, check the "Expiring Documents" widget.',
+            1 => 'Monitor driver license expirations for timely renewal.',
+            2 => 'Track truck registrations and Transport General Authority operation cards to avoid penalties.',
           ),
         ),
       ),
     ),
     9 => 
     array (
-      'key' => 'accounting',
-      'label' => 'Accounting & Invoices',
-      'icon' => 'ledger',
-      'items' => 
-      array (
-        0 => 
-        array (
-          'key' => 'new_account',
-          'label' => 'New Account',
-          'steps' => 
-          array (
-            0 => 'Open "New Account" and type the "Account Name" (required).',
-            1 => 'If this account sits under a bigger account, search for it and pick it in "Parent Account" - leave it empty for a top-level account.',
-            2 => 'Enter an "Account Number" if you want a specific one (optional).',
-            3 => 'Choose the "Branch" this account belongs to, or leave it as "All Branches".',
-            4 => 'Choose the "Account Category" (Assets / Liabilities / Revenue / Expenses / Equity).',
-            5 => 'Enter the "Opening Balance" and set its "Opening Balance Side" - Debit or Credit.',
-            6 => 'Keep "Active" checked if the account should be usable right away, and check "Parent account" only if it is a classification-only account with no direct transactions.',
-            7 => 'Add any "Notes" if needed.',
-            8 => 'Click "Save" to add the account to the Chart of Accounts.',
-          ),
-        ),
-        1 => 
-        array (
-          'key' => 'new_receipt_voucher',
-          'label' => 'New Receipt Voucher',
-          'steps' => 
-          array (
-            0 => 'Choose the "Treasury / Bank Account" that will receive the money - suggestions appear right away, or search by name.',
-            1 => 'Choose "Received From (customer / account)" - the account the money came from - by searching its name or number.',
-            2 => 'Enter the "Amount" received.',
-            3 => 'Check the "Date" field (defaults to today, and can be changed).',
-            4 => 'Optionally pick a "Branch" and "Cost Center", and add a "Description".',
-            5 => 'If the amount is subject to VAT, check "Subject to VAT?" and pick a rate under "Select VAT rate" - the entered amount is treated as VAT-inclusive and the system automatically works out the "Net (after VAT)" and "VAT amount".',
-            6 => 'Note that each voucher records only one treasury account and one counterpart account - for money from more than one account, create a separate receipt voucher for each.',
-            7 => 'Click "Save Voucher" to save the receipt voucher.',
-          ),
-        ),
-        2 => 
-        array (
-          'key' => 'new_payment_voucher',
-          'label' => 'New Payment Voucher',
-          'steps' => 
-          array (
-            0 => 'Choose the "Treasury / Bank Account" the money will be paid from - suggestions appear right away, or search by name.',
-            1 => 'Choose "Paid To (supplier / account)" - the account that will receive the money - by searching its name or number.',
-            2 => 'Enter the "Amount" paid.',
-            3 => 'Check the "Date" field (defaults to today, and can be changed).',
-            4 => 'Optionally pick a "Branch" and "Cost Center", and add a "Description".',
-            5 => 'If the amount is subject to VAT, check "Subject to VAT?" and pick a rate under "Select VAT rate" - the entered amount is treated as VAT-inclusive and the system automatically works out the "Net (after VAT)" and "VAT amount".',
-            6 => 'Note that each voucher records only one treasury account and one counterpart account - for payments to more than one account, create a separate payment voucher for each.',
-            7 => 'Click "Save Voucher" to save the payment voucher.',
-          ),
-        ),
-        3 => 
-        array (
-          'key' => 'new_daily_entry',
-          'label' => 'New Journal Entry',
-          'steps' => 
-          array (
-            0 => 'Check the "Entry Date" (defaults to today).',
-            1 => 'Optionally pick a "Branch" and "Cost Center", and type the overall "Description" for the entry.',
-            2 => 'In the "Entry Lines" table, search for the first "Account" and select it.',
-            3 => 'Enter the amount in either "Debit" or "Credit" for that line (a line can only carry one of the two, not both).',
-            4 => 'Click "+ Add Line" to add a line for each other account, repeating the same step.',
-            5 => 'Total "Debit" must equal total "Credit" - the indicator below the table shows "Entry is balanced ✓" and Save only unlocks once it does.',
-            6 => 'You can remove any line with its "Remove" button (at least two lines must remain).',
-            7 => 'Click "Save Entry" once "Entry is balanced ✓" is shown.',
-          ),
-        ),
-        4 => 
-        array (
-          'key' => 'new_opening_entry',
-          'label' => 'New Opening Entry',
-          'steps' => 
-          array (
-            0 => 'This uses the same journal entry screen - set the "Entry Date" (usually the date you start using the system or the start of the fiscal year).',
-            1 => 'Optionally pick a "Branch" and "Cost Center", and type a "Description" (e.g. Opening balances).',
-            2 => 'In the "Entry Lines" table, search for each account from the Chart of Accounts and select it, one line at a time.',
-            3 => 'Enter its opening balance in "Debit" or "Credit" depending on the account\'s nature.',
-            4 => 'Click "+ Add Line" to add a line for every account that has an opening balance.',
-            5 => 'Make sure total "Debit" equals total "Credit" before saving - opening entries are usually recorded only once, so double-check the balances.',
-            6 => 'You can remove any line with its "Remove" button (at least two lines must remain).',
-            7 => 'Click "Save Entry" once "Entry is balanced ✓" is shown.',
-          ),
-        ),
-      ),
-    ),
-    10 => 
-    array (
       'key' => 'reports',
-      'label' => 'Reports',
+      'label' => 'Operational & Financial Reports',
       'icon' => 'doc',
       'items' => 
       array (
         0 => 
         array (
-          'key' => 'overview',
-          'label' => 'How to use report screens',
+          'key' => 'truck_profitability',
+          'label' => 'Truck Profitability & Cost Center Report',
           'steps' => 
           array (
-            0 => 'Report screens aren\'t creation wizards - they\'re filters (branch, period, type) followed by viewing, exporting to Excel, or printing. From "Reports" in the sidebar, pick the section you want (Accounting, Sales, Purchases, Products, HR, Product Delivery), then pick the specific report, adjust the filters at the top of the page (mainly branch and date range), and click "Apply" to view the result, or "Export to Excel"/"Print" to export it.',
-          ),
-        ),
-      ),
-    ),
-    11 => 
-    array (
-      'key' => 'settings',
-      'label' => 'Settings',
-      'icon' => 'gear',
-      'items' => 
-      array (
-        0 => 
-        array (
-          'key' => 'new_tax',
-          'label' => 'Add a New Tax Rate',
-          'steps' => 
-          array (
-            0 => 'From "Tax & Priority Management", type the "Tax Name" (e.g. VAT).',
-            1 => 'Enter the "Rate (%)" (e.g. 15).',
-            2 => 'Set the "Priority (Order)" - a smaller number means higher priority when more than one tax applies to the same operation.',
-            3 => 'Click "Save & Add" - the new tax immediately appears in the tax list available on invoices and vouchers.',
-          ),
-        ),
-      ),
-    ),
-    12 => 
-    array (
-      'key' => 'admin',
-      'label' => 'Administration',
-      'icon' => 'shield',
-      'items' => 
-      array (
-        0 => 
-        array (
-          'key' => 'new_user',
-          'label' => 'New User',
-          'steps' => 
-          array (
-            0 => 'Type the "Name" and "Email" (both required - the email becomes their login).',
-            1 => 'Enter a "Password" (required for a new user).',
-            2 => 'Choose the "Branch" this user belongs to.',
-            3 => 'Choose the "Role" that defines their permissions, or leave "-- No role (no permissions) --" if they should not have any yet.',
-            4 => 'Make sure "Active" stays checked so they can log in right away.',
-            5 => 'Click "Save" to create the user.',
+            0 => 'From "Reports", choose Cost Center or Truck Profitability reports.',
+            1 => 'Select truck and date range (month, quarter, year).',
+            2 => 'Inspect freight revenue vs expenses (fuel, maintenance, oils, parts, driver) and net margin.',
           ),
         ),
         1 => 
         array (
-          'key' => 'new_branch',
-          'label' => 'New Branch',
+          'key' => 'oil_report',
+          'label' => 'Parts Consumption & Oil Change Report',
           'steps' => 
           array (
-            0 => 'Type the "Branch Name" (required), and "Name (English)" if needed.',
-            1 => 'Enter the "Location" of the branch.',
-            2 => 'Choose the "Type": Main branch or Sub branch.',
-            3 => 'If this is a sub branch, choose its parent under "Parent branch".',
-            4 => 'Click "Save" to add the branch.',
+            0 => 'From "Trucks" -> "Parts & Oil Issue Report".',
+            1 => 'View total quantities and costs of consumed oils and tires.',
+            2 => 'Check fleet oil status to dispatch trucks due for service.',
           ),
         ),
         2 => 
         array (
-          'key' => 'new_role',
-          'label' => 'New Role',
+          'key' => 'statement_report',
+          'label' => 'Customer / Supplier Account Statement',
           'steps' => 
           array (
-            0 => 'Type the "Role Name" (required) and "Name (English)" if needed.',
-            1 => 'Permissions are shown as separate cards, each card representing one module in the system.',
-            2 => 'Check the permissions you want this role to have inside each card, or click that card\'s "Select all" to check every permission in that module at once.',
-            3 => 'You can use "Select all" or "Clear all" at the top of the page to control every permission across all modules at once.',
-            4 => 'Click "Save" to create the role with the permissions you selected.',
+            0 => 'From "Chart of Accounts" or "Financial Reports", select "Account Statement".',
+            1 => 'Select customer or supplier and date period.',
+            2 => 'View all invoices, waybills, and vouchers with current balance, print or export.',
           ),
         ),
       ),
