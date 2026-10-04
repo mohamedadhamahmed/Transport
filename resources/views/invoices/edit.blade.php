@@ -306,12 +306,7 @@
                                 <template x-for="(item, index) in items" :key="index">
                                     <tr class="hover:bg-[#1456E8]/5 transition">
                                         <td class="px-3 py-2 text-gray-400 text-xs" x-text="item.code || '-'"></td>
-                                        <td class="px-3 py-2 min-w-[500px]">
-                                            {{-- اسم الصنف قابل للتعديل عشان يظهر الاسم المخصص في الفاتورة والطباعة --}}
-                                            <input type="text" x-model="item.name"
-                                                placeholder="{{ __('invoices.product_name') }}"
-                                                class="w-full rounded-lg border-gray-300 shadow-sm text-sm font-medium text-gray-800 focus:border-[#1456E8] focus:ring-[#1456E8]">
-                                        </td>
+                                        <td class="px-3 py-2 font-medium text-gray-800 min-w-[600px] whitespace-normal" x-text="item.name"></td>
                                         <td class="px-3 py-2">
                                             <input type="number" step="0.01" min="0.01" x-model.number="item.quantity"
                                                 class="w-20 rounded-lg border-gray-300 shadow-sm focus:border-[#1456E8] focus:ring-[#1456E8]">
