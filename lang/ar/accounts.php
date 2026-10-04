@@ -63,6 +63,7 @@ return [
     'all_operation_types' => 'كل الأنواع',
     'date' => 'التاريخ',
     'description' => 'البيان',
+    'entry_number' => 'رقم القيد',
     'reference' => 'المرجع',
     'debtor' => 'مدين',
     'creditor' => 'دائن',

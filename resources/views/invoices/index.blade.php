@@ -92,14 +92,25 @@
                                     <td class="px-4 py-3 font-semibold text-[#0F1B4C]">{{ number_format($invoice->subtotal + $invoice->tax_amount - ($invoice->invoice_level_discount ?? 0), 2) }}</td>
                                     <td class="px-4 py-3 text-gray-500">{{ __('invoices.' . $invoice->payment_method) }}</td>
                                     <td class="px-4 py-3">
-                                        @if ($invoice->is_finalized)
-                                            <span class="px-2 py-1 rounded-full text-xs bg-green-50 text-green-700">{{ __('invoices.final') }}</span>
-                                        @else
-                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-amber-50 text-amber-700">
-                                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
-                                                {{ __('invoices.draft') }}
-                                            </span>
-                                        @endif
+                                        <div class="flex flex-col gap-1 items-start">
+                                            @if ($invoice->is_finalized)
+                                                <span class="px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700">{{ __('invoices.final') }}</span>
+                                            @else
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700">
+                                                    <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+                                                    {{ __('invoices.draft') }}
+                                                </span>
+                                            @endif
+                                            @if ($invoice->isLinkedToZatca())
+                                                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200" title="{{ __('invoices.zatca_linked_not_editable') }}">
+                                                    {{ __('invoices.zatca_linked') }}
+                                                </span>
+                                            @else
+                                                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200" title="{{ __('invoices.zatca_not_linked_badge') }}">
+                                                    {{ __('invoices.zatca_not_linked') }}
+                                                </span>
+                                            @endif
+                                        </div>
                                     </td>
                            <td class="px-4 py-3">
     <div class="flex items-center gap-2">
@@ -171,7 +182,7 @@
                     </svg>
                 </a>
             @else
-                <span title="{{ __('invoices.not_editable') }}"
+                <span title="{{ $invoice->getNonEditableReason() ?? __('invoices.not_editable') }}"
                       class="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 text-gray-400 cursor-not-allowed">
                     <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>

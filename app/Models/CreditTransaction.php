@@ -29,6 +29,11 @@ class CreditTransaction extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function journalEntry()
+    {
+        return $this->belongsTo(JournalEntry::class, 'journal_entry_id');
+    }
+
     /**
      * حماية الفترات المقفولة (إقفال السنة المالية): مفيش حركة تتسجل أو
      * تتعدل أو تتحذف بتاريخ جوه سنة اتقفلت - غير قيد الإقفال نفسه.

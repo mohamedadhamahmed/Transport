@@ -10,6 +10,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\InvoiceReturn;
 use App\Models\Product;
+use App\Services\JournalEntryService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -352,6 +353,8 @@ class InvoiceReturnController extends Controller
             $branchId = Auth::user()->branchs_id ?? $invoice->branch_id;
             $customer = Customer::find($invoice->customer_id);
 
+            $returnTransactions = [];
+
             // 1) عكس قيد الدفع (كاش/بنك/كارت) بقد الجزء اللي هيترد فعليًا فلوس
             if ($cashRefundAmount > 0 && $refundMethod) {
                 // نفس أرقام الحسابات المستخدمة في invoices.store(): 5 = كاش، 4 = بنك/شبكة
@@ -361,7 +364,7 @@ class InvoiceReturnController extends Controller
                     ->first();
 
                 if ($financialAccount) {
-                    CreditTransaction::create([
+                    $returnTransactions[] = CreditTransaction::create([
                         'user_id' => Auth::id(),
                         'customer_id' => $financialAccount->id,
                         'recive_amount' => $cashRefundAmount,
@@ -393,7 +396,7 @@ class InvoiceReturnController extends Controller
                         'creditor_current' => $customerFinancialAccount->creditor_current + $creditRefundAmount,
                     ]);
 
-                    CreditTransaction::create([
+                    $returnTransactions[] = CreditTransaction::create([
                         'user_id' => Auth::id(),
                         'customer_id' => $customerFinancialAccount->id,
                         'recive_amount' => $creditRefundAmount,
@@ -423,7 +426,7 @@ class InvoiceReturnController extends Controller
                         'debtor_current' => $vatAccount->debtor_current + $totalTax,
                     ]);
 
-                    CreditTransaction::create([
+                    $returnTransactions[] = CreditTransaction::create([
                         'user_id' => Auth::id(),
                         'customer_id' => $vatAccount->id,
                         'recive_amount' => $totalTax,
@@ -456,7 +459,7 @@ class InvoiceReturnController extends Controller
                         'debtor_current' => $returnsAccount->debtor_current + $totalWithoutTax,
                     ]);
 
-                    CreditTransaction::create([
+                    $returnTransactions[] = CreditTransaction::create([
                         'user_id' => Auth::id(),
                         'customer_id' => $returnsAccount->id,
                         'recive_amount' => $totalWithoutTax,
@@ -486,7 +489,7 @@ class InvoiceReturnController extends Controller
                         'creditor_current' => $costAccount->creditor_current + $totalCostValue,
                     ]);
 
-                    CreditTransaction::create([
+                    $returnTransactions[] = CreditTransaction::create([
                         'user_id' => Auth::id(),
                         'customer_id' => $costAccount->id,
                         'recive_amount' => $totalCostValue,
@@ -513,7 +516,7 @@ class InvoiceReturnController extends Controller
                         'debtor_current' => $inventoryAccount->debtor_current + $totalCostValue,
                     ]);
 
-                    CreditTransaction::create([
+                    $returnTransactions[] = CreditTransaction::create([
                         'user_id' => Auth::id(),
                         'customer_id' => $inventoryAccount->id,
                         'recive_amount' => $totalCostValue,
@@ -529,6 +532,19 @@ class InvoiceReturnController extends Controller
                         'invoice_number' => $invoice->invoice_number,
                     ]);
                 }
+            }
+
+            // إنشاء أو تحديث القيد المحاسبي الآلي الموحد لمرتجع المبيعات وربط حركاته
+            $firstReturn = InvoiceReturn::where('reference_value', $referenceValue)->first();
+            if ($firstReturn && ! empty($returnTransactions)) {
+                JournalEntryService::recordForTransactions(
+                    $firstReturn,
+                    'قيد مرتجع مبيعات للفاتورة رقم ' . ($invoice->invoice_number ?: $invoice->id),
+                    $now,
+                    $branchId,
+                    $returnTransactions,
+                    Auth::id()
+                );
             }
 
             return $referenceValue;

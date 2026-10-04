@@ -13,6 +13,7 @@ use App\Models\PurchaseItem;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\Tax;
+use App\Services\JournalEntryService;
 use App\Services\Purchases\PurchaseItemsImporter;
 use App\Services\Purchases\PurchaseItemsTemplateExporter;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -913,6 +914,17 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
                 ]);
             }
         }
+
+        // إنشاء أو تحديث القيد المحاسبي الآلي الموحد لفاتورة المشتريات وربطه بحركاتها
+        $entryDescription = 'قيد فاتورة مشتريات رقم ' . ($purchase->purchase_number ?: $purchase->id);
+        JournalEntryService::syncForSource(
+            $purchase,
+            $entryDescription,
+            $purchase->purchase_date ?: now(),
+            $branchId,
+            Auth::id(),
+            $purchase->cost_center_id
+        );
     }
 
     /**
@@ -1007,6 +1019,8 @@ return redirect()->back()->with('success', __('purchases.supplier_added'));
                 ]);
             }
         }
+
+        JournalEntryService::deleteForSource($purchase);
 
         CreditTransaction::where('invoice_number', $purchase->purchase_number)
             ->where('operation_type', 3)

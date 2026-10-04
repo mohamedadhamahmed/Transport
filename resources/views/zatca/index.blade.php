@@ -141,6 +141,15 @@
                                                 {{ __('zatca.view') }}
                                             </a>
 
+                                            @can('invoices.edit')
+                                                @if ($invoice->isEditable())
+                                                    <a href="{{ route('invoices.edit', $invoice) }}"
+                                                       class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 transition whitespace-nowrap">
+                                                        {{ __('invoices.edit') }}
+                                                    </a>
+                                                @endif
+                                            @endcan
+
                                             @if (!$invoice->is_sent_to_zatca)
                                                 @can('zatca.send')
                                                     <button type="button" @click="sendToZatca({{ $invoice->id }})"

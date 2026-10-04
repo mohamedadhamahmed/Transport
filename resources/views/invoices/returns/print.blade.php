@@ -242,24 +242,61 @@
 
         {{-- الهيدر: بيانات الشركة عربي / شعار / بيانات الشركة إنجليزي - نفس بيانات
              صفحة طباعة الفاتورة العادية بالظبط (constants معرّفة في ServiceProvider) --}}
+        @php
+            $retBranchId = $invoice->branch_id ?? null;
+            $headerSetting = null;
+            if ($retBranchId) {
+                $headerSetting = \App\Models\SystemSetting::where('branchs_id', $retBranchId)->first();
+            }
+            if (!$headerSetting) {
+                $headerSetting = \App\Models\SystemSetting::orderBy('id')->first();
+            }
+
+            $hdrNameAr = $headerSetting?->name_ar ?: (defined('Namear') ? Namear : '');
+            $hdrDescAr = $headerSetting ? $headerSetting->descriptionarbic : (defined('describtionar') ? describtionar : '');
+            $hdrStAr = $headerSetting ? (' س . ت  :' . $headerSetting->SR) : (defined('STar') ? STar : '');
+            $hdrTaxAr = $headerSetting ? ('  الرقم الضريبي : ' . $headerSetting->Tax) : (defined('Taxar') ? Taxar : '');
+
+            $hdrLogo = $headerSetting?->logo ?: (defined('camplogo') ? camplogo : '');
+
+            $hdrNameEn = $headerSetting?->name_en ?: (defined('Nameen') ? Nameen : '');
+            $hdrDescEn = $headerSetting ? $headerSetting->descriptionenglish : (defined('describtionen') ? describtionen : '');
+            $hdrStEn = $headerSetting ? ('  C.R : ' . $headerSetting->SR) : (defined('STen') ? STen : '');
+            $hdrTaxEn = $headerSetting ? ('VAT Number : ' . $headerSetting->Tax) : (defined('Taxen') ? Taxen : '');
+        @endphp
+
+        {{-- الهيدر: بيانات الشركة عربي / شعار / بيانات الشركة إنجليزي --}}
         <div class="invoice-header" dir="rtl">
           <div class="company-block">
-            <div class="name">{{Namear}}</div>
-            <p>{{describtionar}}</p>
-            <p>{{STar}}</p>
-            <p>{{Taxar}}</p>
+            <div class="name">{{ $hdrNameAr }}</div>
+            @if(!empty(trim((string) $hdrDescAr)))
+              <p>{{ $hdrDescAr }}</p>
+            @endif
+            @if(!empty(trim((string) $hdrStAr)))
+              <p>{{ $hdrStAr }}</p>
+            @endif
+            @if(!empty(trim((string) $hdrTaxAr)))
+              <p>{{ $hdrTaxAr }}</p>
+            @endif
           </div>
 
           <div>
-            <?php $logo = camplogo; ?>
-              <img src="{{ asset('assets/img/brand').'/'.$logo }}" alt="logo">
+            @if(!empty($hdrLogo) && $hdrLogo !== 'empty')
+              <img src="{{ asset('assets/img/brand/' . $hdrLogo) }}" alt="logo">
+            @endif
           </div>
 
-          <div class="company-block">
-            <div class="name">{{Nameen}}</div>
-            <p>{{describtionen}}</p>
-            <p>{{STen}}</p>
-            <p>{{Taxen}}</p>
+          <div class="company-block" dir="ltr">
+            <div class="name">{{ $hdrNameEn }}</div>
+            @if(!empty(trim((string) $hdrDescEn)))
+              <p>{{ $hdrDescEn }}</p>
+            @endif
+            @if(!empty(trim((string) $hdrStEn)))
+              <p>{{ $hdrStEn }}</p>
+            @endif
+            @if(!empty(trim((string) $hdrTaxEn)))
+              <p>{{ $hdrTaxEn }}</p>
+            @endif
           </div>
         </div>
 

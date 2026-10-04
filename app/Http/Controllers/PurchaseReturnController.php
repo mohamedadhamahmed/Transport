@@ -10,6 +10,7 @@ use App\Models\PurchaseItem;
 use App\Models\PurchaseReturn;
 use App\Models\PurchaseReturnItem;
 use App\Models\Supplier;
+use App\Services\JournalEntryService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -491,6 +492,16 @@ class PurchaseReturnController extends Controller
                 ]);
             }
         }
+
+        // إنشاء أو تحديث القيد المحاسبي الآلي الموحد لمرتجع المشتريات وربط حركاته
+        $entryDescription = 'قيد مرتجع مشتريات رقم ' . ($purchaseReturn->return_number ?: $purchaseReturn->id);
+        JournalEntryService::syncForSource(
+            $purchaseReturn,
+            $entryDescription,
+            $purchaseReturn->created_at ?: now(),
+            $branchId,
+            Auth::id()
+        );
 
         return $purchaseReturn;
     }

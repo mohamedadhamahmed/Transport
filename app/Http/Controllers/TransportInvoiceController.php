@@ -12,6 +12,7 @@ use App\Models\Waybill;
 use App\Models\Truck;
 use App\Models\TruckLoad;
 use App\Support\OperationType;
+use App\Services\JournalEntryService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -864,6 +865,16 @@ class TransportInvoiceController extends Controller
                 ]);
             }
         }
+
+        // إنشاء أو تحديث القيد المحاسبي الموحد لفاتورة النقليات
+        $entryDescription = 'قيد فاتورة نقليات رقم ' . ($invoice->invoice_number ?: $invoice->id);
+        JournalEntryService::syncForSource(
+            $invoice,
+            $entryDescription,
+            $invoice->invoice_date ?: now(),
+            $branchId,
+            Auth::id()
+        );
     }
 
     /**
@@ -871,6 +882,8 @@ class TransportInvoiceController extends Controller
      */
     private function reverseAccounting(TransportInvoice $invoice): void
     {
+        JournalEntryService::deleteForSource($invoice);
+
         $branchId = $invoice->branch_id;
 
         // فواتير اتسجلت بعد الإصلاح: كل حركة عليها balance_posted=1 اتضافت

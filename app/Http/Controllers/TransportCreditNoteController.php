@@ -11,6 +11,7 @@ use App\Models\TransportInvoice;
 use App\Models\TruckLoad;
 use App\Models\Waybill;
 use App\Support\OperationType;
+use App\Services\JournalEntryService;
 use App\Support\ZatcaQr;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -368,10 +369,22 @@ class TransportCreditNoteController extends Controller
                 ]);
             }
         }
+
+        // إنشاء أو تحديث القيد المحاسبي الموحد لإشعار دائن النقليات
+        $entryDescription = 'قيد إشعار دائن نقليات رقم ' . ($note->credit_note_number ?: $note->id);
+        JournalEntryService::syncForSource(
+            $note,
+            $entryDescription,
+            $note->credit_note_date ?: now(),
+            $branchId,
+            Auth::id()
+        );
     }
 
     private function reverseAccounting(TransportCreditNote $note): void
     {
+        JournalEntryService::deleteForSource($note);
+
         $branchId = $note->branch_id;
 
         // فواتير اتسجلت بعد الإصلاح: كل حركة عليها balance_posted=1 اتضافت

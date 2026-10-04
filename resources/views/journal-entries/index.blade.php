@@ -74,7 +74,16 @@
                         <tbody class="divide-y divide-gray-100">
                             @forelse ($entries as $entry)
                                 <tr class="hover:bg-[#1456E8]/5 transition">
-                                    <td class="px-4 py-3 font-medium text-gray-800">#{{ $entry->entry_number }}</td>
+                                    <td class="px-4 py-3 font-medium text-gray-800">
+                                        <div class="flex items-center gap-1.5 flex-wrap">
+                                            <span>#{{ $entry->entry_number }}</span>
+                                            @if ($entry->is_auto)
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-800">
+                                                    قيد آلي
+                                                </span>
+                                            @endif
+                                        </div>
+                                    </td>
                                     <td class="px-4 py-3 text-gray-500">{{ $entry->entry_date->format('Y-m-d') }}</td>
                                     <td class="px-4 py-3 text-gray-500">{{ \Illuminate\Support\Str::limit($entry->description, 60) ?: '-' }}</td>
                                     <td class="px-4 py-3 text-gray-500">{{ $entry->creator?->name ?? '-' }}</td>
@@ -85,10 +94,19 @@
                                                class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-[#1456E8]/10 text-[#1456E8] hover:bg-[#1456E8]/20 transition">
                                                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                                             </a>
-                                            <a href="{{ route('journal-entries.edit', $entry) }}" title="{{ __('journal_entries.edit_entry') }}"
-                                               class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-amber-50 text-amber-600 hover:bg-amber-100 transition">
-                                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                                            </a>
+                                            @if ($entry->is_auto)
+                                                @if ($entry->getSourceUrl())
+                                                    <a href="{{ $entry->getSourceUrl() }}" title="عرض المستند الأصلي ({{ $entry->getSourceLabel() }})"
+                                                       class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition">
+                                                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                                    </a>
+                                                @endif
+                                            @else
+                                                <a href="{{ route('journal-entries.edit', $entry) }}" title="{{ __('journal_entries.edit_entry') }}"
+                                                   class="w-7 h-7 inline-flex items-center justify-center rounded-md bg-amber-50 text-amber-600 hover:bg-amber-100 transition">
+                                                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                                </a>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>

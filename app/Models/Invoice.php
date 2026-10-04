@@ -119,21 +119,35 @@ protected $attributes = [
     }
 
     /**
+     * هل الفاتورة مربوطة/مرسلة لهيئة الزكاة والضريبة والجمارك (ZATCA) بنجاح؟
+     */
+    public function isLinkedToZatca(): bool
+    {
+        return (bool) ($this->is_sent_to_zatca || $this->zatca_status === 'PASS');
+    }
+
+    /**
      * الفاتورة قابلة للتعديل بس لو:
-     * 1) معتمدة فعلاً (is_finalized) - المسودات ليها شاشة تعديل منفصلة
+     * 1) غير مربوطة بهيئة الزكاة (لو مافيش ربط) - الفواتير المرسلة والمربوطة
+     *    مع هيئة الزكاة (ZATCA) يمنع تعديلها قانونياً وفنياً حسب متطلبات الهيئة.
+     * 2) معتمدة فعلاً (is_finalized) - المسودات ليها شاشة تعديل منفصلة
      *    (DraftInvoiceController) مالهاش علاقة بالفاتورة دي أصلاً.
-     * 2) عندها بنود.
-     * 3) مفيش أي بند فيها اترجع منه أي كمية (مرتجع مبيعات) - عشان منطق
+     * 3) عندها بنود.
+     * 4) مفيش أي بند فيها اترجع منه أي كمية (مرتجع مبيعات) - عشان منطق
      *    التعديل والإرجاع مش متزامنين مع بعض، ومنطق الإرجاع بيعتمد على
      *    remaining_quantity اللي هيتمسح مع البند لو عدّلنا.
      */
     public function isEditable(): bool
     {
+        if ($this->isLinkedToZatca()) {
+            return false;
+        }
+
         if (!$this->is_finalized) {
             return false;
         }
 
-        $items = $this->items()->get();
+        $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
 
         if ($items->isEmpty()) {
             return false;
@@ -146,5 +160,32 @@ protected $attributes = [
         }
 
         return true;
+    }
+
+    /**
+     * سبب عدم قابلية التعديل لتوضيحه للمستخدم في الواجهة
+     */
+    public function getNonEditableReason(): ?string
+    {
+        if ($this->isLinkedToZatca()) {
+            return __('invoices.zatca_linked_not_editable');
+        }
+
+        if (!$this->is_finalized) {
+            return __('invoices.draft_not_editable_here');
+        }
+
+        $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
+        if ($items->isEmpty()) {
+            return __('invoices.no_items_error');
+        }
+
+        foreach ($items as $item) {
+            if ((float) $item->returned_quantity > 0) {
+                return __('invoices.has_returns_not_editable');
+            }
+        }
+
+        return null;
     }
 }

@@ -37,6 +37,8 @@ class SettingsController extends Controller implements HasMiddleware
     'branchs_id'         => 'required|exists:branches,id',
     'name_ar'            => 'required|string|max:255',
     'name_en'            => 'required|string|max:255',
+    'descriptionarbic'   => 'nullable|string|max:255',
+    'descriptionenglish' => 'nullable|string|max:255',
             'currency'           => 'nullable|string|in:SAR,EGP,AED,KWD,OMR,QAR',
     'SR'                 => 'required|string|max:255',
     'Tax'                => 'required|string|max:255',

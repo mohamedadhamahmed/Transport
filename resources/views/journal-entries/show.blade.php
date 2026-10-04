@@ -16,17 +16,29 @@
                             <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ $entry->isOpening() ? 'bg-amber-400/20 text-amber-200' : 'bg-white/10 text-white/70' }}">
                                 {{ $entry->isOpening() ? __('journal_entries.opening_badge') : __('journal_entries.daily_badge') }}
                             </span>
+                            @if ($entry->is_auto)
+                                <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-sky-400/20 text-sky-200">
+                                    قيد آلي
+                                </span>
+                            @endif
                         </div>
                         <p class="text-white/45 text-xs mt-0.5">{{ $entry->entry_date->format('Y-m-d') }}</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    @can('journal_entries.edit')
-                    <a href="{{ route('journal-entries.edit', $entry) }}"
-                       class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
-                        {{ __('journal_entries.edit_entry') }}
-                    </a>
-                    @endcan
+                    @if (! $entry->is_auto)
+                        @can('journal_entries.edit')
+                        <a href="{{ route('journal-entries.edit', $entry) }}"
+                           class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
+                            {{ __('journal_entries.edit_entry') }}
+                        </a>
+                        @endcan
+                    @elseif ($entry->getSourceUrl())
+                        <a href="{{ $entry->getSourceUrl() }}"
+                           class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-indigo-600/70 hover:bg-indigo-600/90 border border-indigo-400/40 transition whitespace-nowrap">
+                            عرض {{ $entry->getSourceLabel() }}
+                        </a>
+                    @endif
                     <a href="{{ route('journal-entries.print', $entry) }}" target="_blank"
                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15 border border-white/10 transition whitespace-nowrap">
                         {{ __('journal_entries.print') }}
@@ -41,7 +53,7 @@
             @include('partials.sweet-alert-flash')
 
             <div class="bg-white shadow-sm border border-gray-100 sm:rounded-xl p-6">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div>
                         <div class="text-xs text-gray-400 mb-1">{{ __('journal_entries.branch') }}</div>
                         <div class="font-medium text-gray-800">{{ $entry->branch?->name ?? '-' }}</div>
@@ -54,8 +66,24 @@
                         <div class="text-xs text-gray-400 mb-1">{{ __('journal_entries.created_by') }}</div>
                         <div class="font-medium text-gray-800">{{ $entry->creator?->name ?? '-' }}</div>
                     </div>
+                    <div>
+                        <div class="text-xs text-gray-400 mb-1">نوع القيد</div>
+                        <div class="font-medium text-gray-800">
+                            @if ($entry->is_auto)
+                                <span class="inline-flex items-center gap-1 text-sky-700">
+                                    <span class="w-2 h-2 rounded-full bg-sky-500"></span>
+                                    قيد آلي
+                                    @if ($entry->getSourceUrl())
+                                        (<a href="{{ $entry->getSourceUrl() }}" class="text-[#1456E8] hover:underline">{{ $entry->getSourceLabel() }}</a>)
+                                    @endif
+                                </span>
+                            @else
+                                <span class="text-gray-700">قيد يدوي</span>
+                            @endif
+                        </div>
+                    </div>
                     @if ($entry->description)
-                        <div class="md:col-span-3">
+                        <div class="md:col-span-4">
                             <div class="text-xs text-gray-400 mb-1">{{ __('journal_entries.description') }}</div>
                             <div class="text-gray-700">{{ $entry->description }}</div>
                         </div>

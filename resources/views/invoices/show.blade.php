@@ -33,17 +33,29 @@
       .invoice-topbar {
         display: flex;
         justify-content: center;
-        padding: 14px 0;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 14px 20px;
+        background: #F9FAFB;
+        border-bottom: 1px solid var(--border);
       }
-      .invoice-topbar button {
-        background: linear-gradient(90deg, var(--brand-blue), var(--brand-purple));
-        color: #fff;
+      .invoice-topbar button, .invoice-topbar a.topbar-btn {
         border: none;
-        padding: 10px 22px;
-        border-radius: 10px;
+        padding: 9px 20px;
+        border-radius: 8px;
         font-weight: 600;
-        font-size: 14px;
+        font-size: 13.5px;
         cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        text-decoration: none;
+        font-family: inherit;
+        transition: all 0.2s ease;
+      }
+      .invoice-topbar button:hover, .invoice-topbar a.topbar-btn:hover {
+        opacity: 0.92;
       }
 
       .invoice-header {
@@ -182,7 +194,7 @@
       }
 
  @media print {
-  .invoice-topbar { display: none !important; }
+  .invoice-topbar, .invoice-session-alert { display: none !important; }
   .hide-cell { display: none; }
   body { 
     background: #fff !important; 
@@ -209,60 +221,138 @@
     <div class="main-content-body-invoice" id="print">
       <div class="invoice-wrap">
 
-        <div class="invoice-topbar" id="print_Button">
-          <button onclick="printDiv()">
-              {{ __('invoices.print') }}
-              <i class="mdi mdi-printer ml-1"></i>
+        <div class="invoice-topbar" id="invoice_topbar_actions">
+          {{-- زر الطباعة --}}
+          <button type="button" onclick="printDiv()" id="print_Button"
+                  style="background: linear-gradient(90deg, var(--brand-blue), var(--brand-purple)); color: #fff;">
+              <span>{{ __('invoices.print') }}</span>
+              <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
           </button>
+
+          {{-- زر تعديل الفاتورة: متاح فقط إذا كانت الفاتورة غير مربوطة بهيئة الزكاة (مافيش ربط) وقابلة للتعديل --}}
+          @can('invoices.edit')
+            @if($data['invoiceData']->isEditable())
+              <a href="{{ route('invoices.edit', $data['invoiceData']->id) }}" class="topbar-btn"
+                 style="background: #F59E0B; color: #fff; box-shadow: 0 1px 2px rgba(245,158,11,0.2);">
+                  <span>{{ __('invoices.edit_invoice') }}</span>
+                  <svg style="width:15px;height:15px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                  </svg>
+              </a>
+            @elseif($data['invoiceData']->isLinkedToZatca())
+              <span title="{{ __('invoices.zatca_linked_not_editable') }}"
+                    style="background: #E5E7EB; color: #4B5563; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; cursor: not-allowed; border: 1px solid #D1D5DB;">
+                  <svg style="width:14px;height:14px;color:#6B7280;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <span>{{ __('invoices.zatca_linked_badge') }} ({{ __('invoices.not_editable') }})</span>
+              </span>
+            @endif
+          @endcan
+
+          {{-- أدوات إرسال الفاتورة لهيئة الزكاة (ZATCA) --}}
+          <div id="zatca_button_wrap" style="display:inline-flex; align-items:center; gap:8px;">
+            @if(!$data['invoiceData']->is_sent_to_zatca)
+              @can('zatca.send')
+                <button type="button" id="sendzatca"
+                        style="background:#F5811E; color:#fff; border:none; padding:9px 20px; border-radius:8px; font-weight:600; font-size:13.5px; cursor:pointer;">
+                    <span>{{ __('zatca.send') }}</span>
+                    <svg style="width:15px;height:15px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              @endcan
+            @elseif($data['invoiceData']->zatca_status === 'PASS')
+              <span style="background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; padding:8px 14px; border-radius:8px; font-weight:600; font-size:12.5px; display:inline-flex; align-items:center; gap:5px;">
+                  <svg style="width:14px;height:14px;color:#059669;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  {{ __('zatca.sent_successfully') }}
+              </span>
+              <a href="{{ route('zatca.download-xml', $data['invoiceData']->id) }}" class="topbar-btn"
+                 style="background:#059669; color:#fff; text-decoration:none; padding:9px 18px; border-radius:8px; font-weight:600; font-size:13.5px;">
+                  <span>{{ __('zatca.download_xml') }}</span>
+                  <svg style="width:15px;height:15px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </a>
+            @else
+              <span style="color:#DC2626; font-weight:600; font-size:13px; margin-inline-end:6px;">{{ __('zatca.failed') }}</span>
+              @can('zatca.send')
+                <button type="button" id="sendzatca"
+                        style="background:#F5811E; color:#fff; border:none; padding:9px 18px; border-radius:8px; font-weight:600; font-size:13.5px; cursor:pointer;">
+                    {{ __('zatca.retry') }}
+                </button>
+              @endcan
+            @endif
+          </div>
+
+          {{-- زر الرجوع لقائمة الفواتير --}}
+          <a href="{{ route('invoices.index') }}" class="topbar-btn"
+             style="background: #F3F4F6; color: #374151; border: 1px solid #D1D5DB; padding: 9px 18px; border-radius: 8px;">
+              <span>{{ __('invoices.back_to_list') }}</span>
+          </a>
         </div>
 
-        {{-- إرسال الفاتورة للزكاة - بنفس حالات زرار شاشة "الفواتير
-        الضريبية (ZATCA)" (zatca/index.blade.php): لسه ما اترسلتش/
-        اترسلت بنجاح/فشلت. الصفحة دي مش صفحة Tailwind عادية (هيدر
-        وسكريبت مستقلين بالكامل زي النظام القديم) فالزرار هنا بـ jQuery
-        عادي بدل Alpine، وبيستخدم نفس route('zatca.send') الحقيقي بدل
-        أي endpoint قديم غير موجود في المشروع ده. .invoice-topbar
-        بتتخفي تلقائيًا وقت الطباعة (@media print في الأعلى) فمش هتظهر
-        في الورقة المطبوعة. --}}
-        <div class="invoice-topbar" id="zatca_button_wrap" style="padding-top:0;">
-          @if(!$data['invoiceData']->is_sent_to_zatca)
-            <button type="button" id="sendzatca"
-                    style="background:#F5811E; color:#fff; border:none; padding:8px 20px; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer;">
-                {{ __('zatca.send') }}
-            </button>
-          @elseif($data['invoiceData']->zatca_status === 'PASS')
-            <a href="{{ route('zatca.download-xml', $data['invoiceData']->id) }}"
-               style="display:inline-block; background:#059669; color:#fff; text-decoration:none; padding:8px 20px; border-radius:8px; font-weight:600; font-size:13px;">
-                {{ __('zatca.download_xml') }}
-            </a>
-          @else
-            <span style="color:#DC2626; font-weight:600; font-size:13px; margin-inline-end:10px;">{{ __('zatca.failed') }}</span>
-            <button type="button" id="sendzatca"
-                    style="background:#F5811E; color:#fff; border:none; padding:8px 20px; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer;">
-                {{ __('zatca.retry') }}
-            </button>
-          @endif
-        </div>
+        {{-- تنبيهات الرسائل عند نجاح التعديل أو الخطأ --}}
+        @if(session('success'))
+          <div class="invoice-session-alert" style="background:#ECFDF5; border-bottom:1px solid #A7F3D0; color:#065F46; padding:12px 20px; font-size:13px; font-weight:600; text-align:center;">
+              ✓ {{ session('success') }}
+          </div>
+        @endif
+        @if(session('error'))
+          <div class="invoice-session-alert" style="background:#FEF2F2; border-bottom:1px solid #FECACA; color:#B91C1C; padding:12px 20px; font-size:13px; font-weight:600; text-align:center;">
+              ⚠ {{ session('error') }}
+          </div>
+        @endif
+
+        @php
+            $invBranchId = $data['invoiceData']->branch_id ?? null;
+            $headerSetting = null;
+            if ($invBranchId) {
+                $headerSetting = \App\Models\SystemSetting::where('branchs_id', $invBranchId)->first();
+            }
+            if (!$headerSetting) {
+                $headerSetting = \App\Models\SystemSetting::orderBy('id')->first();
+            }
+
+            $hdrNameAr = $headerSetting?->name_ar ?: (defined('Namear') ? Namear : '');
+            $hdrDescAr = $headerSetting ? $headerSetting->descriptionarbic : (defined('describtionar') ? describtionar : '');
+            $hdrStAr = $headerSetting ? (' س . ت  :' . $headerSetting->SR) : (defined('STar') ? STar : '');
+            $hdrTaxAr = $headerSetting ? ('  الرقم الضريبي : ' . $headerSetting->Tax) : (defined('Taxar') ? Taxar : '');
+
+            $hdrLogo = $headerSetting?->logo ?: (defined('camplogo') ? camplogo : '');
+
+            $hdrNameEn = $headerSetting?->name_en ?: (defined('Nameen') ? Nameen : '');
+            $hdrDescEn = $headerSetting ? $headerSetting->descriptionenglish : (defined('describtionen') ? describtionen : '');
+            $hdrStEn = $headerSetting ? ('  C.R : ' . $headerSetting->SR) : (defined('STen') ? STen : '');
+            $hdrTaxEn = $headerSetting ? ('VAT Number : ' . $headerSetting->Tax) : (defined('Taxen') ? Taxen : '');
+        @endphp
 
         {{-- الهيدر: بيانات الشركة عربي / شعار / بيانات الشركة إنجليزي --}}
         <div class="invoice-header" dir="rtl">
           <div class="company-block">
-            <div class="name">{{Namear}}</div>
-            <p>{{describtionar}}</p>
-            <p>{{STar}}</p>
-            <p>{{Taxar}}</p>
+            <div class="name">{{ $hdrNameAr }}</div>
+            @if(!empty(trim((string) $hdrDescAr)))
+              <p>{{ $hdrDescAr }}</p>
+            @endif
+            @if(!empty(trim((string) $hdrStAr)))
+              <p>{{ $hdrStAr }}</p>
+            @endif
+            @if(!empty(trim((string) $hdrTaxAr)))
+              <p>{{ $hdrTaxAr }}</p>
+            @endif
           </div>
 
           <div>
-            <?php $logo = camplogo; ?>
-              <img src="{{ asset('assets/img/brand').'/'.$logo }}" alt="logo">
+            @if(!empty($hdrLogo) && $hdrLogo !== 'empty')
+              <img src="{{ asset('assets/img/brand/' . $hdrLogo) }}" alt="logo">
+            @endif
           </div>
 
-          <div class="company-block">
-            <div class="name">{{Nameen}}</div>
-            <p>{{describtionen}}</p>
-            <p>{{STen}}</p>
-            <p>{{Taxen}}</p>
+          <div class="company-block" dir="ltr">
+            <div class="name">{{ $hdrNameEn }}</div>
+            @if(!empty(trim((string) $hdrDescEn)))
+              <p>{{ $hdrDescEn }}</p>
+            @endif
+            @if(!empty(trim((string) $hdrStEn)))
+              <p>{{ $hdrStEn }}</p>
+            @endif
+            @if(!empty(trim((string) $hdrTaxEn)))
+              <p>{{ $hdrTaxEn }}</p>
+            @endif
           </div>
         </div>
 

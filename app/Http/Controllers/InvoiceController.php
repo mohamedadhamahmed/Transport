@@ -10,6 +10,7 @@ use App\Models\InvoiceItem;
 use App\Models\CreditTransaction;
 use App\Models\Product;
 use App\Models\DraftInvoice;
+use App\Services\JournalEntryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -250,7 +251,11 @@ public function createInvoiceFromData(array $validated): Invoice
         $this->authorize('invoices.edit');
 
         if (!$invoice->isEditable()) {
-            abort(403, __('invoices.not_editable'));
+            $reason = $invoice->getNonEditableReason() ?? __('invoices.not_editable');
+            if (request()->wantsJson()) {
+                abort(403, $reason);
+            }
+            return redirect()->route('invoices.show', $invoice)->with('error', $reason);
         }
 
         $invoice->load(['items.product', 'customer']);
@@ -297,7 +302,11 @@ public function createInvoiceFromData(array $validated): Invoice
         $this->authorize('invoices.edit');
 
         if (!$invoice->isEditable()) {
-            abort(403, __('invoices.not_editable'));
+            $reason = $invoice->getNonEditableReason() ?? __('invoices.not_editable');
+            if ($request->wantsJson()) {
+                abort(403, $reason);
+            }
+            return redirect()->route('invoices.show', $invoice)->with('error', $reason);
         }
 
         $items = json_decode((string) $request->input('items_json'), true) ?: [];
@@ -328,8 +337,9 @@ public function createInvoiceFromData(array $validated): Invoice
             // قبل ما نلمس أي بيانات.
             $invoice->refresh();
             if (!$invoice->isEditable()) {
+                $reason = $invoice->getNonEditableReason() ?? __('invoices.not_editable');
                 throw ValidationException::withMessages([
-                    'items' => __('invoices.not_editable'),
+                    'items' => $reason,
                 ]);
             }
 
@@ -362,6 +372,11 @@ public function createInvoiceFromData(array $validated): Invoice
                 'note' => $validated['note'] ?? null,
                 'purchase_order_number' => $validated['purchase_order_number'] ?? null,
                 'invoice_level_discount' => $totals['invoiceLevelDiscount'],
+                'zatca_status' => null,
+                'zatca_hash' => null,
+                'zatca_qr_code' => null,
+                'zatca_xml_tags' => null,
+                'zatca_invoice_xml' => null,
             ]);
 
             $this->applyInvoiceItemsToProducts($invoice, $validated['items'], true);
@@ -1056,6 +1071,16 @@ return redirect()->back();
                 ]);
             }
         }
+
+        // إنشاء أو تحديث القيد المحاسبي الآلي الموحد للفاتورة وربطه بحركاتها
+        $entryDescription = 'قيد فاتورة مبيعات رقم ' . ($invoice->invoice_number ?: $invoice->id);
+        JournalEntryService::syncForSource(
+            $invoice,
+            $entryDescription,
+            $invoice->invoice_date ?: now(),
+            $branchId,
+            Auth::id()
+        );
     }
 
     /**
@@ -1127,6 +1152,8 @@ return redirect()->back();
                 $customer->decrement('balance', $invoice->credit_amount);
             }
         }
+
+        JournalEntryService::deleteForSource($invoice);
 
         CreditTransaction::where('invoice_number', $invoice->invoice_number)
             ->where('operation_type', 1)

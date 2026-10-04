@@ -8,6 +8,7 @@ use App\Models\CostCenter;
 use App\Models\CreditTransaction;
 use App\Models\FinancialAccount;
 use App\Models\Tax;
+use App\Services\JournalEntryService;
 use App\Support\AccountEffect;
 use App\Support\ArabicNumberWords;
 use App\Support\OperationType;
@@ -320,6 +321,16 @@ class VoucherController extends Controller
                 }
             }
 
+            // إنشاء أو تحديث القيد المحاسبي الآلي الموحد للسند وربط حركاته
+            $voucherLabel = $isReceipt ? 'سند قبض' : 'سند صرف';
+            JournalEntryService::syncForSource(
+                $voucher,
+                "قيد {$voucherLabel} رقم " . $voucher->voucher_number,
+                $voucher->voucher_date,
+                $voucher->branch_id,
+                Auth::id()
+            );
+
             return $voucher;
         });
 
@@ -558,6 +569,16 @@ class VoucherController extends Controller
                     $vatTransaction->save();
                 }
             }
+
+            // تحديث القيد المحاسبي الآلي الموحد للسند وربط الحركات المعدلة
+            $voucherLabel = $isReceipt ? 'سند قبض' : 'سند صرف';
+            JournalEntryService::syncForSource(
+                $voucher,
+                "قيد {$voucherLabel} رقم " . $voucher->voucher_number,
+                $voucher->voucher_date,
+                $voucher->branch_id,
+                Auth::id()
+            );
         });
 
         return redirect()->route('vouchers.show', $voucher)->with('success', __('vouchers.updated_successfully'));

@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\CreditTransaction;
 use App\Models\FinancialAccount;
 use App\Services\Reports\ReportExcelExporter;
+use App\Support\OperationType;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -370,7 +371,7 @@ class AccountController extends Controller
     {
         $this->authorize('accounts.view');
 
-        $query = CreditTransaction::where('customer_id', $account->id);
+        $query = CreditTransaction::with('journalEntry')->where('customer_id', $account->id);
 
         if ($request->filled('date_from')) {
             $query->whereDate('created_at', '>=', $request->input('date_from'));
@@ -413,24 +414,16 @@ class AccountController extends Controller
             return $t;
         });
 
-        // ثابتة هنا صراحةً (بدل الاعتماد على ثابت في موديل CreditTransaction)
-        // عشان تشتغل مهما كان تعريف الموديل الفعلي المُحمَّل وقت التشغيل.
-        $operationTypes = [
-            1 => 'مبيعات',
-            2 => 'مشتريات',
-            3 => 'سند قبض',
-            4 => 'سند صرف',
-            5 => 'قيد يومية',
-            6 => 'قيد افتتاحي',
-        ];
+        $operationTypes = OperationType::LABELS;
 
         if ($request->get('export') === 'excel') {
-            $rows = [[__('accounts.opening_balance_label'), '', '', '', '', number_format($openingBalance, 2)]];
+            $rows = [[__('accounts.opening_balance_label'), '', '', '', '', '', '', number_format($openingBalance, 2)]];
             foreach ($transactions as $t) {
                 $rows[] = [
                     optional($t->created_at)->format('Y-m-d'),
                     $operationTypes[$t->operation_type] ?? '-',
                     $t->note ?? '-',
+                    $t->entry_number ?: ($t->journalEntry?->entry_number ?? '-'),
                     $t->invoice_number ?? '-',
                     $t->debtor > 0 ? (float) $t->debtor : '',
                     $t->creditor > 0 ? (float) $t->creditor : '',
@@ -439,7 +432,7 @@ class AccountController extends Controller
             }
 
             return ReportExcelExporter::download(
-                [__('accounts.date'), __('accounts.operation_type'), __('accounts.description'), __('accounts.reference'), __('accounts.debtor'), __('accounts.creditor'), __('accounts.running_balance')],
+                [__('accounts.date'), __('accounts.operation_type'), __('accounts.description'), __('accounts.entry_number'), __('accounts.reference'), __('accounts.debtor'), __('accounts.creditor'), __('accounts.running_balance')],
                 $rows,
                 'account-statement-' . $account->id . '-' . now()->format('Y-m-d') . '.xlsx'
             );

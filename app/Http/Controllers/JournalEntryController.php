@@ -7,6 +7,7 @@ use App\Models\CostCenter;
 use App\Models\CreditTransaction;
 use App\Models\FinancialAccount;
 use App\Models\JournalEntry;
+use App\Services\JournalEntryService;
 use App\Support\AccountEffect;
 use App\Support\OperationType;
 use Illuminate\Http\Request;
@@ -117,16 +118,14 @@ class JournalEntryController extends Controller
             abort(422, __('journal_entries.zero_total'));
         }
 
-        // القيد الافتتاحي (opening) له سلسلة ترقيم (OE-...) منفصلة عن
-        // القيد اليومي العادي (JE-...) - بالظبط زي RV-/PV- في السندات.
         $isOpening = $validated['entry_type'] === JournalEntry::TYPE_OPENING;
         $prefix = $isOpening ? 'OE' : 'JE';
+        $sequenceName = $isOpening ? JournalEntryService::OPENING_SEQUENCE : JournalEntryService::DAILY_SEQUENCE;
         $operationType = $isOpening ? OperationType::OPENING_ENTRY : OperationType::JOURNAL_ENTRY;
 
-        $nextNumber = (int) (JournalEntry::where('entry_type', $validated['entry_type'])->max('id') ?? 0) + 1;
-        $entryNumber = $prefix . '-' . str_pad((string) $nextNumber, 6, '0', STR_PAD_LEFT);
+        $entry = DB::transaction(function () use ($validated, $lines, $totalDebit, $totalCredit, $sequenceName, $prefix, $operationType) {
+            $entryNumber = JournalEntryService::getNextEntryNumber($sequenceName, $prefix . '-', 6);
 
-        $entry = DB::transaction(function () use ($validated, $lines, $totalDebit, $totalCredit, $entryNumber, $operationType) {
             $entry = JournalEntry::create([
                 'entry_number' => $entryNumber,
                 'entry_date' => $validated['entry_date'],
@@ -137,6 +136,7 @@ class JournalEntryController extends Controller
                 'created_by' => Auth::id(),
                 'total_debit' => $totalDebit,
                 'total_credit' => $totalCredit,
+                'is_auto' => false,
             ]);
 
             foreach ($lines as $line) {
@@ -151,6 +151,8 @@ class JournalEntryController extends Controller
                 ]);
 
                 CreditTransaction::create([
+                    'journal_entry_id' => $entry->id,
+                    'entry_number' => $entry->entry_number,
                     'user_id' => Auth::id(),
                     'customer_id' => $account->id,
                     'recive_amount' => max($line['debit'], $line['credit']),
@@ -184,6 +186,11 @@ class JournalEntryController extends Controller
     {
         $this->authorize('journal_entries.edit');
 
+        if ($journalEntry->is_auto) {
+            return redirect()->route('journal-entries.show', $journalEntry)
+                ->with('error', 'لا يمكن تعديل هذا القيد من شاشة القيود اليومية لأنه قيد آلي ناتج عن مستند. يتم تعديل العملية من شاشة المستند نفسه.');
+        }
+
         $journalEntry->load(['lines.account']);
 
         $branches = Branch::orderBy('name')->get(['id', 'name']);
@@ -206,6 +213,10 @@ class JournalEntryController extends Controller
     public function update(Request $request, JournalEntry $journalEntry)
     {
         $this->authorize('journal_entries.edit');
+
+        if ($journalEntry->is_auto) {
+            abort(403, 'لا يمكن تعديل القيد الآلي من شاشة قيود اليومية. يتم التعديل من شاشة المستند الأصلي.');
+        }
 
         $validated = $request->validate([
             'entry_date' => ['required', 'date'],
@@ -298,6 +309,8 @@ class JournalEntryController extends Controller
                 ]);
 
                 $transaction = new CreditTransaction([
+                    'journal_entry_id' => $journalEntry->id,
+                    'entry_number' => $journalEntry->entry_number,
                     'user_id' => Auth::id(),
                     'customer_id' => $account->id,
                     'recive_amount' => max($line['debit'], $line['credit']),

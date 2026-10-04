@@ -62,6 +62,7 @@ return [
     'all_operation_types' => 'All Types',
     'date' => 'Date',
     'description' => 'Description',
+    'entry_number' => 'Entry No.',
     'reference' => 'Reference',
     'debtor' => 'Debit',
     'creditor' => 'Credit',

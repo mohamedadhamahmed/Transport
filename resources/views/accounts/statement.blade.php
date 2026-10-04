@@ -162,6 +162,7 @@
                                 <th class="text-start px-4 py-3">{{ __('accounts.date') }}</th>
                                 <th class="text-start px-4 py-3">{{ __('accounts.operation_type') }}</th>
                                 <th class="text-start px-4 py-3">{{ __('accounts.description') }}</th>
+                                <th class="text-start px-4 py-3">{{ __('accounts.entry_number') }}</th>
                                 <th class="text-start px-4 py-3">{{ __('accounts.reference') }}</th>
                                 <th class="text-end px-4 py-3">{{ __('accounts.debtor') }}</th>
                                 <th class="text-end px-4 py-3">{{ __('accounts.creditor') }}</th>
@@ -170,7 +171,7 @@
                         </thead>
                         <tbody>
                             <tr class="border-b border-gray-50 bg-gray-50/60">
-                                <td class="px-4 py-2.5 text-gray-400 text-xs" colspan="6">{{ __('accounts.opening_balance_label') }}</td>
+                                <td class="px-4 py-2.5 text-gray-400 text-xs" colspan="7">{{ __('accounts.opening_balance_label') }}</td>
                                 <td class="px-4 py-2.5 text-end font-semibold text-[#0F1B4C]">{{ number_format($openingBalance, 2) }}</td>
                             </tr>
                             @forelse ($transactions as $t)
@@ -182,6 +183,21 @@
                                         </span>
                                     </td>
                                     <td class="px-4 py-2.5 text-[#0F1B4C]">{{ $t->note ?? '-' }}</td>
+                                    <td class="px-4 py-2.5 text-xs font-mono">
+                                        @php
+                                            $jeNum = $t->entry_number ?: ($t->journalEntry?->entry_number ?? null);
+                                            $jeId = $t->journal_entry_id ?: ($t->journalEntry?->id ?? null);
+                                        @endphp
+                                        @if ($jeNum && $jeId)
+                                            <a href="{{ route('journal-entries.show', $jeId) }}" class="inline-flex items-center gap-1 font-semibold text-[#1456E8] hover:text-[#0F1B4C] hover:underline" title="{{ __('journal_entries.view') }}">
+                                                #{{ $jeNum }}
+                                            </a>
+                                        @elseif ($jeNum)
+                                            <span class="text-gray-600 font-medium">#{{ $jeNum }}</span>
+                                        @else
+                                            <span class="text-gray-300">-</span>
+                                        @endif
+                                    </td>
                                     <td class="px-4 py-2.5 text-gray-400 text-xs">{{ $t->invoice_number ?? '-' }}</td>
                                     <td class="px-4 py-2.5 text-end text-gray-600">{{ $t->debtor > 0 ? number_format((float) $t->debtor, 2) : '-' }}</td>
                                     <td class="px-4 py-2.5 text-end text-gray-600">{{ $t->creditor > 0 ? number_format((float) $t->creditor, 2) : '-' }}</td>
@@ -191,14 +207,14 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-4 py-10 text-center text-gray-400">{{ __('accounts.no_transactions_found') }}</td>
+                                    <td colspan="8" class="px-4 py-10 text-center text-gray-400">{{ __('accounts.no_transactions_found') }}</td>
                                 </tr>
                             @endforelse
                         </tbody>
                         @if ($transactions->isNotEmpty())
                             <tfoot>
                                 <tr class="border-t-2 border-gray-200 font-bold text-[#0F1B4C]">
-                                    <td class="px-4 py-3" colspan="4">{{ __('reports.total') }}</td>
+                                    <td class="px-4 py-3" colspan="5">{{ __('reports.total') }}</td>
                                     <td class="px-4 py-3 text-end">{{ number_format($transactions->sum('debtor'), 2) }}</td>
                                     <td class="px-4 py-3 text-end">{{ number_format($transactions->sum('creditor'), 2) }}</td>
                                     <td class="px-4 py-3 text-end">{{ number_format($transactions->last()->running_balance ?? $openingBalance, 2) }}</td>

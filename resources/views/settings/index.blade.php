@@ -43,6 +43,19 @@
                                class="w-full rounded-lg border-gray-300 focus:ring-[#1456E8] focus:border-[#1456E8]">
                     </div>
 
+                    <div>
+                        <label class="text-xs text-gray-500 mb-1 block">{{ __('settings.description_ar') }}</label>
+                        <input type="text" name="descriptionarbic" value="{{ old('descriptionarbic', $systemSetting->descriptionarbic) }}"
+                               placeholder="{{ __('settings.description_ar_hint') }}"
+                               class="w-full rounded-lg border-gray-300 focus:ring-[#1456E8] focus:border-[#1456E8]">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500 mb-1 block">{{ __('settings.description_en') }}</label>
+                        <input type="text" name="descriptionenglish" value="{{ old('descriptionenglish', $systemSetting->descriptionenglish) }}"
+                               placeholder="{{ __('settings.description_en_hint') }}"
+                               class="w-full rounded-lg border-gray-300 focus:ring-[#1456E8] focus:border-[#1456E8]">
+                    </div>
+
                                         {{-- اختيار عملة النظام --}}
                     <div class="md:col-span-2 bg-gradient-to-r from-blue-50/70 to-indigo-50/70 p-4 rounded-xl border border-blue-200/80">
                         <div class="flex items-center justify-between mb-1.5 flex-wrap gap-2">
